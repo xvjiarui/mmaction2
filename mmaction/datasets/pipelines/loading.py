@@ -317,6 +317,29 @@ class DenseSampleFrames(SampleFrames):
 
 
 @PIPELINES.register_module()
+class SequentialSampleFrames(object):
+
+    def __init__(self, frame_interval=1):
+
+        self.frame_interval = frame_interval
+
+    def __call__(self, results):
+        """Perform the SampleFrames loading.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        total_frames = results['total_frames']
+        results['frame_inds'] = np.arange(results['start_index'], total_frames,
+                                          self.frame_interval)
+        results['clip_len'] = total_frames - results['start_index']
+        results['frame_interval'] = self.frame_interval
+        results['num_clips'] = 1
+        return results
+
+
+@PIPELINES.register_module()
 class SampleProposalFrames(SampleFrames):
     """Sample frames from proposals in the video.
 
@@ -905,6 +928,13 @@ class RawFrameDecode(object):
         results['imgs'] = imgs
         results['original_shape'] = imgs[0].shape[:2]
         results['img_shape'] = imgs[0].shape[:2]
+        if 'seg_map' in results:
+            seg_map = mmcv.imfrombytes(
+                self.file_client.get(results['seg_map']),
+                flag='unchanged',
+                backend='pillow')
+            results['ref_seg_map'] = seg_map
+            assert seg_map.shape == results['img_shape']
 
         return results
 

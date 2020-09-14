@@ -1,3 +1,5 @@
+from functools import partial
+
 from mmcv.cnn import ConvModule, constant_init, kaiming_init
 from mmcv.runner import _load_checkpoint, load_checkpoint
 from mmcv.utils import _BatchNorm
@@ -5,6 +7,7 @@ from torch import nn as nn
 from torch.utils import checkpoint as cp
 
 from ...utils import get_root_logger
+from ..common import change_stride
 from ..registry import BACKBONES
 
 
@@ -337,6 +340,7 @@ class ResNet(nn.Module):
                  num_stages=4,
                  strides=(1, 2, 2, 2),
                  dilations=(1, 1, 1, 1),
+                 out_indices=(3, ),
                  style='pytorch',
                  frozen_stages=-1,
                  conv_cfg=dict(type='Conv'),
@@ -344,7 +348,8 @@ class ResNet(nn.Module):
                  act_cfg=dict(type='ReLU', inplace=True),
                  norm_eval=False,
                  partial_bn=False,
-                 with_cp=False):
+                 with_cp=False,
+                 zero_init_residual=True):
         super().__init__()
         if depth not in self.arch_settings:
             raise KeyError(f'invalid depth {depth} for resnet')
@@ -357,6 +362,9 @@ class ResNet(nn.Module):
         self.strides = strides
         self.dilations = dilations
         assert len(strides) == len(dilations) == num_stages
+        self.out_indices = out_indices
+        self.original_out_indices = out_indices
+        assert max(out_indices) < num_stages
         self.style = style
         self.frozen_stages = frozen_stages
         self.conv_cfg = conv_cfg
@@ -365,6 +373,7 @@ class ResNet(nn.Module):
         self.norm_eval = norm_eval
         self.partial_bn = partial_bn
         self.with_cp = with_cp
+        self.zero_init_residual = zero_init_residual
 
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
@@ -519,6 +528,12 @@ class ResNet(nn.Module):
                     kaiming_init(m)
                 elif isinstance(m, nn.BatchNorm2d):
                     constant_init(m, 1)
+            if self.zero_init_residual:
+                for m in self.modules():
+                    if isinstance(m, Bottleneck):
+                        constant_init(m.conv3.norm, 0)
+                    elif isinstance(m, BasicBlock):
+                        constant_init(m.conv2.norm, 0)
         else:
             raise TypeError('pretrained must be a str or None')
 
@@ -534,10 +549,15 @@ class ResNet(nn.Module):
         """
         x = self.conv1(x)
         x = self.maxpool(x)
-        for layer_name in self.res_layers:
+        outs = []
+        for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
-        return x
+            if i in self.out_indices:
+                outs.append(x)
+        if len(outs) == 1:
+            return outs[0]
+        return tuple(outs)
 
     def _freeze_stages(self):
         """Prevent all the parameters from being optimized before
@@ -566,6 +586,27 @@ class ResNet(nn.Module):
                     # shutdown update in frozen mode
                     m.weight.requires_grad = False
                     m.bias.requires_grad = False
+
+    def switch_strides(self, strides=None):
+        for i, layer_name in enumerate(self.res_layers):
+            for m in getattr(self, layer_name).modules():
+                if (isinstance(m, (BasicBlock, Bottleneck))
+                        and m.downsample is not None):
+                    if strides is None:
+                        stride = self.strides[i]
+                    else:
+                        stride = strides[i]
+                    m.downsample.apply(partial(change_stride, stride=stride))
+                    if self.depth in [18, 34] or not self.style == 'pytorch':
+                        m.conv1.apply(partial(change_stride, stride=stride))
+                    else:
+                        m.conv2.apply(partial(change_stride, stride=stride))
+
+    def switch_out_indices(self, out_indices=None):
+        if out_indices is None:
+            self.out_indices = self.original_out_indices
+        else:
+            self.out_indices = out_indices
 
     def train(self, mode=True):
         """Set the optimization status when training."""

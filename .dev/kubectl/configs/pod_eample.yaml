@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-login # replace with your preferred log-in node name
+spec:
+  containers:
+  - name: login
+    image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
+    imagePullPolicy: Always
+    args: ["sleep", "infinity"]
+    volumeMounts:
+      - mountPath: /data # the directory you can access your persistent storage in container
+        name: data
+      - mountPath: /exps # the directory you can access your persistent storage in container
+        name: exps
+      - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
+        name: dshm
+  restartPolicy: Never
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: data
+    - name: exps
+      persistentVolumeClaim:
+        claimName: exps
+    - name: dshm
+      emptyDir:
+        medium: Memory

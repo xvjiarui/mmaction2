@@ -7,6 +7,7 @@ from mmcv.cnn import fuse_conv_bn
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import get_dist_info, init_dist, load_checkpoint
 from mmcv.runner.fp16_utils import wrap_fp16_model
+from mmcv.utils import DictAction
 
 from mmaction.apis import multi_gpu_test, single_gpu_test
 from mmaction.datasets import build_dataloader, build_dataset
@@ -39,7 +40,13 @@ def parse_args():
         '--tmpdir',
         help='tmp directory used for collecting results from multiple '
         'workers, available when gpu-collect is not specified')
-    parser.add_argument('--options', nargs='+', help='custom options')
+    parser.add_argument(
+        '--options', nargs='+', action=DictAction, help='custom options')
+    parser.add_argument(
+        '--eval-options',
+        nargs='+',
+        action=DictAction,
+        help='custom evaluation options')
     parser.add_argument(
         '--average-clips',
         choices=['score', 'prob'],
@@ -51,6 +58,11 @@ def parse_args():
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument(
+        '--eval-pretrained',
+        action='store_true',
+        help='whether to eval pretrained model instead of '
+        'loaded one')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -72,6 +84,8 @@ def main():
     args = parse_args()
 
     cfg = mmcv.Config.fromfile(args.config)
+    if args.options is not None:
+        cfg.merge_from_dict(args.options)
 
     # Load output_config from cfg
     output_config = cfg.get('output_config', {})
@@ -83,7 +97,7 @@ def main():
     # Overwrite eval_config from args.eval
     eval_config = merge_configs(eval_config, dict(metrics=args.eval))
     # Add options from args.option
-    eval_config = merge_configs(eval_config, args.options)
+    eval_config = merge_configs(eval_config, args.eval_options)
 
     assert output_config or eval_config, \
         ('Please specify at least one operation (save or eval the '
@@ -120,7 +134,8 @@ def main():
     fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
         wrap_fp16_model(model)
-    load_checkpoint(model, args.checkpoint, map_location='cpu')
+    if not args.eval_pretrained:
+        load_checkpoint(model, args.checkpoint, map_location='cpu')
 
     if args.fuse_conv_bn:
         model = fuse_conv_bn(model)

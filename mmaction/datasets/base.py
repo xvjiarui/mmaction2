@@ -1,7 +1,9 @@
 import copy
 import os.path as osp
+import random
 from abc import ABCMeta, abstractmethod
 
+import decord
 import mmcv
 import torch
 from torch.utils.data import Dataset
@@ -131,4 +133,10 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         if self.test_mode:
             return self.prepare_test_frames(idx)
         else:
-            return self.prepare_train_frames(idx)
+            while True:
+                try:
+                    data = self.prepare_train_frames(idx)
+                except decord._ffi.base.DECORDError:
+                    idx = random.randrange(len(self))
+                    continue
+                return data

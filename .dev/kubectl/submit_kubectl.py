@@ -1,0 +1,53 @@
+import argparse
+import os
+import os.path as osp
+import pprint
+import re
+import tempfile
+
+import mmcv
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Submit to nautilus via kubectl')
+    parser.add_argument('config', help='train config file path')
+    parser.add_argument('job', help='kubectl config path')
+    parser.add_argument(
+        '--branch', '-b', type=str, default='dev', help='git clone branch')
+    parser.add_argument(
+        '--ln-exp',
+        '-l',
+        action='store_true',
+        help='link experiment directory')
+    parser.add_argument(
+        '--gpus', type=int, default=2, help='number of gpus to use ')
+    args, rest = parser.parse_known_args()
+
+    return args, rest
+
+
+def main():
+    args, rest = parse_args()
+    template_dict = dict(
+        branch=args.branch,
+        gpus=args.gpus,
+        config=args.config,
+        py_args=' '.join(rest),
+        link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '')
+    with open(args.job, 'r') as f:
+        config_file = f.read()
+    for key, value in template_dict.items():
+        regexp = r'\{\{\s*' + str(key) + r'\s*\}\}'
+        value = value.replace('\\', '/')
+        config_file = re.sub(regexp, value, config_file)
+    temp_config_file = tempfile.NamedTemporaryFile(
+        suffix=osp.splitext(args.job))
+    with open(temp_config_file.name, 'w') as tmp_config_file:
+        tmp_config_file.write(config_file)
+    pprint.pprint(mmcv.load(temp_config_file.name))
+    os.system(f'kubectl create -f {temp_config_file.name}')
+
+
+if __name__ == '__main__':
+    main()

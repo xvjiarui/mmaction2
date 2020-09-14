@@ -1,7 +1,8 @@
 import torch.nn as nn
 from mmcv.utils import build_from_cfg
 
-from .registry import BACKBONES, HEADS, LOCALIZERS, LOSSES, RECOGNIZERS
+from .registry import (BACKBONES, HEADS, LOCALIZERS, LOSSES, RECOGNIZERS,
+                       WALKERS)
 
 
 def build(cfg, registry, default_args=None):
@@ -43,6 +44,11 @@ def build_recognizer(cfg, train_cfg=None, test_cfg=None):
                  dict(train_cfg=train_cfg, test_cfg=test_cfg))
 
 
+def build_walker(cfg, train_cfg=None, test_cfg=None):
+    """Build walker."""
+    return build(cfg, WALKERS, dict(train_cfg=train_cfg, test_cfg=test_cfg))
+
+
 def build_loss(cfg):
     """Build loss."""
     return build(cfg, LOSSES)
@@ -61,3 +67,7 @@ def build_model(cfg, train_cfg=None, test_cfg=None):
         return build_localizer(cfg)
     elif obj_type in RECOGNIZERS:
         return build_recognizer(cfg, train_cfg, test_cfg)
+    elif obj_type in WALKERS:
+        return build_walker(cfg, train_cfg, test_cfg)
+    else:
+        raise KeyError(f'{obj_type} not in any registry')

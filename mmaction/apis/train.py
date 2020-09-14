@@ -93,7 +93,7 @@ def train_model(model,
         eval_cfg = cfg.get('evaluation', {})
         val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
         dataloader_setting = dict(
-            videos_per_gpu=cfg.data.get('videos_per_gpu', {}),
+            videos_per_gpu=1,
             workers_per_gpu=cfg.data.get('workers_per_gpu', {}),
             # cfg.gpus will be ignored if distributed
             num_gpus=len(cfg.gpu_ids),

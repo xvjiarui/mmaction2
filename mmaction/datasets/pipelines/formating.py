@@ -129,6 +129,7 @@ class Transpose(object):
 
         Args:
             results (dict): The resulting dict to be modified and passed
+
                 to the next transform in pipeline.
         """
         for key in self.keys:

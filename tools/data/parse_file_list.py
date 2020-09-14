@@ -445,3 +445,25 @@ def parse_hmdb51_split(level):
         splits.append((train_list, test_list))
 
     return splits
+
+
+def parse_davis2017_splits():
+    """Parse DAVIS2017 dataset into "train", "val" splits.
+
+    Returns:
+        list: "train", "val", "test" splits of Moments in Time.
+    """
+    # Read the annotations
+
+    with open('data/davis/DAVIS/ImageSets/2017/train.txt') as f:
+        train_list = [(vid.rstrip(), idx)
+                      for idx, vid in enumerate(f.readlines())]
+    with open('data/davis/DAVIS/ImageSets/2017/val.txt') as f:
+        val_list = [(vid.rstrip(), idx)
+                    for idx, vid in enumerate(f.readlines())]
+    with open('data/davis/DAVIS/ImageSets/2017/test-dev.txt') as f:
+        test_list = [(vid.rstrip(), idx)
+                     for idx, vid in enumerate(f.readlines())]
+
+    splits = ((train_list, val_list, test_list), )
+    return splits

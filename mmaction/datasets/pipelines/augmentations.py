@@ -523,6 +523,12 @@ class Resize(object):
                 raise NotImplementedError('Put Flip at last for now')
             lazyop['interpolation'] = self.interpolation
 
+        if 'ref_seg_map' in results:
+            results['ref_seg_map'] = mmcv.imresize(
+                results['ref_seg_map'], (new_w, new_h),
+                interpolation='nearest',
+                backend='pillow')
+
         return results
 
     def __repr__(self):
