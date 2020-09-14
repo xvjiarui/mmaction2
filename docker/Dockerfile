@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y \
     libswscale-dev \
     libavutil-dev \
     libavfilter-dev \
-    libavdevice \
+    libavdevice-dev \
     libswresample-dev && \
     ln -s /usr/lib/x86_64-linux-gnu/libGL.so.1 /usr/lib/x86_64-linux-gnu/libGL.so
 
