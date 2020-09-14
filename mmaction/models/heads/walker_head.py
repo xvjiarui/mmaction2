@@ -39,7 +39,7 @@ class WalkerHead(BaseHead):
                  dropout_ratio=0.5,
                  init_std=0.01,
                  temperature=0.07,
-                 walk_len=8,
+                 walk_len=7,
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls, **kwargs)
         self.channels = channels
@@ -101,7 +101,7 @@ class WalkerHead(BaseHead):
         affinity_forward = torch.einsum('btpc,btqc->btpq', x[:, :-1],
                                         x[:, 1:]) / self.temperature
         # [N, T-1, P, P]
-        affinity_backward = affinity_forward.transpose(-1, -2).contiguous()
+        affinity_backward = affinity_forward.flip((1, )).transpose(-1, -2)
 
         preds_list = []
         for step in range(1, min(clip_len, self.walk_len + 1)):

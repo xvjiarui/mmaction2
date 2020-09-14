@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     htop \
     git \
     unzip \
+    ca-certificates \
     libosmesa6-dev \
     libgl1-mesa-glx \
     libglfw3 \
@@ -77,6 +78,8 @@ ARG TORCH_CUDA_ARCH_LIST="Kepler;Kepler+Tesla;Maxwell;Maxwell+Tegra;Pascal;Volta
 ENV TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}"
 RUN pip install 'git+https://github.com/facebookresearch/fvcore'
 RUN pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu101/torch1.6/index.html
+
+# Install MMCV
 RUN pip install mmcv-full==latest+torch1.6.0+cu101 -f https://openmmlab.oss-accelerate.aliyuncs.com/mmcv/dist/index.html
 
 # Install DAVIS

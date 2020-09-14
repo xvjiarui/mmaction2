@@ -24,7 +24,7 @@ def parse_args():
     parser.add_argument(
         '--resume-from', help='the checkpoint file to resume from')
     parser.add_argument(
-        '--auto-from',
+        '--auto-resume',
         action='store_true',
         help='automatically resume training')
     parser.add_argument(
@@ -85,7 +85,8 @@ def main():
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
     elif args.auto_resume:
-        cfg.resume_from = osp.join(cfg.work_dir, 'latest.pth')
+        if osp.exists(osp.join(cfg.work_dir, 'latest.pth')):
+            cfg.resume_from = osp.join(cfg.work_dir, 'latest.pth')
     if args.gpu_ids is not None:
         cfg.gpu_ids = args.gpu_ids
     else:
