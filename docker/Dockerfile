@@ -66,7 +66,7 @@ RUN conda install av -c conda-forge
 RUN conda install -c conda-forge moviepy
 
 # Install decord
-RUN git clone https://github.com/dmlc/decord.git
+RUN git clone --recursive https://github.com/dmlc/decord
 RUN cd decord && mkdir build && cd build && cmake .. -DUSE_CUDA=0 && make && cd ../python && python setup.py install
 
 # Install FAIR suit
