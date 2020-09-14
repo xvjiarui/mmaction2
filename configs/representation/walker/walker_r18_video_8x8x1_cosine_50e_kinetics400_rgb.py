@@ -91,8 +91,8 @@ data = dict(
 optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-# lr_config = dict(policy='CosineAnnealing', min_lr=0)
-lr_config = dict(policy='Fixed')
+lr_config = dict(policy='CosineAnnealing', min_lr=0)
+# lr_config = dict(policy='Fixed')
 total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(

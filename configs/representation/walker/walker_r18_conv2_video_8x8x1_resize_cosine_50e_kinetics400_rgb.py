@@ -13,6 +13,9 @@ model = dict(
         num_classes=400,
         in_channels=512,
         channels=128,
+        num_convs=3,
+        norm_cfg=dict(type='BN'),
+        act_cfg=dict(type='ReLU'),
         spatial_type='avg',
         temperature=0.07,
         walk_len=7,
@@ -41,8 +44,8 @@ train_pipeline = [
     dict(type='DecordInit'),
     dict(type='SampleFrames', clip_len=8, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
-    # dict(type='Resize', scale=(-1, 256)),
-    # dict(type='RandomResizedCrop'),
+    dict(type='Resize', scale=(-1, 256)),
+    dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
@@ -91,8 +94,8 @@ data = dict(
 optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-# lr_config = dict(policy='CosineAnnealing', min_lr=0)
-lr_config = dict(policy='Fixed')
+lr_config = dict(policy='CosineAnnealing', min_lr=0)
+# lr_config = dict(policy='Fixed')
 total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
