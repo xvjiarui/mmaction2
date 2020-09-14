@@ -81,10 +81,12 @@ RUN pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/c
 
 # Install MMCV
 RUN pip install mmcv-full==latest+torch1.6.0+cu101 -f https://openmmlab.oss-accelerate.aliyuncs.com/mmcv/dist/index.html
+# Install Kornia
+RUN pip install kornia
 
 # Install DAVIS
 RUN git clone https://github.com/xvjiarui/davis2017-evaluation.git
-RUN cd davis2017-evaluation && python setup.py install
+RUN cd davis2017-evaluation && python setup.py develop
 
 
 # Set a fixed model cache directory.

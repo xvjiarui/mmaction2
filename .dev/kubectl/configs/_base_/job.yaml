@@ -15,7 +15,7 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop; ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
+        args: ["-c", "pip install kornia; pip uninstall davis2017; git clone https://github.com/xvjiarui/davis2017-evaluation.git; cd davis2017-evaluation && python setup.py develop && cd ..; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop; ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
             memory: "16Gi"
