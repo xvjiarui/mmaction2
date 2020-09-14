@@ -39,14 +39,14 @@ def main():
         config_file = f.read()
     for key, value in template_dict.items():
         regexp = r'\{\{\s*' + str(key) + r'\s*\}\}'
-        value = value.replace('\\', '/')
-        config_file = re.sub(regexp, value, config_file)
+        config_file = re.sub(regexp, str(value), config_file)
     temp_config_file = tempfile.NamedTemporaryFile(
-        suffix=osp.splitext(args.job))
+        suffix=osp.splitext(args.job)[1])
     with open(temp_config_file.name, 'w') as tmp_config_file:
         tmp_config_file.write(config_file)
     pprint.pprint(mmcv.load(temp_config_file.name))
     os.system(f'kubectl create -f {temp_config_file.name}')
+    tmp_config_file.close()
 
 
 if __name__ == '__main__':

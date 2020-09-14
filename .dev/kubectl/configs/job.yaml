@@ -3,7 +3,7 @@ kind: Job # Deployment will automatically restart when killed. Use Pod if not ne
 metadata:
   labels:
     k8s-app: research
-  generateName: slowfast # replace <your_name> with something that identifies you
+  generateName: action # replace <your_name> with something that identifies you
   namespace: self-supervised-video
 spec:
   ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
