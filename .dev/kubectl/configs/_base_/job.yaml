@@ -3,7 +3,7 @@ kind: Job # Deployment will automatically restart when killed. Use Pod if not ne
 metadata:
   labels:
     k8s-app: research
-  generateName: slowfast # replace <your_name> with something that identifies you
+  generateName: '{{job_name}}' # replace <your_name> with something that identifies you
   namespace: self-supervised-video
 spec:
   ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
@@ -15,7 +15,7 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", " git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop; ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
+        args: ["-c", "git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop; ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
             memory: "16Gi"

@@ -30,6 +30,7 @@ def parse_args():
 def main():
     args, rest = parse_args()
     template_dict = dict(
+        job_name=osp.splitext(osp.basename(args.config))[0].replace('_', '-'),
         branch=args.branch,
         gpus=args.gpus,
         config=args.config,
