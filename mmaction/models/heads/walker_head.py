@@ -84,7 +84,7 @@ class WalkerHead(BaseHead):
         self.dropout_ratio = dropout_ratio
         self.init_std = init_std
         self.temperature = temperature
-        assert walk_len > 1
+        assert walk_len >= 1
         self.walk_len = walk_len
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
@@ -108,10 +108,17 @@ class WalkerHead(BaseHead):
         num_patches = x.size(2)
 
         # [N, T-1, P, P]
+        # TODO check debug
         affinity_forward = torch.einsum('btpc,btqc->btpq', x[:, :-1],
                                         x[:, 1:]) / self.temperature
+        # affinity_forward_ = torch.matmul(x[:, :-1].reshape(
+        #     batches * (clip_len-1), num_patches, channels), x[:, 1:].reshape(
+        #     batches * (clip_len-1), num_patches, channels).transpose(
+        #     -1, -2)).reshape(batches, clip_len-1, num_patches,
+        #                      num_patches)/self.temperature
+        # assert torch.allclose(affinity_forward, affinity_forward_)
         # [N, T-1, P, P]
-        affinity_backward = affinity_forward.flip((1, )).transpose(-1, -2)
+        affinity_backward = affinity_forward.transpose(-1, -2)
 
         preds_list = []
         for step in range(1, min(clip_len, self.walk_len + 1)):
@@ -119,15 +126,17 @@ class WalkerHead(BaseHead):
             preds = torch.eye(num_patches).to(x).unsqueeze(0).expand(
                 batches, -1, -1)
             for t in range(step):
-                preds = torch.bmm(affinity_forward[:, t].softmax(dim=-1),
-                                  preds)
-            for t in range(step):
-                preds = torch.bmm(affinity_backward[:, t].softmax(dim=-1),
-                                  preds)
-
+                # preds = torch.bmm(affinity_forward[:, t].softmax(dim=-1),
+                #                   preds)
+                preds = torch.bmm(preds, affinity_forward[:,
+                                                          t].softmax(dim=-1))
+            for t in reversed(range(step)):
+                # preds = torch.bmm(affinity_backward[:, t].softmax(dim=-1),
+                #                   preds)
+                preds = torch.bmm(preds, affinity_backward[:,
+                                                           t].softmax(dim=-1))
             # swap softmax dim to 1
-            # preds = preds.transpose(1, 2).log()
-            preds = preds.log()
+            preds = preds.transpose(1, 2).log()
             preds_list.append(preds)
 
         return preds_list
@@ -168,6 +177,8 @@ class WalkerHead(BaseHead):
         labels_list = self.get_targets(preds_list)
         losses = dict()
         for idx, (preds, labels) in enumerate(zip(preds_list, labels_list)):
+            preds = preds.reshape(-1, preds.size(-1))
+            labels = labels.reshape(-1)
             losses.update(
                 add_suffix(super().loss(preds, labels), suffix=str(idx)))
 
