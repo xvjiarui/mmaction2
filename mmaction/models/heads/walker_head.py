@@ -126,7 +126,8 @@ class WalkerHead(BaseHead):
                                   preds)
 
             # swap softmax dim to 1
-            preds = preds.transpose(1, 2).log()
+            # preds = preds.transpose(1, 2).log()
+            preds = preds.log()
             preds_list.append(preds)
 
         return preds_list
@@ -156,9 +157,9 @@ class WalkerHead(BaseHead):
         """
         # [N, in_channels, 4, 7, 7]
         x = self.avg_pool(x)
+        x = self.convs(x)
         if self.with_norm:
             x = F.normalize(x, p=2, dim=1)
-        x = self.convs(x)
         preds_list = self.walk(x, batches, clip_len)
 
         return preds_list

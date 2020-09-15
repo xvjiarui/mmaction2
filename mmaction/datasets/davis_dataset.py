@@ -123,9 +123,9 @@ class DavisDataset(RawframeDataset):
             np.mean(F['D'])
         ])
         g_res = np.reshape(g_res, [1, len(g_res)])
-        print_log(f'Global results for {self.split}', logger=logger)
+        print_log(f'\nGlobal results for {self.split}', logger=logger)
         table_g = pd.DataFrame(data=g_res, columns=g_measures)
-        print_log(table_g.to_string(index=False), logger=logger)
+        print_log('\n' + table_g.to_string(index=False), logger=logger)
 
         # Generate a dataframe for the per sequence results
         seq_names = list(J['M_per_object'].keys())
@@ -135,8 +135,8 @@ class DavisDataset(RawframeDataset):
         table_seq = pd.DataFrame(
             data=list(zip(seq_names, J_per_object, F_per_object)),
             columns=seq_measures)
-        print_log(f'Per sequence results for  {self.split}', logger=logger)
-        print_log(table_seq.to_string(index=False), logger=logger)
+        print_log(f'\nPer sequence results for  {self.split}', logger=logger)
+        print_log('\n' + table_seq.to_string(index=False), logger=logger)
 
         eval_results = table_g.to_dict('records')[0]
 

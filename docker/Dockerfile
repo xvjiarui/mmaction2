@@ -88,6 +88,8 @@ RUN pip install kornia
 RUN git clone https://github.com/xvjiarui/davis2017-evaluation.git
 RUN cd davis2017-evaluation && python setup.py develop
 
+# Install zsh
+RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.1.1/zsh-in-docker.sh)" -t robbyrussell -p git
 
 # Set a fixed model cache directory.
 ENV FVCORE_CACHE="/tmp"
