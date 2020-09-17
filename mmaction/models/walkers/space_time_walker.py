@@ -34,10 +34,14 @@ class SpaceTimeWalker(BaseWalker):
         batch, channels, depth, height, width = x.shape
         # [N * T, C, H, W]
         x = x.permute(0, 2, 1, 3, 4).reshape(-1, channels, height, width)
+        # input_x = x
         # [N * T, C x h x w, P]
         x = self.unfold(x)
         # [N * T * P, C, h, w]
         x = x.permute(0, 2, 1).reshape(-1, channels, patch_size, patch_size)
+        # assert torch.allclose(input_x[:, :, :patch_size, :patch_size],
+        #                       x.view(batch * depth, -1, channels,
+        #                              patch_size, patch_size)[:, 0])
         x = self.spatial_jitter(x)
 
         return x

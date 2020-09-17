@@ -36,10 +36,12 @@ class WalkerHead(BaseHead):
                  with_norm=True,
                  loss_cls=dict(type='NLLLoss'),
                  spatial_type='avg',
-                 dropout_ratio=0.5,
+                 dropout_ratio=0,
                  init_std=0.01,
                  temperature=0.07,
                  walk_len=7,
+                 walk_dir='left',
+                 swap_pred=False,
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls, **kwargs)
         self.channels = channels
@@ -86,6 +88,9 @@ class WalkerHead(BaseHead):
         self.temperature = temperature
         assert walk_len >= 1
         self.walk_len = walk_len
+        assert walk_dir in ['left', 'right']
+        self.walk_dir = walk_dir
+        self.swap_pred = swap_pred
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
@@ -101,6 +106,13 @@ class WalkerHead(BaseHead):
         """Initiate the parameters from scratch."""
         pass
 
+    def edge_drop(self, affinity):
+        if self.dropout is not None:
+            affinity = self.dropout(affinity)
+            affinity = affinity / affinity.sum(dim=-1, keepdims=True)
+
+        return affinity
+
     def walk(self, x, batches, clip_len):
         channels = x.size(1)
         # [N, T, P, C]
@@ -109,13 +121,14 @@ class WalkerHead(BaseHead):
 
         # [N, T-1, P, P]
         # TODO check debug
-        affinity_forward = torch.einsum('btpc,btqc->btpq', x[:, :-1],
-                                        x[:, 1:]) / self.temperature
-        # affinity_forward_ = torch.matmul(x[:, :-1].reshape(
-        #     batches * (clip_len-1), num_patches, channels), x[:, 1:].reshape(
-        #     batches * (clip_len-1), num_patches, channels).transpose(
-        #     -1, -2)).reshape(batches, clip_len-1, num_patches,
-        #                      num_patches)/self.temperature
+        # affinity_forward = torch.einsum('btpc,btqc->btpq', x[:, :-1],
+        #                                 x[:, 1:]) / self.temperature
+        affinity_forward = torch.bmm(
+            x[:, :-1].reshape(batches * (clip_len - 1), num_patches, channels),
+            x[:, 1:].reshape(batches * (clip_len - 1), num_patches,
+                             channels).transpose(-1, -2)).reshape(
+                                 batches, clip_len - 1, num_patches,
+                                 num_patches) / self.temperature
         # assert torch.allclose(affinity_forward, affinity_forward_)
         # [N, T-1, P, P]
         affinity_backward = affinity_forward.transpose(-1, -2)
@@ -126,17 +139,30 @@ class WalkerHead(BaseHead):
             preds = torch.eye(num_patches).to(x).unsqueeze(0).expand(
                 batches, -1, -1)
             for t in range(step):
-                # preds = torch.bmm(affinity_forward[:, t].softmax(dim=-1),
-                #                   preds)
-                preds = torch.bmm(preds, affinity_forward[:,
-                                                          t].softmax(dim=-1))
+                if self.walk_dir == 'left':
+                    preds = torch.bmm(
+                        self.edge_drop(affinity_forward[:, t].softmax(dim=-1)),
+                        preds)
+                else:
+                    preds = torch.bmm(
+                        preds,
+                        self.edge_drop(affinity_forward[:, t].softmax(dim=-1)))
             for t in reversed(range(step)):
-                # preds = torch.bmm(affinity_backward[:, t].softmax(dim=-1),
-                #                   preds)
-                preds = torch.bmm(preds, affinity_backward[:,
-                                                           t].softmax(dim=-1))
+                if self.walk_dir == 'left':
+                    preds = torch.bmm(
+                        self.edge_drop(affinity_backward[:,
+                                                         t].softmax(dim=-1)),
+                        preds)
+                else:
+                    preds = torch.bmm(
+                        preds,
+                        self.edge_drop(affinity_backward[:,
+                                                         t].softmax(dim=-1)))
             # swap softmax dim to 1
-            preds = preds.transpose(1, 2).log()
+            if self.swap_pred:
+                preds = preds.transpose(1, 2).log()
+            else:
+                preds = preds.log()
             preds_list.append(preds)
 
         return preds_list
