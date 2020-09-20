@@ -50,38 +50,42 @@ class WalkerHead(BaseHead):
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
         self.with_norm = with_norm
-        convs = []
-        convs.append(
-            ConvModule(
-                self.in_channels,
-                self.channels,
-                kernel_size=kernel_size,
-                padding=kernel_size // 2,
-                conv_cfg=self.conv_cfg,
-                norm_cfg=self.norm_cfg,
-                act_cfg=self.act_cfg))
-        for i in range(num_convs - 2):
+        if num_convs > 0:
+            convs = []
             convs.append(
                 ConvModule(
-                    self.channels,
+                    self.in_channels,
                     self.channels,
                     kernel_size=kernel_size,
                     padding=kernel_size // 2,
                     conv_cfg=self.conv_cfg,
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
-        if num_convs > 1:
-            convs.append(
-                ConvModule(
-                    self.channels,
-                    self.channels,
-                    kernel_size=1,
-                    padding=0,
-                    conv_cfg=self.conv_cfg,
-                    norm_cfg=None,
-                    act_cfg=None))
-        self.convs = nn.Sequential(*convs)
+            for i in range(num_convs - 2):
+                convs.append(
+                    ConvModule(
+                        self.channels,
+                        self.channels,
+                        kernel_size=kernel_size,
+                        padding=kernel_size // 2,
+                        conv_cfg=self.conv_cfg,
+                        norm_cfg=self.norm_cfg,
+                        act_cfg=self.act_cfg))
+            if num_convs > 1:
+                convs.append(
+                    ConvModule(
+                        self.channels,
+                        self.channels,
+                        kernel_size=1,
+                        padding=0,
+                        conv_cfg=self.conv_cfg,
+                        norm_cfg=None,
+                        act_cfg=None))
+            self.convs = nn.Sequential(*convs)
+        else:
+            self.convs = None
 
+        assert spatial_type in ['flatten', 'avg']
         self.spatial_type = spatial_type
         self.dropout_ratio = dropout_ratio
         self.init_std = init_std
@@ -99,6 +103,8 @@ class WalkerHead(BaseHead):
         if self.spatial_type == 'avg':
             # use `nn.AdaptiveAvgPool3d` to adaptively match the in_channels.
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        elif self.spatial_type == 'flatten':
+            self.avg_pool = nn.Flatten()
         else:
             self.avg_pool = None
 
@@ -109,7 +115,7 @@ class WalkerHead(BaseHead):
     def edge_drop(self, affinity):
         if self.dropout is not None:
             affinity = self.dropout(affinity)
-            affinity = affinity / affinity.sum(dim=-1, keepdims=True)
+            affinity = F.normalize(affinity, p=1, dim=-1)
 
         return affinity
 
@@ -192,7 +198,8 @@ class WalkerHead(BaseHead):
         """
         # [N, in_channels, 4, 7, 7]
         x = self.avg_pool(x)
-        x = self.convs(x)
+        if self.convs is not None:
+            x = self.convs(x)
         if self.with_norm:
             x = F.normalize(x, p=2, dim=1)
         preds_list = self.walk(x, batches, clip_len)

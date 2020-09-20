@@ -1,5 +1,6 @@
 from functools import partial
 
+import numpy as np
 from mmcv.cnn import ConvModule, constant_init, kaiming_init
 from mmcv.runner import _load_checkpoint, load_checkpoint
 from mmcv.utils import _BatchNorm
@@ -558,6 +559,10 @@ class ResNet(nn.Module):
         if len(outs) == 1:
             return outs[0]
         return tuple(outs)
+
+    @property
+    def output_stride(self):
+        return np.prod(self.strides[:self.num_stages]) * 4
 
     def _freeze_stages(self):
         """Prevent all the parameters from being optimized before

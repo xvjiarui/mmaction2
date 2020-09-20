@@ -37,3 +37,20 @@ def pil_nearest_interpolate(input, size):
         resized_imgs.append(resized_img)
 
     return torch.stack(resized_imgs, dim=0)
+
+
+def video2images(imgs):
+    batches, channels, clip_len, height, width = imgs.size()
+    new_imgs = imgs.transpose(1,
+                              2).contiguous().reshape(batches * clip_len,
+                                                      channels, height, width)
+
+    return new_imgs
+
+
+def images2video(imgs, clip_len):
+    batches, channels, height, width = imgs.size()
+    new_imgs = imgs.reshape(batches // clip_len, clip_len, channels, height,
+                            width).transpose(1, 2).contiguous()
+
+    return new_imgs

@@ -11,7 +11,7 @@ from .losses import (BCELossWithLogits, BinaryLogisticRegressionLoss, BMNLoss,
 from .recognizers import BaseRecognizer, recognizer2d, recognizer3d
 from .registry import (BACKBONES, HEADS, LOCALIZERS, LOSSES, RECOGNIZERS,
                        WALKERS)
-from .walkers import BaseWalker, SpaceTimeWalker
+from .trackers import BaseWalker, SpaceTimeWalker
 
 __all__ = [
     'BACKBONES', 'HEADS', 'RECOGNIZERS', 'build_recognizer', 'build_head',

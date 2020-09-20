@@ -54,7 +54,7 @@ def add_suffix(inputs, suffix):
 
     Returns:
 
-        dict: The dict with keys updated with ``prefix``.
+        dict: The dict with keys updated with ``suffix``.
     """
 
     outputs = dict()
