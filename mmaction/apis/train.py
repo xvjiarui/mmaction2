@@ -42,10 +42,16 @@ def train_model(model,
         seed=cfg.seed)
     dataloader_setting = dict(dataloader_setting,
                               **cfg.data.get('train_dataloader', {}))
-
-    data_loaders = [
-        build_dataloader(ds, **dataloader_setting) for ds in dataset
-    ]
+    # set validation workers
+    data_loaders = []
+    for i, ds in enumerate(dataset):
+        train_workers = dataloader_setting.pop('workers_per_gpu')
+        val_workers = cfg.data.get('val_workers_per_gpu', train_workers)
+        data_loaders.append(
+            build_dataloader(
+                ds,
+                workers_per_gpu=train_workers if i == 0 else val_workers,
+                **dataloader_setting))
 
     # put model on gpus
     if distributed:

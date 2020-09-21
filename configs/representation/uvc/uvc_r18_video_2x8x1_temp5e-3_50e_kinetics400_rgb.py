@@ -1,4 +1,5 @@
 # model settings
+temperature = 0.005
 model = dict(
     type='UVCTracker',
     backbone=dict(
@@ -16,12 +17,14 @@ model = dict(
             type='ConcentrateLoss',
             win_len=8,
             stride=8,
-            temperature=0.005,
+            temperature=temperature,
+            with_norm=True,
             loss_weight=1.),
-        loss_bbox=dict(type='MSELoss', loss_weight=1e2),
+        loss_bbox=dict(type='MSELoss', loss_weight=10.),
         in_channels=512,
         channels=128,
-        temperature=0.005,
+        temperature=temperature,
+        with_norm=True,
         init_std=0.01))
 # model training and testing settings
 train_cfg = dict(
@@ -29,11 +32,12 @@ train_cfg = dict(
     degrees=10,
     img_as_ref=True,
     img_as_tar=True,
-    img_as_ref_pred=True)
+    img_as_ref_pred=True,
+    center_ratio=0.2)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=0.005,
+    temperature=temperature,
     strides=(1, 2, 1, 1),
     out_indices=(2, ),
     output_dir='eval_results')
@@ -77,6 +81,7 @@ val_pipeline = [
 data = dict(
     videos_per_gpu=48,
     workers_per_gpu=4,
+    val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,

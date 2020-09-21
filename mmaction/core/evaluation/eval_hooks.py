@@ -1,4 +1,5 @@
 import os.path as osp
+import time
 from math import inf
 
 import mmcv
@@ -186,3 +187,4 @@ class DistEvalHook(EvalHook):
                 self.best_json['best_ckpt'] = current_ckpt_path
                 self.best_json['key_indicator'] = self.key_indicator
                 mmcv.dump(self.best_json, json_path)
+        time.sleep(5)  # Prevent possible deadlock during epoch transition

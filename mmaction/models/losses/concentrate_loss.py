@@ -2,7 +2,7 @@ import torch.nn.functional as F
 from mmcv.ops.point_sample import generate_grid
 from torch.nn.modules.utils import _pair
 
-from ..common import compute_affinity, transform
+from ..common import compute_affinity, propagate
 from ..registry import LOSSES
 from .base import BaseWeightedLoss
 
@@ -35,25 +35,36 @@ class ConcentrateLoss(BaseWeightedLoss):
     It will calculate Cosine Similarity loss given cls_score and label.
     """
 
-    def __init__(self, win_len=8, stride=8, temperature=1., **kwargs):
+    def __init__(self,
+                 win_len=8,
+                 stride=8,
+                 temperature=1.,
+                 with_norm=True,
+                 **kwargs):
         super().__init__(**kwargs)
         self.win_len = win_len
         self.stride = stride
         self.temperature = temperature
+        self.with_norm = with_norm
 
     def _forward(self, src_x, dst_x, **kwargs):
         assert src_x.shape == dst_x.shape
         batches, channels, height, width = src_x.size()
-        affinity = compute_affinity(src_x, dst_x, temperature=self.temperature)
+        affinity = compute_affinity(
+            src_x,
+            dst_x,
+            normalize=self.with_norm,
+            temperature=self.temperature)
 
         grid = generate_grid(
             src_x.size(0), src_x.shape[2:], device=src_x.device)
         # [N, 2, H, W]
-        grid = grid.transpose(1, 2).reshape(batches, 2, height, width)
+        grid = grid.permute(0, 2, 1).reshape(batches, 2, height, width)
 
         # [N, 2, H, W]
-        grid_dst = transform(affinity.softmax(1), grid)
-        grid_src = transform(affinity.transpose(1, 2).softmax(1), grid)
+        grid_dst = propagate(grid, affinity.softmax(1))
+        grid_src = propagate(grid,
+                             affinity.permute(0, 2, 1).contiguous().softmax(1))
 
         # [N, 2, H*W, win^2]
         grid_unfold_dst = im2col(grid_dst, self.win_len, self.stride)

@@ -22,13 +22,6 @@ def compute_affinity(src_img,
     return affinity
 
 
-def transform(aff, img):
-    b, c, h, w = img.size()
-    img = img.view(b, c, -1)
-    frame2 = torch.bmm(img, aff)
-    return frame2.view(b, c, h, w)
-
-
 def propagate(img, affinity, topk=None):
     batches, channels, height, width = img.size()
     if topk is not None:
@@ -37,6 +30,8 @@ def propagate(img, affinity, topk=None):
         tk_val_min = tk_val_min.view(batches, 1, height * width)
         affinity[tk_val_min > affinity] = 0
     img = img.view(batches, channels, -1)
-    new_img = torch.bmm(img, affinity)
-    new_img = new_img.view(batches, channels, height, width)
+    img = img.contiguous()
+    affinity = affinity.contiguous()
+    new_img = torch.bmm(img, affinity).contiguous()
+    new_img = new_img.reshape(batches, channels, height, width)
     return new_img

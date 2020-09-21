@@ -67,6 +67,7 @@ val_pipeline = [
 data = dict(
     videos_per_gpu=8,
     workers_per_gpu=4,
+    val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,

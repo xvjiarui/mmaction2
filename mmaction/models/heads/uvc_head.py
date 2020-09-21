@@ -131,14 +131,14 @@ class UVCHead(nn.Module):
         tar_coords = torch.stack([
             tar_grid[..., 0] * tar_x.size(3), tar_grid[..., 1] * tar_x.size(2)
         ],
-                                 dim=2)
+                                 dim=2).contiguous()
         # [N, ref_w*ref_h, tar_w*tar_h]
         aff_ref_tar = compute_affinity(
             ref_crop_x,
             tar_x,
             temperature=self.temperature,
             normalize=self.with_norm,
-            softmax_dim=2)
+            softmax_dim=2).contiguous()
         # [N, ref_w*ref_h, 2]
         ref_coords = torch.bmm(aff_ref_tar, tar_coords)
         # [N, 2]
