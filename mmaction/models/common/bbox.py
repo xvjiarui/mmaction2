@@ -61,19 +61,32 @@ def crop_and_resize(tensor: torch.Tensor,
     #     align_corners=align_corners)
 
 
-def get_crop_grid(imgs, bboxes, out_size, align_corners=False):
+def get_crop_grid(img,
+                  bboxes,
+                  out_size,
+                  device=None,
+                  dtype=None,
+                  align_corners=False):
     """theta is defined as :
 
     a b c d e f
     """
-    assert imgs.size(0) == bboxes.size(0)
+    if isinstance(img, torch.Tensor):
+        img_shape = img.shape
+    elif isinstance(img, torch.Size):
+        img_shape = img
+    else:
+        raise RuntimeError('img must be Tensor or Size')
+    device = img.device if device is None else device
+    dtype = img.dtype if dtype is None else dtype
+    assert img_shape[0] == bboxes.size(0)
     assert bboxes.size(-1) == 4
     x1, y1, x2, y2 = bboxes.split(1, dim=1)
-    batches, channels, height, width = imgs.size()
+    batches, channels, height, width = img_shape
     a = ((x2 - x1) / width).view(batches, 1, 1)
-    b = imgs.new_zeros(a.size())
+    b = torch.zeros(*a.size(), device=device, dtype=dtype)
     c = (-1 + (x1 + x2) / width).view(batches, 1, 1)
-    d = imgs.new_zeros(a.size())
+    d = torch.zeros(*a.size(), device=device, dtype=dtype)
     e = ((y2 - y1) / height).view(batches, 1, 1)
     f = (-1 + (y2 + y1) / height).view(batches, 1, 1)
     theta_row1 = torch.cat((a, b, c), dim=2)
@@ -87,7 +100,7 @@ def get_crop_grid(imgs, bboxes, out_size, align_corners=False):
 
 
 def _crop_and_resize(imgs, bboxes, out_size, interpolation, align_corners):
-    grid = get_crop_grid(imgs, bboxes, out_size, align_corners)
+    grid = get_crop_grid(imgs, bboxes, out_size, align_corners=align_corners)
     patch = F.grid_sample(imgs, grid, mode=interpolation, align_corners=False)
     return patch
 

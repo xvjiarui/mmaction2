@@ -29,6 +29,16 @@ class UVCTracker(VanillaTracker):
             else:
                 self.aug = nn.Identity()
 
+    def crop_x_from_img(self, img, x, bboxes, crop_first):
+        if crop_first:
+            crop_x = self.extract_feat(
+                crop_and_resize(img, bboxes * self.stride,
+                                self.patch_img_size))
+        else:
+            crop_x = crop_and_resize(x, bboxes, self.patch_x_size)
+
+        return crop_x
+
     def forward_train(self, imgs, labels=None):
         """Defines the computation performed at every call when training."""
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
@@ -48,15 +58,8 @@ class UVCTracker(VanillaTracker):
             ref_x.shape[2:],
             device=x.device,
             center_ratio=self.train_cfg.center_ratio)
-        if self.train_cfg.img_as_ref:
-            # ref_crop_x = self.extract_feat(self.aug_crop(ref_frame))
-            ref_crop_x = self.extract_feat(
-                crop_and_resize(ref_frame, ref_crop_bboxes * self.stride,
-                                self.patch_img_size))
-        else:
-            # ref_crop_x = self.aug_crop(ref_x)
-            ref_crop_x = crop_and_resize(ref_x, ref_crop_bboxes,
-                                         self.patch_x_size)
+        ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_crop_bboxes,
+                                          self.train_cfg.img_as_ref)
         ref_crop_grid = get_crop_grid(ref_frame, ref_crop_bboxes * self.stride,
                                       self.patch_img_size)
         if is_center_crop:
@@ -64,24 +67,18 @@ class UVCTracker(VanillaTracker):
         else:
             tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x)
 
-        if self.train_cfg.img_as_tar:
-            tar_crop_x = self.extract_feat(
-                crop_and_resize(tar_frame, tar_bboxes * self.stride,
-                                self.patch_img_size))
-        else:
-            tar_crop_x = crop_and_resize(tar_x, tar_bboxes, self.patch_x_size)
+        tar_crop_x = self.crop_x_from_img(tar_frame, tar_x, tar_bboxes,
+                                          self.train_cfg.img_as_tar)
+
         if is_center_crop:
             ref_pred_bboxes = ref_crop_bboxes
         else:
             ref_pred_bboxes = self.cls_head.get_tar_bboxes(tar_crop_x, ref_x)
 
-        if self.train_cfg.img_as_ref_pred:
-            ref_pred_crop_x = self.extract_feat(
-                crop_and_resize(ref_frame, ref_pred_bboxes * self.stride,
-                                self.patch_img_size))
-        else:
-            ref_pred_crop_x = crop_and_resize(ref_x, ref_pred_bboxes,
-                                              self.patch_x_size)
+        ref_pred_crop_x = self.crop_x_from_img(ref_frame, ref_x,
+                                               ref_pred_bboxes,
+                                               self.train_cfg.img_as_ref_pred)
+
         ref_pred_crop_grid = get_crop_grid(ref_frame,
                                            ref_pred_bboxes * self.stride,
                                            self.patch_img_size)
@@ -95,9 +92,6 @@ class UVCTracker(VanillaTracker):
             ref_crop_bboxes / self.patch_x_size[0])
         loss['loss_bbox'] = self.cls_head.loss_bbox(ref_crop_grid,
                                                     ref_pred_crop_grid)
-        # loss.update(self.cls_head.loss(
-        #     self.extract_feat(self.center_crop(ref_frame)),
-        #     self.extract_feat(self.center_crop(tar_frame)), 'center'))
 
         return loss
 
