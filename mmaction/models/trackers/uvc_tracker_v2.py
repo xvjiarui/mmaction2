@@ -74,8 +74,6 @@ class UVCTrackerV2(VanillaTracker):
                 tar_x = x[:, :, tar_idx]
                 tar_bboxes, tar_crop_x = self.track(tar_frame, tar_x,
                                                     last_crop_x)
-                if is_center_crop:
-                    tar_bboxes = last_bboxes
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
 
@@ -87,8 +85,6 @@ class UVCTrackerV2(VanillaTracker):
                 tar_x = x[:, :, tar_idx]
                 tar_bboxes, tar_crop_x = self.track(tar_frame, tar_x,
                                                     last_crop_x)
-                if is_center_crop:
-                    tar_bboxes = last_bboxes
                 backward_hist.append((tar_bboxes, tar_crop_x))
 
             assert len(backward_hist) == step
