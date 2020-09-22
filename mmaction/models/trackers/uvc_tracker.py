@@ -1,3 +1,5 @@
+import kornia.augmentation as K
+import torch.nn as nn
 from torch.nn.modules.utils import _pair
 
 from ..common import (crop_and_resize, get_crop_grid, get_random_crop_bbox,
@@ -16,31 +18,28 @@ class UVCTracker(VanillaTracker):
         if self.train_cfg is not None:
             self.patch_img_size = _pair(self.train_cfg.patch_size)
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
-            # if self.train_cfg.img_as_ref:
-            #     patch_size = self.train_cfg.patch_size
-            # else:
-            #     patch_size = self.train_cfg.patch_size // self.stride
-            # degrees = self.train_cfg.degrees
-            # self.aug_crop = nn.Sequential(
-            #     K.RandomRotation(degrees=degrees),
-            #     K.RandomCrop(size=(patch_size, patch_size)))
-            # self.center_crop = K.CenterCrop(size=(self.train_cfg.patch_size,
-            #                                       self.train_cfg.patch_size))
+            if self.train_cfg.get('strong_aug', False):
+                self.aug = nn.Sequential(
+                    K.RandomRotation(degrees=10),
+                    # K.RandomResizedCrop(size=self.patch_img_size,
+                    #                     scale=(0.7, 0.9),
+                    #                     ratio=(0.7, 1.3)),
+                    K.ColorJitter(
+                        brightness=0.2, contrast=0.3, saturation=0.3, hue=0.1))
+            else:
+                self.aug = nn.Identity()
 
     def forward_train(self, imgs, labels=None):
         """Defines the computation performed at every call when training."""
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
         batches, clip_len = imgs.size(0), imgs.size(2)
         assert clip_len == 2
-        x = images2video(self.extract_feat(video2images(imgs)), clip_len)
+        x = images2video(
+            self.extract_feat(self.aug(video2images(imgs))), clip_len)
         ref_frame = imgs[:, :, 0].contiguous()
         tar_frame = imgs[:, :, 1].contiguous()
         ref_x = x[:, :, 0].contiguous()
         tar_x = x[:, :, 1].contiguous()
-        # ref_frame = imgs.permute(2, 0, 1, 3, 4).contiguous()[0]
-        # tar_frame = imgs.permute(2, 0, 1, 3, 4).contiguous()[1]
-        # ref_x = x.permute(2, 0, 1, 3, 4).contiguous()[0]
-        # tar_x = x.permute(2, 0, 1, 3, 4).contiguous()[1]
 
         # all bboxes are in feature space
         ref_crop_bboxes, is_center_crop = get_random_crop_bbox(

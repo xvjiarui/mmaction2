@@ -27,13 +27,12 @@ def parse_args():
     return args, rest
 
 
-def main():
-    args, rest = parse_args()
+def submit(config, args, rest):
     template_dict = dict(
-        job_name=osp.splitext(osp.basename(args.config))[0].replace('_', '-'),
+        job_name=osp.splitext(osp.basename(config))[0].replace('_', '-'),
         branch=args.branch,
         gpus=args.gpus,
-        config=args.config,
+        config=config,
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '')
     with open(args.job, 'r') as f:
@@ -48,6 +47,15 @@ def main():
     pprint.pprint(mmcv.load(temp_config_file.name))
     os.system(f'kubectl create -f {temp_config_file.name}')
     tmp_config_file.close()
+
+
+def main():
+    args, rest = parse_args()
+    if osp.isdir(args.config):
+        for cfg in mmcv.scandir(args.config, suffix='.py'):
+            submit(osp.join(args.config, cfg), args, rest)
+    else:
+        submit(args.config, args, rest)
 
 
 if __name__ == '__main__':

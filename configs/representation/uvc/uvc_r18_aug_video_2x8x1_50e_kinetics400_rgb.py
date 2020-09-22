@@ -29,6 +29,7 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
+    strong_aug=True,
     img_as_ref=True,
     img_as_tar=True,
     img_as_ref_pred=True,
@@ -53,7 +54,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=2, frame_interval=4, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),

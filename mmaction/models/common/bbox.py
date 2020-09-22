@@ -1,6 +1,5 @@
 from typing import Tuple
 
-import kornia.geometry as T
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -13,18 +12,18 @@ def center2bbox(center, patch_size, img_size):
     patch_h, patch_w = patch_size
     img_h, img_w = img_size
     new_l = center[:, 0] - patch_w / 2
-    new_l[new_l < 0] = 0
+    new_l = new_l.clamp(min=0)
     new_l = new_l.unsqueeze(dim=1)
 
     new_r = new_l + patch_w
-    new_r[new_r > img_w] = img_w
+    new_r = new_r.clamp(max=img_w)
 
     new_t = center[:, 1] - patch_h / 2
-    new_t[new_t < 0] = 0
+    new_t = new_t.clamp(min=0)
     new_t = new_t.unsqueeze(dim=1)
 
     new_b = new_t + patch_h
-    new_b[new_b > img_h] = img_h
+    new_b = new_b.clamp(max=img_h)
 
     bboxes = torch.cat((new_l, new_t, new_r, new_b), dim=1)
     return bboxes
@@ -45,24 +44,28 @@ def crop_and_resize(tensor: torch.Tensor,
                     size: Tuple[int, int],
                     interpolation: str = 'bilinear',
                     align_corners: bool = False) -> torch.Tensor:
-    # src = diff_crop(tensor, boxes, size[0], size[1])
+    # src = _crop_and_resize(tensor, boxes, size[0], size[1])
     # dst = T.crop_and_resize(tensor=tensor, boxes=complete_bboxes(boxes),
     #                         size=size,
     #                         interpolation=interpolation,
     #                         align_corners=align_corners)
     # print((src - dst).abs().max())
     # TODO check
-    return diff_crop(tensor, boxes, size[0], size[1])
-    boxes = complete_bboxes(boxes)
-    return T.crop_and_resize(
-        tensor=tensor,
-        boxes=boxes,
-        size=size,
-        interpolation=interpolation,
-        align_corners=align_corners)
+    return _crop_and_resize(tensor, boxes, size, interpolation, align_corners)
+    # boxes = complete_bboxes(boxes)
+    # return T.crop_and_resize(
+    #     tensor=tensor,
+    #     boxes=boxes,
+    #     size=size,
+    #     interpolation=interpolation,
+    #     align_corners=align_corners)
 
 
-def get_crop_grid(imgs, bboxes, out_size):
+def get_crop_grid(imgs, bboxes, out_size, align_corners=False):
+    """theta is defined as :
+
+    a b c d e f
+    """
     assert imgs.size(0) == bboxes.size(0)
     assert bboxes.size(-1) == 4
     x1, y1, x2, y2 = bboxes.split(1, dim=1)
@@ -79,38 +82,13 @@ def get_crop_grid(imgs, bboxes, out_size):
     grid = F.affine_grid(
         theta,
         size=torch.Size((batches, channels, *out_size)),
-        align_corners=False)
+        align_corners=align_corners)
     return grid
 
 
-def diff_crop(imgs, bboxes, out_height, out_width):
-    """
-    Differatiable cropping
-    INPUTS:
-     - F: frame feature
-     - x1,y1,x2,y2: top left and bottom right points of the patch
-     - theta is defined as :
-                        a b c
-                        d e f
-    """
-    assert imgs.size(0) == bboxes.size(0)
-    assert bboxes.size(-1) == 4
-    x1, y1, x2, y2 = bboxes.split(1, dim=1)
-    batches, channels, height, width = imgs.size()
-    a = ((x2 - x1) / width).view(batches, 1, 1)
-    b = imgs.new_zeros(a.size())
-    c = (-1 + (x1 + x2) / width).view(batches, 1, 1)
-    d = imgs.new_zeros(a.size())
-    e = ((y2 - y1) / height).view(batches, 1, 1)
-    f = (-1 + (y2 + y1) / height).view(batches, 1, 1)
-    theta_row1 = torch.cat((a, b, c), dim=2)
-    theta_row2 = torch.cat((d, e, f), dim=2)
-    theta = torch.cat((theta_row1, theta_row2), dim=1)
-    grid = F.affine_grid(
-        theta,
-        size=torch.Size((batches, channels, out_height, out_width)),
-        align_corners=False)
-    patch = F.grid_sample(imgs, grid, align_corners=False)
+def _crop_and_resize(imgs, bboxes, out_size, interpolation, align_corners):
+    grid = get_crop_grid(imgs, bboxes, out_size, align_corners)
+    patch = F.grid_sample(imgs, grid, mode=interpolation, align_corners=False)
     return patch
 
 

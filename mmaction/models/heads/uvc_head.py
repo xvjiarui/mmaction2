@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from mmcv.cnn import ConvModule
 from mmcv.ops.point_sample import generate_grid
 
@@ -99,26 +98,6 @@ class UVCHead(nn.Module):
     def init_weights(self):
         """Initiate the parameters from scratch."""
         pass
-
-    def compute_affinity(self,
-                         src_img,
-                         dst_img,
-                         temperature=1.,
-                         normalize=True):
-        batches, channels = src_img.shape[:2]
-        src_feat = src_img.view(batches, channels, src_img.shape[2:].numel())
-        dst_feat = dst_img.view(batches, channels, dst_img.shape[2:].numel())
-        if normalize:
-            src_feat = F.normalize(src_feat, p=2, dim=1)
-            dst_feat = F.normalize(dst_feat, p=2, dim=1)
-        src_feat = src_feat.permute(0, 2, 1).contiguous()
-        dst_feat = dst_feat.contiguous()
-        affinity = torch.bmm(src_feat, dst_feat) / temperature
-        # TODO check
-        # dim different from walker
-        affinity = affinity.softmax(dim=2)
-
-        return affinity
 
     def get_tar_bboxes(self, ref_crop_x, tar_x):
         ref_crop_x = self(ref_crop_x)

@@ -29,7 +29,6 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
-    degrees=10,
     img_as_ref=True,
     img_as_tar=True,
     img_as_ref_pred=True,
