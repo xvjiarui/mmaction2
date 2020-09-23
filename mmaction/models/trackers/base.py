@@ -35,6 +35,7 @@ class BaseWalker(nn.Module, metaclass=ABCMeta):
         self.init_weights()
 
         self.fp16_enabled = False
+        self.register_buffer('iteration', torch.tensor(0, dtype=torch.float))
 
     def init_weights(self):
         """Initialize the model network weights."""
@@ -138,6 +139,7 @@ class BaseWalker(nn.Module, metaclass=ABCMeta):
         """
         imgs = data_batch['imgs']
         label = data_batch['label']
+        self.iteration += 1
 
         losses = self(imgs, label)
 

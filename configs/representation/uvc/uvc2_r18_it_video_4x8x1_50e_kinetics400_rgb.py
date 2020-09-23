@@ -31,6 +31,7 @@ train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
     img_as_tar=False,
+    img_as_ref_pred=True,
     skip_cycle=True,
     center_ratio=0.2)
 test_cfg = dict(
@@ -78,7 +79,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=16,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(

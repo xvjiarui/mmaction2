@@ -41,8 +41,9 @@ class UVCTrackerV2(VanillaTracker):
 
         return crop_x
 
-    def track(self, tar_frame, tar_x, ref_crop_x):
-        tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x)
+    def track(self, tar_frame, tar_x, ref_crop_x, tar_bboxes=None):
+        if tar_bboxes is None:
+            tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x)
         tar_crop_x = self.crop_x_from_img(tar_frame, tar_x, tar_bboxes,
                                           self.train_cfg.img_as_tar)
 
@@ -56,6 +57,9 @@ class UVCTrackerV2(VanillaTracker):
             self.extract_feat(self.aug(video2images(imgs))), clip_len)
         loss = dict()
         for step in range(2, clip_len + 1):
+            # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
+            step_weight = 1.
+            skip_weight = 1.
             ref_frame = imgs[:, :, 0]
             ref_x = x[:, :, 0]
             # all bboxes are in feature space
@@ -74,8 +78,11 @@ class UVCTrackerV2(VanillaTracker):
                 last_bboxes, last_crop_x = forward_hist[-1]
                 tar_frame = imgs[:, :, tar_idx]
                 tar_x = x[:, :, tar_idx]
-                tar_bboxes, tar_crop_x = self.track(tar_frame, tar_x,
-                                                    last_crop_x)
+                tar_bboxes, tar_crop_x = self.track(
+                    tar_frame,
+                    tar_x,
+                    last_crop_x,
+                    tar_bboxes=ref_bboxes if is_center_crop else None)
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
 
@@ -85,10 +92,12 @@ class UVCTrackerV2(VanillaTracker):
                 last_bboxes, last_crop_x = backward_hist[-1]
                 tar_frame = imgs[:, :, tar_idx]
                 tar_x = x[:, :, tar_idx]
-                tar_bboxes, tar_crop_x = self.track(tar_frame, tar_x,
-                                                    last_crop_x)
+                tar_bboxes, tar_crop_x = self.track(
+                    tar_frame,
+                    tar_x,
+                    last_crop_x,
+                    tar_bboxes=ref_bboxes if is_center_crop else None)
                 backward_hist.append((tar_bboxes, tar_crop_x))
-
             assert len(backward_hist) == step
 
             loss_step = dict()
@@ -100,32 +109,49 @@ class UVCTrackerV2(VanillaTracker):
                 ref_pred_bboxes / self.patch_x_size[0],
                 ref_bboxes / self.patch_x_size[0])
             loss_step['loss_bbox'] = self.cls_head.loss_bbox(
-                ref_crop_grid, ref_pred_crop_grid)
-            loss.update(add_suffix(loss_step, f'step{step}'))
+                ref_crop_grid, ref_pred_crop_grid) * step_weight
 
             for tar_idx in range(1, step):
                 last_crop_x = forward_hist[tar_idx - 1][1]
                 tar_crop_x = forward_hist[tar_idx][1]
-                loss.update(
+                loss_step.update(
                     add_suffix(
-                        self.cls_head.loss(last_crop_x, tar_crop_x, 'forward'),
-                        f'step{step}.t{tar_idx}'))
+                        self.cls_head.loss(
+                            last_crop_x, tar_crop_x, weight=step_weight),
+                        suffix=f'forward.t{tar_idx}'))
+                # loss.update(
+                #     add_suffix(
+                #         self.cls_head.loss(last_crop_x, tar_crop_x,
+                #                            'forward', weight=step_weight),
+                #         f'step{step}.t{tar_idx}'))
             for last_idx in reversed(range(1, step)):
                 tar_crop_x = backward_hist[last_idx - 1][1]
                 last_crop_x = backward_hist[last_idx][1]
-                loss.update(
+                loss_step.update(
                     add_suffix(
-                        self.cls_head.loss(tar_crop_x, last_crop_x,
-                                           'backward'), f'step{step}.t'
-                        f'{last_idx}'))
-
+                        self.cls_head.loss(
+                            tar_crop_x, last_crop_x, weight=step_weight),
+                        suffix=f'backward.t{last_idx}'))
+                # loss.update(
+                #     add_suffix(
+                #         self.cls_head.loss(
+                #             tar_crop_x, last_crop_x, 'backward',
+                #             weight=step_weight), f'step{step}.t{last_idx}'))
+            loss.update(add_suffix(loss_step, f'step{step}'))
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
                 tar_frame = imgs[:, :, step - 1]
                 tar_x = x[:, :, step - 1]
-                _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
+                _, tar_crop_x = self.track(
+                    tar_frame,
+                    tar_x,
+                    ref_crop_x,
+                    tar_bboxes=ref_bboxes if is_center_crop else None)
                 ref_pred_bboxes, ref_pred_crop_x = self.track(
-                    ref_frame, ref_x, tar_crop_x)
+                    ref_frame,
+                    ref_x,
+                    tar_crop_x,
+                    tar_bboxes=ref_bboxes if is_center_crop else None)
                 ref_pred_crop_grid = get_crop_grid(
                     ref_frame, ref_pred_bboxes * self.stride,
                     self.patch_img_size)
@@ -133,16 +159,28 @@ class UVCTrackerV2(VanillaTracker):
                     ref_pred_bboxes / self.patch_x_size[0],
                     ref_bboxes / self.patch_x_size[0])
                 loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
-                    ref_crop_grid, ref_pred_crop_grid)
-                loss.update(add_suffix(loss_step, f'skip{step}'))
-                loss.update(
+                    ref_crop_grid, ref_pred_crop_grid) * skip_weight
+                loss_skip.update(
                     add_suffix(
-                        self.cls_head.loss(ref_crop_x, tar_crop_x, 'forward'),
-                        f'skip{step}'))
-                loss.update(
+                        self.cls_head.loss(
+                            ref_crop_x, tar_crop_x, weight=skip_weight),
+                        suffix='forward'))
+                loss_skip.update(
                     add_suffix(
-                        self.cls_head.loss(tar_crop_x, ref_pred_crop_x,
-                                           'backward'), f'skip{step}'))
+                        self.cls_head.loss(
+                            tar_crop_x, ref_pred_crop_x, weight=skip_weight),
+                        suffix='backward'))
+                loss.update(add_suffix(loss_skip, f'skip{step}'))
+                # loss.update(
+                #     add_suffix(
+                #         self.cls_head.loss(ref_crop_x, tar_crop_x,
+                #                            'forward', weight=step_weight),
+                #         f'skip{step}'))
+                # loss.update(
+                #     add_suffix(
+                #         self.cls_head.loss(tar_crop_x, ref_pred_crop_x,
+                #                            'backward', weight=step_weight),
+                #         f'skip{step}'))
 
         return loss
 

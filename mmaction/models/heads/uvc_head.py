@@ -3,7 +3,6 @@ import torch.nn as nn
 from mmcv.cnn import ConvModule
 from mmcv.ops.point_sample import generate_grid
 
-from mmaction.utils import add_suffix
 from ..builder import build_loss
 from ..common import center2bbox, compute_affinity
 from ..registry import HEADS
@@ -141,12 +140,10 @@ class UVCHead(nn.Module):
             x = self.convs(x)
         return x
 
-    def loss(self, src_x, dst_x, suffix=''):
+    def loss(self, src_x, dst_x, weight=1.):
 
         losses = dict()
-        losses['loss_feat'] = self.loss_feat(src_x, dst_x)
-        losses['loss_aff'] = self.loss_aff(src_x, dst_x)
-
-        losses = add_suffix(losses, suffix)
+        losses['loss_feat'] = self.loss_feat(src_x, dst_x) * weight
+        losses['loss_aff'] = self.loss_aff(src_x, dst_x) * weight
 
         return losses
