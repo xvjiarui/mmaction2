@@ -67,6 +67,8 @@ class UVCTrackerV2(VanillaTracker):
                 center_ratio=self.train_cfg.center_ratio)
             ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
                                               self.train_cfg.img_as_ref)
+            ref_crop_grid = get_crop_grid(ref_frame, ref_bboxes * self.stride,
+                                          self.patch_img_size)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
                 last_bboxes, last_crop_x = forward_hist[-1]
@@ -91,8 +93,6 @@ class UVCTrackerV2(VanillaTracker):
 
             loss_step = dict()
             ref_pred_bboxes = backward_hist[-1][0]
-            ref_crop_grid = get_crop_grid(ref_frame, ref_bboxes * self.stride,
-                                          self.patch_img_size)
             ref_pred_crop_grid = get_crop_grid(ref_frame,
                                                ref_pred_bboxes * self.stride,
                                                self.patch_img_size)
@@ -103,20 +103,21 @@ class UVCTrackerV2(VanillaTracker):
                 ref_crop_grid, ref_pred_crop_grid)
             loss.update(add_suffix(loss_step, f'step{step}'))
 
-            for idx in range(1, step):
-                ref_crop_x = forward_hist[idx - 1][1]
-                tar_crop_x = forward_hist[idx][1]
+            for tar_idx in range(1, step):
+                last_crop_x = forward_hist[tar_idx - 1][1]
+                tar_crop_x = forward_hist[tar_idx][1]
                 loss.update(
                     add_suffix(
-                        self.cls_head.loss(ref_crop_x, tar_crop_x, 'forward'),
-                        f'step{step}.t{idx}'))
-            for idx in reversed(range(1, step)):
-                tar_crop_x = forward_hist[idx - 1][1]
-                ref_pred_crop_x = forward_hist[idx][1]
+                        self.cls_head.loss(last_crop_x, tar_crop_x, 'forward'),
+                        f'step{step}.t{tar_idx}'))
+            for last_idx in reversed(range(1, step)):
+                tar_crop_x = backward_hist[last_idx - 1][1]
+                last_crop_x = backward_hist[last_idx][1]
                 loss.update(
                     add_suffix(
-                        self.cls_head.loss(tar_crop_x, ref_pred_crop_x,
-                                           'backward'), f'step{step}.t{idx}'))
+                        self.cls_head.loss(tar_crop_x, last_crop_x,
+                                           'backward'), f'step{step}.t'
+                        f'{last_idx}'))
 
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
