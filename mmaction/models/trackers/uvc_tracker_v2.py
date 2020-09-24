@@ -1,4 +1,5 @@
 import kornia.augmentation as K
+import numpy.random as npr
 import torch.nn as nn
 from torch.nn.modules.utils import _pair
 
@@ -20,18 +21,26 @@ class UVCTrackerV2(VanillaTracker):
             self.patch_img_size = _pair(self.train_cfg.patch_size)
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
             if self.train_cfg.get('strong_aug', False):
+                same_on_batch = self.train_cfg.get('same_on_batch', False)
                 self.aug = nn.Sequential(
-                    K.RandomRotation(degrees=10),
+                    K.RandomRotation(degrees=10, same_on_batch=same_on_batch),
                     # K.RandomResizedCrop(size=self.patch_img_size,
                     #                     scale=(0.7, 0.9),
                     #                     ratio=(0.7, 1.3)),
                     K.ColorJitter(
-                        brightness=0.2, contrast=0.3, saturation=0.3, hue=0.1))
+                        brightness=0.1,
+                        contrast=0.1,
+                        saturation=0.1,
+                        hue=0.1,
+                        same_on_batch=same_on_batch))
             else:
                 self.aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)
 
     def crop_x_from_img(self, img, x, bboxes, crop_first):
+        assert isinstance(crop_first, (bool, float))
+        if isinstance(crop_first, float):
+            crop_first = npr.rand() < crop_first
         if crop_first:
             crop_x = self.extract_feat(
                 crop_and_resize(img, bboxes * self.stride,

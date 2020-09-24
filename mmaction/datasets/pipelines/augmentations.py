@@ -3,6 +3,7 @@ from collections.abc import Sequence
 
 import mmcv
 import numpy as np
+from numpy import random as npr
 from torch.nn.modules.utils import _pair
 
 from ..registry import PIPELINES
@@ -976,4 +977,122 @@ class MultiGroupCrop(object):
         repr_str = (f'{self.__class__.__name__}'
                     f'(crop_size={self.crop_size}, '
                     f'groups={self.groups})')
+        return repr_str
+
+
+@PIPELINES.register_module()
+class PhotoMetricDistortion(object):
+    """Apply photometric distortion to image sequentially, every transformation
+    is applied with a probability of 0.5. The position of random contrast is in
+    second or second to last.
+
+    1. random brightness
+    2. random contrast (mode 0)
+    3. convert color from BGR to HSV
+    4. random saturation
+    5. random hue
+    6. convert color from HSV to BGR
+    7. random contrast (mode 1)
+    8. randomly swap channels
+
+    Args:
+        brightness_delta (int): delta of brightness.
+        contrast_range (tuple): range of contrast.
+        saturation_range (tuple): range of saturation.
+        hue_delta (int): delta of hue.
+    """
+
+    def __init__(self,
+                 brightness_delta=32,
+                 contrast_range=(0.5, 1.5),
+                 saturation_range=(0.5, 1.5),
+                 hue_delta=18,
+                 p=0.5):
+        self.brightness_delta = brightness_delta
+        self.contrast_lower, self.contrast_upper = contrast_range
+        self.saturation_lower, self.saturation_upper = saturation_range
+        self.hue_delta = hue_delta
+        self.p = p
+
+    def convert(self, img, alpha=1, beta=0):
+        """Multiple with alpha and add beat with clip."""
+        img = img.astype(np.float32) * alpha + beta
+        img = np.clip(img, 0, 255)
+        return img.astype(np.uint8)
+
+    def brightness(self, img, beta):
+        """Brightness distortion."""
+        return self.convert(img, beta=beta)
+
+    def contrast(self, img, alpha):
+        """Contrast distortion."""
+        return self.convert(img, alpha=alpha)
+
+    def saturation(self, img, alpha):
+        """Saturation distortion."""
+        img = mmcv.bgr2hsv(img)
+        img[:, :, 1] = self.convert(img[:, :, 1], alpha=alpha)
+        img = mmcv.hsv2bgr(img)
+        return img
+
+    def hue(self, img, delta):
+        """Hue distortion."""
+        img = mmcv.bgr2hsv(img)
+        img[:, :, 0] = (img[:, :, 0].astype(int) + delta) % 180
+        img = mmcv.hsv2bgr(img)
+        return img
+
+    def __call__(self, results):
+        """Call function to perform photometric distortion on images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Result dict with images distorted.
+        """
+
+        apply_bright = npr.rand() < self.p
+        bright_beta = npr.uniform(-self.brightness_delta,
+                                  self.brightness_delta)
+        apply_contrast = npr.rand() < self.p
+        contrast_alpha = npr.uniform(self.contrast_lower, self.contrast_upper)
+        apply_saturation = npr.rand() < self.p
+        saturation_alpha = npr.uniform(self.saturation_lower,
+                                       self.saturation_upper)
+        apply_hue = npr.rand() < self.p
+        hue_delta = npr.randint(-self.hue_delta, self.hue_delta)
+        apply_mode = npr.rand() < self.p
+
+        for i, img in enumerate(results['imgs']):
+            # random brightness
+            if apply_bright:
+                img = self.brightness(img, beta=bright_beta)
+
+            if apply_mode and apply_contrast:
+                img = self.contrast(img, alpha=contrast_alpha)
+
+            # random saturation
+            if apply_saturation:
+                img = self.saturation(img, alpha=saturation_alpha)
+
+            # random hue
+            if apply_hue:
+                img = self.hue(img, delta=hue_delta)
+
+            # random contrast
+            if not apply_mode and apply_contrast:
+                img = self.contrast(img, alpha=saturation_alpha)
+
+            results['imgs'][i] = img
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += (f'(brightness_delta={self.brightness_delta}, '
+                     f'contrast_range=({self.contrast_lower}, '
+                     f'{self.contrast_upper}), '
+                     f'saturation_range=({self.saturation_lower}, '
+                     f'{self.saturation_upper}), '
+                     f'hue_delta={self.hue_delta})')
         return repr_str

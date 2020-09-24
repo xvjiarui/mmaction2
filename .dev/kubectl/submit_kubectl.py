@@ -1,7 +1,6 @@
 import argparse
 import os
 import os.path as osp
-import pprint
 import re
 import tempfile
 
@@ -29,7 +28,7 @@ def parse_args():
 
 def submit(config, args, rest):
     template_dict = dict(
-        job_name=osp.splitext(osp.basename(config))[0].replace('_', '-'),
+        job_name=osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
         branch=args.branch,
         gpus=args.gpus,
         config=config,
@@ -44,7 +43,7 @@ def submit(config, args, rest):
         suffix=osp.splitext(args.job)[1])
     with open(temp_config_file.name, 'w') as tmp_config_file:
         tmp_config_file.write(config_file)
-    pprint.pprint(mmcv.load(temp_config_file.name))
+    # pprint.pprint(mmcv.load(temp_config_file.name))
     os.system(f'kubectl create -f {temp_config_file.name}')
     tmp_config_file.close()
 
