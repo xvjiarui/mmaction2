@@ -29,6 +29,29 @@ def center2bbox(center, patch_size, img_size):
     return bboxes
 
 
+def coord2bbox(coords, img_size):
+    img_size = _pair(img_size)
+    img_h, img_w = img_size
+    batches = coords.size(0)
+    # [N,  2]
+    center = torch.mean(coords, dim=1)
+    center_repeat = center.unsqueeze(1).repeat(1, coords.size(1), 1)
+    dis_x = torch.abs(coords[:, :, 0] - center_repeat[:, :, 0])
+    dis_x = torch.mean(dis_x, dim=1).detach()
+    dis_y = torch.abs(coords[:, :, 1] - center_repeat[:, :, 1])
+    dis_y = torch.mean(dis_y, dim=1).detach()
+    left = (center[:, 0] - dis_x * 2).view(batches, 1)
+    left = left.clamp(min=0)
+    right = (center[:, 0] + dis_x * 2).view(batches, 1)
+    right = right.clamp(max=img_w)
+    top = (center[:, 1] - dis_y * 2).view(batches, 1)
+    top = top.clamp(min=0)
+    bottom = (center[:, 1] + dis_y * 2).view(batches, 1)
+    bottom = bottom.clamp(max=img_h)
+    bboxes = torch.cat((left, top, right, bottom), dim=1)
+    return bboxes
+
+
 def complete_bboxes(bboxes):
     x1, y1, x2, y2 = bboxes.split(1, dim=1)
     tl = torch.cat([x1, y1], dim=1)
@@ -80,7 +103,7 @@ def get_crop_grid(img,
     device = img.device if device is None else device
     dtype = img.dtype if dtype is None else dtype
     assert img_shape[0] == bboxes.size(0)
-    assert bboxes.size(-1) == 4
+    assert bboxes.size(1) == 4
     x1, y1, x2, y2 = bboxes.split(1, dim=1)
     batches, channels, height, width = img_shape
     a = ((x2 - x1) / width).view(batches, 1, 1)

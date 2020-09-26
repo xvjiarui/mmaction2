@@ -4,7 +4,7 @@ from mmcv.cnn import ConvModule
 from mmcv.ops.point_sample import generate_grid
 
 from ..builder import build_loss
-from ..common import center2bbox, compute_affinity
+from ..common import center2bbox, compute_affinity, coord2bbox
 from ..registry import HEADS
 
 
@@ -39,6 +39,8 @@ class UVCHead(nn.Module):
                  dropout_ratio=0,
                  init_std=0.01,
                  temperature=1.,
+                 track_type='center',
+                 spatial_type=None,
                  **kwargs):
         super().__init__()
         self.in_channels = in_channels
@@ -48,40 +50,46 @@ class UVCHead(nn.Module):
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
         self.with_norm = with_norm
-        self.loss_feat = build_loss(loss_feat)
-        self.loss_aff = build_loss(loss_aff)
+        if loss_feat is None:
+            self.loss_feat = None
+        else:
+            self.loss_feat = build_loss(loss_feat)
+        if loss_aff is None:
+            self.loss_aff = None
+        else:
+            self.loss_aff = build_loss(loss_aff)
         self.loss_bbox = build_loss(loss_bbox)
         if num_convs > 0:
             convs = []
-            convs.append(
-                ConvModule(
-                    self.in_channels,
-                    self.channels,
-                    kernel_size=kernel_size,
-                    padding=kernel_size // 2,
-                    conv_cfg=self.conv_cfg,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg))
-            for i in range(num_convs - 2):
+            if num_convs > 1:
                 convs.append(
                     ConvModule(
-                        self.channels,
+                        self.in_channels,
                         self.channels,
                         kernel_size=kernel_size,
                         padding=kernel_size // 2,
                         conv_cfg=self.conv_cfg,
                         norm_cfg=self.norm_cfg,
                         act_cfg=self.act_cfg))
-            if num_convs > 1:
-                convs.append(
-                    ConvModule(
-                        self.channels,
-                        self.channels,
-                        kernel_size=1,
-                        padding=0,
-                        conv_cfg=self.conv_cfg,
-                        norm_cfg=None,
-                        act_cfg=None))
+                for i in range(num_convs - 2):
+                    convs.append(
+                        ConvModule(
+                            self.channels,
+                            self.channels,
+                            kernel_size=kernel_size,
+                            padding=kernel_size // 2,
+                            conv_cfg=self.conv_cfg,
+                            norm_cfg=self.norm_cfg,
+                            act_cfg=self.act_cfg))
+            convs.append(
+                ConvModule(
+                    self.channels if num_convs > 1 else self.in_channels,
+                    self.channels,
+                    kernel_size=1,
+                    padding=0,
+                    conv_cfg=self.conv_cfg,
+                    norm_cfg=None,
+                    act_cfg=None))
             self.convs = nn.Sequential(*convs)
         else:
             self.convs = None
@@ -89,18 +97,25 @@ class UVCHead(nn.Module):
         self.dropout_ratio = dropout_ratio
         self.init_std = init_std
         self.temperature = temperature
+        assert track_type in ['center', 'coord']
+        self.track_type = track_type
+        assert spatial_type in ['avg', None]
+        self.spatial_type = spatial_type
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
             self.dropout = None
+        if self.spatial_type == 'avg':
+            # use `nn.AdaptiveAvgPool3d` to adaptively match the in_channels.
+            self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        else:
+            self.avg_pool = None
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
         pass
 
     def get_tar_bboxes(self, ref_crop_x, tar_x):
-        ref_crop_x = self(ref_crop_x)
-        tar_x = self(tar_x)
         # [N, tar_w*tar_h, 2]
         tar_grid = generate_grid(
             tar_x.size(0), tar_x.shape[2:], device=ref_crop_x.device)
@@ -119,10 +134,13 @@ class UVCHead(nn.Module):
             softmax_dim=2).contiguous()
         # [N, ref_w*ref_h, 2]
         ref_coords = torch.bmm(aff_ref_tar, tar_coords)
-        # [N, 2]
-        ref_center = torch.mean(ref_coords, dim=1)
-        tar_bboxes = center2bbox(ref_center, ref_crop_x.shape[2:],
-                                 tar_x.shape[2:])
+        if self.track_type == 'coord':
+            tar_bboxes = coord2bbox(ref_coords, tar_x.shape[2:])
+        else:
+            # [N, 2]
+            ref_center = torch.mean(ref_coords, dim=1)
+            tar_bboxes = center2bbox(ref_center, ref_crop_x.shape[2:],
+                                     tar_x.shape[2:])
 
         return tar_bboxes
 
@@ -138,12 +156,17 @@ class UVCHead(nn.Module):
         # [N, in_channels, 4, 7, 7]
         if self.convs is not None:
             x = self.convs(x)
+        if self.avg_pool is not None:
+            x = self.avg_pool(x)
         return x
 
     def loss(self, src_x, dst_x, weight=1.):
 
         losses = dict()
-        losses['loss_feat'] = self.loss_feat(src_x, dst_x) * weight
-        losses['loss_aff'] = self.loss_aff(src_x, dst_x) * weight
+        if self.loss_feat is not None:
+            losses['loss_feat'] = self.loss_feat(self(src_x),
+                                                 self(dst_x)) * weight
+        if self.loss_aff is not None:
+            losses['loss_aff'] = self.loss_aff(src_x, dst_x) * weight
 
         return losses

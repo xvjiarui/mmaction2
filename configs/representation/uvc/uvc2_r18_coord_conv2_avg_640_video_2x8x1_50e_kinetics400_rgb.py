@@ -21,22 +21,22 @@ model = dict(
             with_norm=True,
             loss_weight=1.),
         loss_bbox=dict(type='MSELoss', loss_weight=10.),
+        norm_cfg=dict(type='BN'),
+        act_cfg=dict(type='ReLU'),
         in_channels=512,
         channels=128,
         temperature=temperature,
         with_norm=True,
         init_std=0.01,
-        num_convs=0,
-        spatial_type=None,
+        num_convs=2,
+        spatial_type='avg',
         track_type='coord'))
 # model training and testing settings
 train_cfg = dict(
-    patch_size=96,
+    patch_size=256,
     img_as_ref=True,
     img_as_tar=True,
     skip_cycle=True,
-    strong_aug=False,
-    cur_as_tar=False,
     center_ratio=0.)
 test_cfg = dict(
     precede_frames=7,
@@ -62,9 +62,8 @@ train_pipeline = [
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
+    dict(type='Resize', scale=(640, 640), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    # dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -84,7 +83,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=8,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(

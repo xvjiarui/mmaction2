@@ -36,6 +36,7 @@ class UVCTrackerV2(VanillaTracker):
             else:
                 self.aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)
+            self.cur_as_tar = self.train_cfg.get('cur_as_tar', False)
 
     def crop_x_from_img(self, img, x, bboxes, crop_first):
         assert isinstance(crop_first, (bool, float))
@@ -128,11 +129,6 @@ class UVCTrackerV2(VanillaTracker):
                         self.cls_head.loss(
                             last_crop_x, tar_crop_x, weight=step_weight),
                         suffix=f'forward.t{tar_idx}'))
-                # loss.update(
-                #     add_suffix(
-                #         self.cls_head.loss(last_crop_x, tar_crop_x,
-                #                            'forward', weight=step_weight),
-                #         f'step{step}.t{tar_idx}'))
             for last_idx in reversed(range(1, step)):
                 tar_crop_x = backward_hist[last_idx - 1][1]
                 last_crop_x = backward_hist[last_idx][1]
@@ -141,12 +137,38 @@ class UVCTrackerV2(VanillaTracker):
                         self.cls_head.loss(
                             tar_crop_x, last_crop_x, weight=step_weight),
                         suffix=f'backward.t{last_idx}'))
-                # loss.update(
-                #     add_suffix(
-                #         self.cls_head.loss(
-                #             tar_crop_x, last_crop_x, 'backward',
-                #             weight=step_weight), f'step{step}.t{last_idx}'))
             loss.update(add_suffix(loss_step, f'step{step}'))
+
+            if self.cur_as_tar:
+                total_hist = forward_hist + backward_hist
+                idx_hist = list(range(step)) + list(reversed(range(step)))
+                for cur_idx in range(2 * step):
+                    loss_cur = dict()
+                    cur_bboxes, cur_crop_x = total_hist[cur_idx]
+                    cur_frame = imgs[:, :, idx_hist[cur_idx]]
+                    cur_x = x[:, :, idx_hist[cur_idx]]
+                    tar_bboxes, tar_crop_x = self.track(
+                        cur_frame, cur_x, cur_crop_x)
+                    loss_cur.update(
+                        add_suffix(
+                            self.cls_head.loss(cur_crop_x, tar_crop_x),
+                            suffix='forward'))
+                    cur_pred_bboxes, cur_pred_crop_x = self.track(
+                        cur_frame, cur_x, tar_crop_x)
+                    loss_cur.update(
+                        add_suffix(
+                            self.cls_head.loss(cur_pred_crop_x, tar_crop_x),
+                            suffix='backward'))
+                    cur_pred_crop_grid = get_crop_grid(
+                        cur_frame, cur_pred_bboxes * self.stride,
+                        self.patch_img_size)
+                    cur_crop_grid = get_crop_grid(cur_frame,
+                                                  cur_bboxes * self.stride,
+                                                  self.patch_img_size)
+                    loss_cur['loss_bbox'] = self.cls_head.loss_bbox(
+                        cur_pred_crop_grid, cur_crop_grid) * step_weight
+                    loss.update(add_suffix(loss_cur, f'cur{cur_idx}'))
+
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
                 tar_frame = imgs[:, :, step - 1]
@@ -180,16 +202,6 @@ class UVCTrackerV2(VanillaTracker):
                             tar_crop_x, ref_pred_crop_x, weight=skip_weight),
                         suffix='backward'))
                 loss.update(add_suffix(loss_skip, f'skip{step}'))
-                # loss.update(
-                #     add_suffix(
-                #         self.cls_head.loss(ref_crop_x, tar_crop_x,
-                #                            'forward', weight=step_weight),
-                #         f'skip{step}'))
-                # loss.update(
-                #     add_suffix(
-                #         self.cls_head.loss(tar_crop_x, ref_pred_crop_x,
-                #                            'backward', weight=step_weight),
-                #         f'skip{step}'))
 
         return loss
 
