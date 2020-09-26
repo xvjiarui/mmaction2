@@ -23,7 +23,7 @@ model = dict(
         track_type='coord'))
 # model training and testing settings
 train_cfg = dict(
-    patch_size=256,
+    patch_size=96,
     img_as_ref=True,
     img_as_tar=True,
     skip_cycle=True,
@@ -52,7 +52,7 @@ train_pipeline = [
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
-    dict(type='Resize', scale=(640, 640), keep_ratio=False),
+    dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
