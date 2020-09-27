@@ -25,19 +25,16 @@ model = dict(
         channels=128,
         temperature=temperature,
         with_norm=True,
-        init_std=0.01,
-        num_convs=0,
-        spatial_type=None,
-        track_type='coord'))
+        init_std=0.01))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
     img_as_tar=True,
+    img_as_ref_pred=True,
     skip_cycle=True,
-    strong_aug=False,
     cur_as_tar=True,
-    center_ratio=0.)
+    center_ratio=0.2)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -64,7 +61,6 @@ train_pipeline = [
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    # dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -84,7 +80,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=36,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
