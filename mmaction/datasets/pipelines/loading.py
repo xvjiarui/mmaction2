@@ -48,7 +48,8 @@ class SampleFrames(object):
                  twice_sample=False,
                  out_of_bound_opt='loop',
                  test_mode=False,
-                 start_index=None):
+                 start_index=None,
+                 random_frame_interval=False):
 
         self.clip_len = clip_len
         self.frame_interval = frame_interval
@@ -63,6 +64,9 @@ class SampleFrames(object):
             warnings.warn('No longer support "start_index" in "SampleFrames", '
                           'it should be set in dataset class, see this pr: '
                           'https://github.com/open-mmlab/mmaction2/pull/89')
+        self.random_frame_interval = random_frame_interval
+        if self.random_frame_interval:
+            self.frame_interval = None
 
     def _get_train_clips(self, num_frames):
         """Get clip offsets in train mode.
@@ -146,6 +150,10 @@ class SampleFrames(object):
                 to the next transform in pipeline.
         """
         total_frames = results['total_frames']
+
+        # TODO: force re-generate frame_interval
+        if self.random_frame_interval:
+            self.frame_interval = np.random.randint(total_frames)
 
         clip_offsets = self._sample_clips(total_frames)
         frame_inds = clip_offsets[:, None] + np.arange(

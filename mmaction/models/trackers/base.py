@@ -9,7 +9,7 @@ from mmcv.runner import auto_fp16
 from .. import builder
 
 
-class BaseWalker(nn.Module, metaclass=ABCMeta):
+class BaseTracker(nn.Module, metaclass=ABCMeta):
     """Base class for recognizers.
 
     All recognizers should subclass it.

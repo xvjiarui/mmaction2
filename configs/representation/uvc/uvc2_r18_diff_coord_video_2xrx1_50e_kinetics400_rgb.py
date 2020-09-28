@@ -26,20 +26,15 @@ model = dict(
         temperature=temperature,
         with_norm=True,
         init_std=0.01,
-        num_convs=0,
-        spatial_type=None,
-        track_type='center'))
+        track_type='coord'))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
     img_as_tar=True,
     skip_cycle=True,
-    strong_aug=False,
-    cur_as_tar=False,
     switch_ref_tar=False,
     diff_crop=True,
-    # border=40,
     center_ratio=0.)
 test_cfg = dict(
     precede_frames=7,
@@ -72,10 +67,9 @@ train_pipeline = [
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    # dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
-    dict(type='Collect', keys=['imgs', 'label'], meta_keys=['img_norm_cfg']),
+    dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['imgs', 'label'])
 ]
 val_pipeline = [
@@ -92,7 +86,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=48,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -131,10 +125,16 @@ log_config = dict(
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(type='WandbLoggerHook', init_kwargs=dict(
-        #     project='uvc', name='{{fileBasenameNoExtension}}', config=dict(
-        #         model=model, train_cfg=train_cfg, test_cfg=test_cfg,
-        #         data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='uvc',
+                name='{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

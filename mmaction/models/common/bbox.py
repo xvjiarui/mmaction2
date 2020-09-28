@@ -104,6 +104,7 @@ def get_crop_grid(img,
     dtype = img.dtype if dtype is None else dtype
     assert img_shape[0] == bboxes.size(0)
     assert bboxes.size(1) == 4
+    assert bboxes.ndim == 2
     x1, y1, x2, y2 = bboxes.split(1, dim=1)
     batches, channels, height, width = img_shape
     a = ((x2 - x1) / width).view(batches, 1, 1)
@@ -132,7 +133,8 @@ def get_random_crop_bbox(batches,
                          crop_size,
                          img_size,
                          device,
-                         center_ratio=0.):
+                         center_ratio=0.,
+                         border=0):
     """Randomly get a crop bounding box."""
     crop_size = _pair(crop_size)
     img_size = _pair(img_size)
@@ -156,11 +158,55 @@ def get_random_crop_bbox(batches,
             dtype=torch.int)
     else:
         offset_h = torch.randint(
-            margin_h + 1, size=(batches, 1), device=device)
+            low=border,
+            high=margin_h + 1 - border,
+            size=(batches, 1),
+            device=device)
         offset_w = torch.randint(
-            margin_w + 1, size=(batches, 1), device=device)
+            low=border,
+            high=margin_w + 1 - border,
+            size=(batches, 1),
+            device=device)
     crop_y1, crop_y2 = offset_h, offset_h + crop_size[0]
     crop_x1, crop_x2 = offset_w, offset_w + crop_size[1]
     bbox = torch.cat([crop_x1, crop_y1, crop_x2, crop_y2], dim=1).float()
 
     return bbox, center_crop
+
+
+def get_top_diff_crop_bbox(imgs,
+                           ref_imgs,
+                           crop_size,
+                           grid_size,
+                           device,
+                           topk=10):
+    """Randomly get a crop bounding box."""
+    assert imgs.shape == ref_imgs.shape
+    batches = imgs.size(0)
+    img_size = imgs.shape[2:]
+    crop_size = _pair(crop_size)
+    grid_size = _pair(grid_size)
+    stride_h = (img_size[0] - crop_size[0]) // (grid_size[0] - 1)
+    stride_w = (img_size[1] - crop_size[1]) // (grid_size[1] - 1)
+    diff_imgs = imgs - ref_imgs
+
+    diff_list = []
+    for i in range(grid_size[0]):
+        for j in range(grid_size[1]):
+            crop_diff = diff_imgs[:, :,
+                                  i * stride_h:i * stride_h + crop_size[0],
+                                  j * stride_w:j * stride_w + crop_size[1]]
+            diff_list.append(crop_diff.abs().sum(dim=(1, 2, 3)))
+    # [batches, grid_size**2]
+    diff_sum = torch.stack(diff_list, dim=1)
+    diff_topk_idx = torch.argsort(diff_sum, dim=1, descending=True)[:, :topk]
+    perm = torch.randint(low=0, high=topk, size=(batches, ), device=device)
+    select_idx = diff_topk_idx[torch.arange(batches, device=device), perm]
+    idx_i = select_idx // grid_size[1]
+    idx_j = select_idx % grid_size[1]
+
+    crop_y1, crop_y2 = idx_i * stride_h, idx_i * stride_h + crop_size[0]
+    crop_x1, crop_x2 = idx_j * stride_w, idx_j * stride_w + crop_size[1]
+    bbox = torch.stack([crop_x1, crop_y1, crop_x2, crop_y2], dim=1).float()
+
+    return bbox

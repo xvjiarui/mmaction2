@@ -11,7 +11,7 @@ from .losses import (BCELossWithLogits, BinaryLogisticRegressionLoss, BMNLoss,
 from .recognizers import BaseRecognizer, recognizer2d, recognizer3d
 from .registry import (BACKBONES, HEADS, LOCALIZERS, LOSSES, RECOGNIZERS,
                        WALKERS)
-from .trackers import BaseWalker, SpaceTimeWalker
+from .trackers import BaseTracker, SpaceTimeWalker
 
 __all__ = [
     'BACKBONES', 'HEADS', 'RECOGNIZERS', 'build_recognizer', 'build_head',
@@ -21,6 +21,6 @@ __all__ = [
     'ResNet3dSlowFast', 'SlowFastHead', 'Conv2plus1d', 'ResNet3dSlowOnly',
     'BCELossWithLogits', 'LOCALIZERS', 'build_localizer', 'PEM', 'TEM',
     'BinaryLogisticRegressionLoss', 'BMN', 'BMNLoss', 'build_model',
-    'OHEMHingeLoss', 'SSNLoss', 'ResNet3dCSN', 'ResNetTIN', 'BaseWalker',
+    'OHEMHingeLoss', 'SSNLoss', 'ResNet3dCSN', 'ResNetTIN', 'BaseTracker',
     'SpaceTimeWalker', 'WALKERS'
 ]

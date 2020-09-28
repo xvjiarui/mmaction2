@@ -4,11 +4,11 @@ import torch.nn.functional as F
 
 from ..common import compute_affinity, pil_nearest_interpolate, propagate
 from ..registry import WALKERS
-from .base import BaseWalker
+from .base import BaseTracker
 
 
 @WALKERS.register_module()
-class VanillaTracker(BaseWalker):
+class VanillaTracker(BaseTracker):
     """Pixel Tracker framework."""
 
     def forward_train(self, imgs, labels=None):

@@ -19,6 +19,7 @@ def parse_args():
         '-l',
         action='store_true',
         help='link experiment directory')
+    parser.add_argument('--wandb', '-w', action='store_true', help='use wandb')
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
     args, rest = parser.parse_known_args()
@@ -33,7 +34,9 @@ def submit(config, args, rest):
         gpus=args.gpus,
         config=config,
         py_args=' '.join(rest),
-        link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '')
+        link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
+        wandb='pip install --upgrade wandb && wandb login '
+        '18a953cf069a567c46b1e613f940e6eb8f878c3d' if args.wandb else '')
     with open(args.job, 'r') as f:
         config_file = f.read()
     for key, value in template_dict.items():
