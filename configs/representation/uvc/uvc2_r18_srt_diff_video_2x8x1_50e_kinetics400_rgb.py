@@ -126,6 +126,7 @@ log_config = dict(
                 project='uvc',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
+                dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,
                     train_cfg=train_cfg,

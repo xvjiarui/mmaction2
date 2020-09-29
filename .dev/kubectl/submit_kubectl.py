@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
-        '--cpu', type=int, default=6, help='number of cpu to use')
+        '--cpus', type=int, default=6, help='number of cpus to use')
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -36,6 +36,7 @@ def submit(config, args, rest):
         job_name=osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
         branch=args.branch,
         gpus=args.gpus,
+        cpus=args.cpus,
         config=config,
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',

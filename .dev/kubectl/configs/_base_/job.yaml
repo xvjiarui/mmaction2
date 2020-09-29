@@ -19,7 +19,7 @@ spec:
         resources:
           requests: # Minimum resources needed for the job
             memory: "6Gi"
-            cpu: "{{ cpu }}"
+            cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
           limits: # Maximum resources can be used for the job
             memory: "32Gi"
