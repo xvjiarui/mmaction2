@@ -106,10 +106,14 @@ class EvalHook(Hook):
             self.best_score = key_score
             self.logger.info(
                 f'Now best checkpoint is epoch_{runner.epoch + 1}.pth')
+            runner.log_buffer.output[
+                f'best_{self.key_indicator}'] = self.best_score
+            runner.log_buffer.output['best_epoch'] = runner.epoch + 1
             self.best_json['best_score'] = self.best_score
             self.best_json['best_ckpt'] = current_ckpt_path
             self.best_json['key_indicator'] = self.key_indicator
             mmcv.dump(self.best_json, json_path)
+        runner.log_buffer.ready = True
 
     def evaluate(self, runner, results):
         """Evaluate the results.
@@ -122,7 +126,6 @@ class EvalHook(Hook):
             results, logger=runner.logger, **self.eval_kwargs)
         for name, val in eval_res.items():
             runner.log_buffer.output[name] = val
-        runner.log_buffer.ready = True
         if self.key_indicator is not None:
             return eval_res[self.key_indicator]
         else:
