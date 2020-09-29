@@ -6,6 +6,8 @@ import tempfile
 
 import mmcv
 
+WANDB_KEY = '18a953cf069a567c46b1e613f940e6eb8f878c3d'
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -22,6 +24,8 @@ def parse_args():
     parser.add_argument('--wandb', '-w', action='store_true', help='use wandb')
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
+    parser.add_argument(
+        '--cpu', type=int, default=6, help='number of cpu to use')
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -35,8 +39,10 @@ def submit(config, args, rest):
         config=config,
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
-        wandb='pip install --upgrade wandb && wandb login '
-        '18a953cf069a567c46b1e613f940e6eb8f878c3d' if args.wandb else '')
+        wandb='mkdir -p /exps/mmaction2/wandb; '
+        'ln -s /exps/mmaction2/wandb; '
+        'pip install --upgrade wandb && wandb login '
+        f'{WANDB_KEY} ;' if args.wandb else '')
     with open(args.job, 'r') as f:
         config_file = f.read()
     for key, value in template_dict.items():
