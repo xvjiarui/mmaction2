@@ -43,6 +43,7 @@ class UVCTrackerV2(VanillaTracker):
             self.img_as_ref = self.train_cfg.get('img_as_ref')
             self.img_as_tar = self.train_cfg.get('img_as_tar')
             self.diff_crop = self.train_cfg.get('diff_crop', False)
+            self.img_as_grid = self.train_cfg.get('img_as_grid', True)
 
     def crop_x_from_img(self, img, x, bboxes, crop_first):
         assert isinstance(crop_first, (bool, float))
@@ -56,6 +57,17 @@ class UVCTrackerV2(VanillaTracker):
             crop_x = crop_and_resize(x, bboxes, self.patch_x_size)
 
         return crop_x
+
+    def get_grid(self, frame, x, bboxes):
+        import ipdb
+        ipdb.set_trace()
+        if self.img_as_grid:
+            crop_grid = get_crop_grid(frame, bboxes * self.stride,
+                                      self.patch_img_size)
+        else:
+            crop_grid = get_crop_grid(x, bboxes, self.patch_x_size)
+
+        return crop_grid
 
     def track(self, tar_frame, tar_x, ref_crop_x, tar_bboxes=None):
         if tar_bboxes is None:
@@ -101,8 +113,10 @@ class UVCTrackerV2(VanillaTracker):
             ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)
             ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
                                               self.train_cfg.img_as_ref)
-            ref_crop_grid = get_crop_grid(ref_frame, ref_bboxes * self.stride,
-                                          self.patch_img_size)
+            # ref_crop_grid = get_crop_grid(ref_frame,
+            #                               ref_bboxes * self.stride,
+            #                               self.patch_img_size)
+            ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
                 last_bboxes, last_crop_x = forward_hist[-1]
@@ -132,9 +146,11 @@ class UVCTrackerV2(VanillaTracker):
 
             loss_step = dict()
             ref_pred_bboxes = backward_hist[-1][0]
-            ref_pred_crop_grid = get_crop_grid(ref_frame,
-                                               ref_pred_bboxes * self.stride,
-                                               self.patch_img_size)
+            # ref_pred_crop_grid = get_crop_grid(ref_frame,
+            #                                    ref_pred_bboxes * self.stride,
+            #                                    self.patch_img_size)
+            ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
+                                               ref_pred_bboxes)
             loss_step['dist_bbox'] = self.cls_head.loss_bbox(
                 ref_pred_bboxes / self.patch_x_size[0],
                 ref_bboxes / self.patch_x_size[0])
@@ -179,12 +195,15 @@ class UVCTrackerV2(VanillaTracker):
                         add_suffix(
                             self.cls_head.loss(cur_pred_crop_x, tar_crop_x),
                             suffix='backward'))
-                    cur_pred_crop_grid = get_crop_grid(
-                        cur_frame, cur_pred_bboxes * self.stride,
-                        self.patch_img_size)
-                    cur_crop_grid = get_crop_grid(cur_frame,
-                                                  cur_bboxes * self.stride,
-                                                  self.patch_img_size)
+                    # cur_pred_crop_grid = get_crop_grid(
+                    #     cur_frame, cur_pred_bboxes * self.stride,
+                    #     self.patch_img_size)
+                    cur_pred_crop_grid = self.get_grid(cur_frame, cur_x,
+                                                       cur_pred_bboxes)
+                    # cur_crop_grid = get_crop_grid(cur_frame,
+                    #                               cur_bboxes * self.stride,
+                    #                               self.patch_img_size)
+                    cur_crop_grid = self.get_grid(cur_frame, cur_x, cur_bboxes)
                     loss_cur['loss_bbox'] = self.cls_head.loss_bbox(
                         cur_pred_crop_grid, cur_crop_grid) * step_weight
                     loss.update(add_suffix(loss_cur, f'cur{cur_idx}'))
@@ -203,9 +222,11 @@ class UVCTrackerV2(VanillaTracker):
                     ref_x,
                     tar_crop_x,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
-                ref_pred_crop_grid = get_crop_grid(
-                    ref_frame, ref_pred_bboxes * self.stride,
-                    self.patch_img_size)
+                # ref_pred_crop_grid = get_crop_grid(
+                #     ref_frame, ref_pred_bboxes * self.stride,
+                #     self.patch_img_size)
+                ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
+                                                   ref_pred_bboxes)
                 loss_skip['dist_bbox'] = self.cls_head.loss_bbox(
                     ref_pred_bboxes / self.patch_x_size[0],
                     ref_bboxes / self.patch_x_size[0])
@@ -235,9 +256,10 @@ class UVCTrackerV2(VanillaTracker):
                     batches, imgs)
                 ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
                                                   self.train_cfg.img_as_ref)
-                ref_crop_grid = get_crop_grid(ref_frame,
-                                              ref_bboxes * self.stride,
-                                              self.patch_img_size)
+                # ref_crop_grid = get_crop_grid(ref_frame,
+                #                               ref_bboxes * self.stride,
+                #                               self.patch_img_size)
+                ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
                 forward_hist = [(ref_bboxes, ref_crop_x)]
                 for tar_idx in range(1, step):
                     last_bboxes, last_crop_x = forward_hist[-1]
@@ -267,9 +289,11 @@ class UVCTrackerV2(VanillaTracker):
 
                 loss_step = dict()
                 ref_pred_bboxes = backward_hist[-1][0]
-                ref_pred_crop_grid = get_crop_grid(
-                    ref_frame, ref_pred_bboxes * self.stride,
-                    self.patch_img_size)
+                # ref_pred_crop_grid = get_crop_grid(
+                #     ref_frame, ref_pred_bboxes * self.stride,
+                #     self.patch_img_size)
+                ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
+                                                   ref_pred_bboxes)
                 loss_step['dist_bbox'] = self.cls_head.loss_bbox(
                     ref_pred_bboxes / self.patch_x_size[0],
                     ref_bboxes / self.patch_x_size[0])

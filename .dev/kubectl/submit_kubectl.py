@@ -62,6 +62,8 @@ def main():
     args, rest = parse_args()
     if osp.isdir(args.config):
         for cfg in mmcv.scandir(args.config, suffix='.py'):
+            if 'playground' in cfg:
+                continue
             submit(osp.join(args.config, cfg), args, rest)
     else:
         submit(args.config, args, rest)

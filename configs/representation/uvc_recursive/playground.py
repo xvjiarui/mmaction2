@@ -1,7 +1,7 @@
 # model settings
 temperature = 0.01
 model = dict(
-    type='UVCTrackerV2',
+    type='UVCTrackerRecursive',
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -34,14 +34,10 @@ train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
     img_as_tar=True,
-    skip_cycle=True,
     strong_aug=False,
-    cur_as_tar=False,
-    switch_ref_tar=False,
     diff_crop=True,
-    img_as_grid=True,
-    # border=40,
-    center_ratio=0.)
+    center_ratio=0.,
+    recursive_times=2)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -67,7 +63,7 @@ train_pipeline = [
         clip_len=2,
         frame_interval=8,
         num_clips=1,
-        random_frame_interval=False),
+        random_frame_interval=True),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
@@ -93,7 +89,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=32,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
