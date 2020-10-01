@@ -33,6 +33,7 @@ train_cfg = dict(
     img_as_ref=True,
     img_as_tar=True,
     diff_crop=True,
+    recursive_times=2,
     center_ratio=0.)
 test_cfg = dict(
     precede_frames=7,

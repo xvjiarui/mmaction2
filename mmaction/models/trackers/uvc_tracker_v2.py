@@ -59,8 +59,6 @@ class UVCTrackerV2(VanillaTracker):
         return crop_x
 
     def get_grid(self, frame, x, bboxes):
-        import ipdb
-        ipdb.set_trace()
         if self.img_as_grid:
             crop_grid = get_crop_grid(frame, bboxes * self.stride,
                                       self.patch_img_size)
