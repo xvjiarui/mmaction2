@@ -150,7 +150,7 @@ class UVCTrackerRecursive(VanillaTracker):
                 tar_bboxes / self.patch_x_size[0])
             loss_tar_step['loss_bbox'] = self.cls_head.loss_bbox(
                 tar_crop_grid, tar_pred_crop_grid)
-            #
+
             loss_ref_step.update(
                 add_suffix(
                     self.cls_head.loss(ref_crop_x, tar_crop_x),

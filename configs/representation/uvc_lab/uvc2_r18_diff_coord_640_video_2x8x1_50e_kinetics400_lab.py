@@ -1,7 +1,8 @@
 # model settings
 temperature = 0.01
+with_norm = True
 model = dict(
-    type='UVCTrackerRecursive',
+    type='UVCTrackerV2',
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -18,30 +19,30 @@ model = dict(
             win_len=8,
             stride=8,
             temperature=temperature,
-            with_norm=True,
+            with_norm=with_norm,
             loss_weight=1.),
         loss_bbox=dict(type='MSELoss', loss_weight=10.),
         in_channels=512,
         channels=128,
         temperature=temperature,
-        with_norm=True,
+        with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'))
+        track_type='center'))
 # model training and testing settings
 train_cfg = dict(
-    patch_size=96,
+    patch_size=256,
     img_as_ref=True,
     img_as_tar=True,
     diff_crop=True,
-    img_as_grid=False,
-    recursive_times=2,
+    skip_cycle=True,
     center_ratio=0.)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
     strides=(1, 2, 1, 1),
-    out_indices=(2, ),
+    out_indices=(3, ),
+    with_norm=with_norm,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
@@ -52,16 +53,16 @@ data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
 ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
-img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
+img_norm_cfg = dict(mean=[50, 0, 0], std=[50, 127, 127], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
     dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
+    dict(type='Resize', scale=(640, 640), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
+    dict(type='RGB2LAB'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -72,6 +73,7 @@ val_pipeline = [
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 480), keep_ratio=True),
     dict(type='Flip', flip_ratio=0),
+    dict(type='RGB2LAB'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(
@@ -81,7 +83,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=48,
+    videos_per_gpu=8,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -120,16 +122,6 @@ log_config = dict(
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        dict(
-            type='WandbLoggerHook',
-            init_kwargs=dict(
-                project='uvc',
-                name='{{fileBasenameNoExtension}}',
-                config=dict(
-                    model=model,
-                    train_cfg=train_cfg,
-                    test_cfg=test_cfg,
-                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

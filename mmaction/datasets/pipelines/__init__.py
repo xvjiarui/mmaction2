@@ -1,4 +1,4 @@
-from .augmentations import (CenterCrop, Flip, Fuse, MultiGroupCrop,
+from .augmentations import (RGB2LAB, CenterCrop, Flip, Fuse, MultiGroupCrop,
                             MultiScaleCrop, Normalize, PhotoMetricDistortion,
                             RandomCrop, RandomResizedCrop, Resize, TenCrop,
                             ThreeCrop)
@@ -21,5 +21,5 @@ __all__ = [
     'GenerateLocalizationLabels', 'LoadLocalizationFeature', 'LoadProposals',
     'DecordInit', 'OpenCVInit', 'PyAVInit', 'SampleProposalFrames',
     'UntrimmedSampleFrames', 'RawFrameDecode', 'SequentialSampleFrames',
-    'PhotoMetricDistortion'
+    'PhotoMetricDistortion', 'RGB2LAB'
 ]

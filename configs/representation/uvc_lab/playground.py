@@ -1,6 +1,6 @@
 # model settings
-temperature = 1
-with_norm = False
+temperature = 0.01
+with_norm = True
 model = dict(
     type='UVCTrackerV2',
     backbone=dict(
@@ -47,9 +47,9 @@ test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    with_norm=with_norm,
     strides=(1, 2, 1, 1),
     out_indices=(3, ),
+    with_norm=with_norm,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
@@ -60,16 +60,10 @@ data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
 ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
-img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
+img_norm_cfg = dict(mean=[50, 0, 0], std=[50, 127, 127], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(
-        type='SampleFrames',
-        clip_len=2,
-        frame_interval=8,
-        num_clips=1,
-        random_frame_interval=False),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
@@ -79,7 +73,7 @@ train_pipeline = [
     dict(type='RGB2LAB'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
-    dict(type='Collect', keys=['imgs', 'label'], meta_keys=['img_norm_cfg']),
+    dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['imgs', 'label'])
 ]
 val_pipeline = [

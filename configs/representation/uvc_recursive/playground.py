@@ -35,7 +35,7 @@ train_cfg = dict(
     img_as_ref=True,
     img_as_tar=True,
     strong_aug=False,
-    diff_crop=True,
+    diff_crop=False,
     center_ratio=0.,
     recursive_times=2)
 test_cfg = dict(
@@ -56,20 +56,18 @@ data_root_val = 'data/davis/DAVIS'
 ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
+# img_norm_cfg = dict(
+#     mean=[50, 0, 0], std=[50, 127, 127], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(
-        type='SampleFrames',
-        clip_len=2,
-        frame_interval=8,
-        num_clips=1,
-        random_frame_interval=True),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
     # dict(type='PhotoMetricDistortion'),
+    # dict(type='RGB2LAB'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=['img_norm_cfg']),
@@ -80,6 +78,7 @@ val_pipeline = [
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 480), keep_ratio=True),
     dict(type='Flip', flip_ratio=0),
+    # dict(type='RGB2LAB'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(

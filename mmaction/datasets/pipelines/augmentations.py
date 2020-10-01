@@ -981,6 +981,18 @@ class MultiGroupCrop(object):
 
 
 @PIPELINES.register_module()
+class RGB2LAB(object):
+
+    def __init__(self):
+        pass
+
+    def __call__(self, results):
+        for i, img in enumerate(results['imgs']):
+            results['imgs'][i] = mmcv.imconvert(img, 'rgb', 'lab')
+        return results
+
+
+@PIPELINES.register_module()
 class PhotoMetricDistortion(object):
     """Apply photometric distortion to image sequentially, every transformation
     is applied with a probability of 0.5. The position of random contrast is in

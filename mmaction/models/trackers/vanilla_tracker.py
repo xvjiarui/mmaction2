@@ -2,7 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from ..common import compute_affinity, pil_nearest_interpolate, propagate
+from ..common import (compute_affinity, pil_nearest_interpolate, propagate,
+                      spatial_neighbor)
 from ..registry import WALKERS
 from .base import BaseTracker
 
@@ -34,6 +35,16 @@ class VanillaTracker(BaseTracker):
             mode='nearest').squeeze(1)
 
         seg_preds = [ref_seg_map.detach().cpu().numpy()]
+        neighbor_range = self.test_cfg.get('neighbor_range', None)
+        if neighbor_range is not None:
+            spatial_neighbor_mask = spatial_neighbor(
+                feat_shape[0],
+                *feat_shape[2:],
+                neighbor_range=neighbor_range,
+                device=imgs.device,
+                dtype=imgs.dtype)
+        else:
+            spatial_neighbor_mask = None
 
         for frame_idx in range(1, clip_len):
             # extract feature on-the-fly to save GPU memory
@@ -41,7 +52,10 @@ class VanillaTracker(BaseTracker):
                 self.extract_feat(imgs[:, :, 0]),
                 self.extract_feat(imgs[:, :, frame_idx]),
                 temperature=self.test_cfg.temperature,
-                softmax_dim=1)
+                softmax_dim=1,
+                normalize=self.test_cfg.get('with_norm', True))
+            if spatial_neighbor_mask is not None:
+                affinity *= spatial_neighbor_mask
             seg_logit = propagate(
                 resized_seg_map, affinity, topk=self.test_cfg.topk)
             assert len(idx_bank) == len(seg_bank)
@@ -50,7 +64,8 @@ class VanillaTracker(BaseTracker):
                     self.extract_feat(imgs[:, :, hist_idx]),
                     self.extract_feat(imgs[:, :, frame_idx]),
                     temperature=self.test_cfg.temperature,
-                    softmax_dim=1)
+                    softmax_dim=1,
+                    normalize=self.test_cfg.get('with_norm', True))
                 seg_logit += propagate(
                     hist_seg, hist_affinity, topk=self.test_cfg.topk)
             seg_logit /= 1 + len(idx_bank)
