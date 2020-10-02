@@ -26,9 +26,9 @@ def load_json_log(json_log):
             if 'epoch' not in log:
                 continue
             epoch = log.pop('epoch')
-            _ = log.pop('memory')
-            _ = log.pop('data_time')
-            _ = log.pop('time')
+            _ = log.pop('memory', None)
+            _ = log.pop('data_time', None)
+            _ = log.pop('time', None)
             mode = log.pop('mode')
             iter = log.pop('iter')
             # switching epoch
@@ -47,9 +47,8 @@ def load_json_log(json_log):
     return metrics_list
 
 
-def upload(project, config, log_path):
+def upload(project, config, metrics_list):
 
-    metrics_list = load_json_log(log_path)
     cfg = mmcv.Config.fromfile(config)
     init_kwargs = dict(
         project=project,
@@ -74,9 +73,11 @@ def main():
         if 'playground' in cfg:
             continue
         cfg_dir = osp.dirname(osp.join(log_dir, cfg))
+        metrics_list = []
         for log in mmcv.scandir(cfg_dir, suffix='.log.json'):
-            print(f'uploading {cfg_dir}')
-            upload('converted', osp.join(log_dir, cfg), osp.join(cfg_dir, log))
+            metrics_list.extend(load_json_log(osp.join(cfg_dir, log)))
+        print(f'uploading {cfg_dir}')
+        upload('converted', osp.join(log_dir, cfg), metrics_list)
 
 
 if __name__ == '__main__':

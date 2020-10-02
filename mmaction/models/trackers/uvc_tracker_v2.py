@@ -22,17 +22,8 @@ class UVCTrackerV2(VanillaTracker):
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
             if self.train_cfg.get('strong_aug', False):
                 same_on_batch = self.train_cfg.get('same_on_batch', False)
-                self.aug = nn.Sequential(
-                    K.RandomRotation(degrees=10, same_on_batch=same_on_batch),
-                    # K.RandomResizedCrop(size=self.patch_img_size,
-                    #                     scale=(0.7, 0.9),
-                    #                     ratio=(0.7, 1.3)),
-                    K.ColorJitter(
-                        brightness=0.1,
-                        contrast=0.1,
-                        saturation=0.1,
-                        hue=0.1,
-                        same_on_batch=same_on_batch))
+                self.aug = K.RandomRotation(
+                    degrees=10, same_on_batch=same_on_batch)
             else:
                 self.aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)

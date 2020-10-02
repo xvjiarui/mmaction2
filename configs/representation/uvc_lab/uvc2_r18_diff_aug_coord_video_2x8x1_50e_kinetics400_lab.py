@@ -63,6 +63,7 @@ train_pipeline = [
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
+    dict(type='PhotoMetricDistortion'),
     dict(type='RGB2LAB'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),

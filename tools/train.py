@@ -84,6 +84,10 @@ def main():
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0])
+    if any(h.type == 'WandbLoggerHook' for h in cfg.log_config.hooks):
+        mmcv.mkdir_or_exist(
+            osp.join('./wandb',
+                     osp.splitext(osp.basename(args.config))[0]))
     if args.load_from is not None:
         cfg.load_from = args.load_from
     if args.resume_from is not None:
