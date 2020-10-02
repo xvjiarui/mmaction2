@@ -74,8 +74,10 @@ def uvc_hook(name):
         imgs = input[0]
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
         batches, clip_len = imgs.size(0), imgs.size(2)
-        x = images2video(
-            self.extract_feat(self.aug(video2images(imgs))), clip_len)
+        # x = images2video(
+        #     self.extract_feat(self.aug(video2images(imgs))), clip_len)
+        x = images2video(self.extract_feat(video2images(imgs)), clip_len)
+        assert x.size(1) == 512
         assert clip_len == 2
         step = 2
         ref_frame = imgs[:, :, 0]
@@ -159,8 +161,8 @@ def register_uvc_hook(model):
 def single_gpu_vis(model, data_loader, show=False, out_dir=None):
     model.eval()
     # TODO: check switch success
-    model.module.backbone.switch_strides()
-    model.module.backbone.switch_out_indices()
+    # model.module.backbone.switch_strides()
+    # model.module.backbone.switch_out_indices()
     register_uvc_hook(model)
 
     dataset = data_loader.dataset
@@ -173,18 +175,22 @@ def single_gpu_vis(model, data_loader, show=False, out_dir=None):
 
         if show or out_dir:
             img_tensor = data['imgs']
+            # img_norm_cfg = dict(
+            #     mean=[123.675, 116.28, 103.53],
+            #     std=[58.395, 57.12, 57.375],
+            #     to_rgb=False)
             img_norm_cfg = dict(
-                mean=[123.675, 116.28, 103.53],
-                std=[58.395, 57.12, 57.375],
-                to_rgb=False)
+                mean=[50, 0, 0], std=[50, 127, 127], to_rgb=False)
 
             img_tensor = img_tensor.reshape((-1, ) + img_tensor.shape[2:])
             assert img_tensor.size(2) == 2, img_tensor.shape
 
             imgs = []
             for _ in range(img_tensor.size(2)):
-                imgs.append(
-                    mmcv.tensor2imgs(img_tensor[:, :, _], **img_norm_cfg))
+                img = mmcv.tensor2imgs(img_tensor[:, :, _], **img_norm_cfg)
+                for k in range(len(img)):
+                    img[k] = mmcv.imconvert(img[k], 'lab', 'rgb')
+                imgs.append(img)
 
             assert len(hidden_outputs) == 1
 
