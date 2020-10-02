@@ -158,6 +158,9 @@ def register_uvc_hook(model):
 
 def single_gpu_vis(model, data_loader, show=False, out_dir=None):
     model.eval()
+    # TODO: check switch success
+    model.module.backbone.switch_strides()
+    model.module.backbone.switch_out_indices()
     register_uvc_hook(model)
 
     dataset = data_loader.dataset

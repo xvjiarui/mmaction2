@@ -186,8 +186,12 @@ class DistEvalHook(EvalHook):
                 self.best_score = key_score
                 self.logger.info(
                     f'Now best checkpoint is epoch_{runner.epoch + 1}.pth')
+                runner.log_buffer.output[
+                    f'best_{self.key_indicator}'] = self.best_score
+                runner.log_buffer.output['best_epoch'] = runner.epoch + 1
                 self.best_json['best_score'] = self.best_score
                 self.best_json['best_ckpt'] = current_ckpt_path
                 self.best_json['key_indicator'] = self.key_indicator
                 mmcv.dump(self.best_json, json_path)
+        runner.log_buffer.ready = True
         time.sleep(5)  # Prevent possible deadlock during epoch transition
