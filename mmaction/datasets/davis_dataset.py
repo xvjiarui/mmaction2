@@ -9,6 +9,7 @@ from davis2017.evaluation import DAVISEvaluation
 from mmcv.utils import print_log
 from PIL import Image
 
+from mmaction.utils import add_prefix
 from .rawframe_dataset import RawframeDataset
 from .registry import DATASETS
 
@@ -63,12 +64,7 @@ class DavisDataset(RawframeDataset):
             self.filename_tmpl.format(0).replace('jpg', 'png'))
         return self.pipeline(results)
 
-    def evaluate(self, results, metrics='daivs', output_dir=None, logger=None):
-        metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
-        allowed_metrics = ['davis']
-        for metric in metrics:
-            if metric not in allowed_metrics:
-                raise KeyError(f'metric {metric} is not supported')
+    def davis_evaluate(self, results, output_dir, logger=None):
         dataset_eval = DAVISEvaluation(
             davis_root=self.data_root, task=self.task, gt_set=self.split)
         if isinstance(results, str):
@@ -140,4 +136,24 @@ class DavisDataset(RawframeDataset):
 
         eval_results = table_g.to_dict('records')[0]
 
+        return eval_results
+
+    def evaluate(self, results, metrics='daivs', output_dir=None, logger=None):
+        metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
+        allowed_metrics = ['davis']
+        for metric in metrics:
+            if metric not in allowed_metrics:
+                raise KeyError(f'metric {metric} is not supported')
+        eval_results = dict()
+        if mmcv.is_seq_of(results, np.ndarray) and results[0].ndim == 4:
+            num_feats = results[0].shape[0]
+            for feat_idx in range(num_feats):
+                cur_results = [result[feat_idx] for result in results]
+                eval_results.update(
+                    add_prefix(
+                        self.davis_evaluate(cur_results, output_dir, logger),
+                        prefix=f'feat_{feat_idx}'))
+        else:
+            eval_results.update(
+                self.davis_evaluate(results, output_dir, logger))
         return eval_results

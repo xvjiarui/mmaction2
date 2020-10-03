@@ -23,15 +23,13 @@ def compute_affinity(src_img,
     return affinity
 
 
-def propagate(img, affinity, topk=None, mask=None):
+def propagate(img, affinity, topk=None):
     batches, channels, height, width = img.size()
     if topk is not None:
         tk_val, tk_idx = affinity.topk(dim=1, k=topk)
         tk_val_min, _ = tk_val.min(dim=1)
         tk_val_min = tk_val_min.view(batches, 1, height * width)
         affinity[tk_val_min > affinity] = 0
-    if mask is not None:
-        affinity *= mask
     img = img.view(batches, channels, -1)
     img = img.contiguous()
     affinity = affinity.contiguous()

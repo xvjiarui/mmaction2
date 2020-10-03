@@ -12,6 +12,13 @@ from .base import BaseTracker
 class VanillaTracker(BaseTracker):
     """Pixel Tracker framework."""
 
+    def extract_single_feat(self, imgs, idx):
+        feats = self.extract_feat(imgs)
+        if isinstance(feats, (tuple, list)):
+            return feats[idx]
+        else:
+            return feats
+
     def forward_train(self, imgs, labels=None):
         raise NotImplementedError
 
@@ -21,85 +28,104 @@ class VanillaTracker(BaseTracker):
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
         clip_len = imgs.size(2)
         # get target shape
-        feat_shape = self.extract_feat(imgs[0:1, :, 0]).shape
-        resized_seg_map = pil_nearest_interpolate(
-            ref_seg_map.unsqueeze(1), size=feat_shape[2:]).squeeze(1).long()
-        resized_seg_map = F.one_hot(resized_seg_map).permute(0, 3, 1,
-                                                             2).float()
-        idx_bank = []
-        seg_bank = []
-
-        ref_seg_map = F.interpolate(
-            ref_seg_map.unsqueeze(1),
-            size=img_meta[0]['original_shape'][:2],
-            mode='nearest').squeeze(1)
-
-        seg_preds = [ref_seg_map.detach().cpu().numpy()]
-        neighbor_range = self.test_cfg.get('neighbor_range', None)
-        if neighbor_range is not None:
-            spatial_neighbor_mask = spatial_neighbor(
-                feat_shape[0],
-                *feat_shape[2:],
-                neighbor_range=neighbor_range,
-                device=imgs.device,
-                dtype=imgs.dtype)
+        dummy_faet = self.extract_feat(imgs[0:1, :, 0])
+        if isinstance(dummy_faet, (list, tuple)):
+            feat_shapes = [_.shape for _ in dummy_faet]
         else:
-            spatial_neighbor_mask = None
+            feat_shapes = [dummy_faet.shape]
+        all_seg_preds = []
+        for feat_idx, feat_shape in enumerate(feat_shapes):
+            resized_seg_map = pil_nearest_interpolate(
+                ref_seg_map.unsqueeze(1),
+                size=feat_shape[2:]).squeeze(1).long()
+            resized_seg_map = F.one_hot(resized_seg_map).permute(0, 3, 1,
+                                                                 2).float()
+            idx_bank = []
+            seg_bank = []
 
-        for frame_idx in range(1, clip_len):
-            # extract feature on-the-fly to save GPU memory
-            affinity = compute_affinity(
-                self.extract_feat(imgs[:, :, 0]),
-                self.extract_feat(imgs[:, :, frame_idx]),
-                temperature=self.test_cfg.temperature,
-                softmax_dim=1,
-                normalize=self.test_cfg.get('with_norm', True))
-            if spatial_neighbor_mask is not None:
-                affinity *= spatial_neighbor_mask
-            seg_logit = propagate(
-                resized_seg_map, affinity, topk=self.test_cfg.topk)
-            assert len(idx_bank) == len(seg_bank)
-            for hist_idx, hist_seg in zip(idx_bank, seg_bank):
-                hist_affinity = compute_affinity(
-                    self.extract_feat(imgs[:, :, hist_idx]),
-                    self.extract_feat(imgs[:, :, frame_idx]),
+            ref_seg_map = F.interpolate(
+                ref_seg_map.unsqueeze(1),
+                size=img_meta[0]['original_shape'][:2],
+                mode='nearest').squeeze(1)
+
+            seg_preds = [ref_seg_map.detach().cpu().numpy()]
+            neighbor_range = self.test_cfg.get('neighbor_range', None)
+            if neighbor_range is not None:
+                spatial_neighbor_mask = spatial_neighbor(
+                    feat_shape[0],
+                    *feat_shape[2:],
+                    neighbor_range=neighbor_range,
+                    device=imgs.device,
+                    dtype=imgs.dtype)
+            else:
+                spatial_neighbor_mask = None
+
+            for frame_idx in range(1, clip_len):
+                # extract feature on-the-fly to save GPU memory
+                affinity = compute_affinity(
+                    self.extract_single_feat(imgs[:, :, 0], feat_idx),
+                    self.extract_single_feat(imgs[:, :, frame_idx], feat_idx),
                     temperature=self.test_cfg.temperature,
                     softmax_dim=1,
                     normalize=self.test_cfg.get('with_norm', True))
-                seg_logit += propagate(
-                    hist_seg, hist_affinity, topk=self.test_cfg.topk)
-            seg_logit /= 1 + len(idx_bank)
+                if spatial_neighbor_mask is not None:
+                    affinity *= spatial_neighbor_mask
+                    affinity = affinity / affinity.sum(keepdim=True, dim=1)
+                seg_logit = propagate(
+                    resized_seg_map, affinity, topk=self.test_cfg.topk)
+                assert len(idx_bank) == len(seg_bank)
+                for hist_idx, hist_seg in zip(idx_bank, seg_bank):
+                    hist_affinity = compute_affinity(
+                        self.extract_single_feat(imgs[:, :, hist_idx],
+                                                 feat_idx),
+                        self.extract_single_feat(imgs[:, :, frame_idx],
+                                                 feat_idx),
+                        temperature=self.test_cfg.temperature,
+                        softmax_dim=1,
+                        normalize=self.test_cfg.get('with_norm', True))
+                    if spatial_neighbor_mask is not None:
+                        hist_affinity *= spatial_neighbor_mask
+                        hist_affinity = hist_affinity / hist_affinity.sum(
+                            keepdim=True, dim=1)
+                    seg_logit += propagate(
+                        hist_seg, hist_affinity, topk=self.test_cfg.topk)
+                seg_logit /= 1 + len(idx_bank)
 
-            idx_bank.append(frame_idx)
-            seg_bank.append(seg_logit)
+                idx_bank.append(frame_idx)
+                seg_bank.append(seg_logit)
 
-            if len(idx_bank) > self.test_cfg.precede_frames:
-                idx_bank.pop(0)
-            if len(seg_bank) > self.test_cfg.precede_frames:
-                seg_bank.pop(0)
-            seg_pred = F.interpolate(
-                seg_logit,
-                size=img_meta[0]['original_shape'][:2],
-                mode='bilinear',
-                align_corners=False)
-            seg_pred_min = seg_pred.view(*seg_pred.shape[:2], -1).min(
-                dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
-            seg_pred_max = seg_pred.view(*seg_pred.shape[:2], -1).max(
-                dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
-            normalized_seg_pred = (seg_pred - seg_pred_min) / (
-                seg_pred_max - seg_pred_min)
-            seg_pred = torch.where(seg_pred_max > 0, normalized_seg_pred,
-                                   seg_pred)
-            seg_pred = seg_pred.argmax(dim=1)
-            seg_pred = F.interpolate(
-                seg_pred.byte().unsqueeze(1),
-                size=img_meta[0]['original_shape'][:2],
-                mode='nearest').squeeze(1)
-            seg_preds.append(seg_pred.detach().cpu().numpy())
+                if len(idx_bank) > self.test_cfg.precede_frames:
+                    idx_bank.pop(0)
+                if len(seg_bank) > self.test_cfg.precede_frames:
+                    seg_bank.pop(0)
+                seg_pred = F.interpolate(
+                    seg_logit,
+                    size=img_meta[0]['original_shape'][:2],
+                    mode='bilinear',
+                    align_corners=False)
+                seg_pred_min = seg_pred.view(*seg_pred.shape[:2], -1).min(
+                    dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
+                seg_pred_max = seg_pred.view(*seg_pred.shape[:2], -1).max(
+                    dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
+                normalized_seg_pred = (seg_pred - seg_pred_min) / (
+                    seg_pred_max - seg_pred_min)
+                seg_pred = torch.where(seg_pred_max > 0, normalized_seg_pred,
+                                       seg_pred)
+                seg_pred = seg_pred.argmax(dim=1)
+                seg_pred = F.interpolate(
+                    seg_pred.byte().unsqueeze(1),
+                    size=img_meta[0]['original_shape'][:2],
+                    mode='nearest').squeeze(1)
+                seg_preds.append(seg_pred.detach().cpu().numpy())
 
-        seg_preds = np.stack(seg_preds, axis=1)
+            seg_preds = np.stack(seg_preds, axis=1)
+            all_seg_preds.append(seg_preds)
+        if len(all_seg_preds) > 1:
+            all_seg_preds = np.stack(all_seg_preds, axis=1)
+        else:
+            all_seg_preds = all_seg_preds[0]
         # unravel batch dim
-        return list(seg_preds)
+        return list(all_seg_preds)
 
     def train(self, mode=True):
         """Set the optimization status when training."""

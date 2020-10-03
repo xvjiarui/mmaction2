@@ -5,7 +5,7 @@ import mmcv
 import torch
 from mmcv import Config, DictAction
 from mmcv.parallel import MMDataParallel
-from mmcv.runner import load_checkpoint
+from mmcv.runner import load_checkpoint, set_random_seed
 from torchvision.utils import save_image
 
 from mmaction.datasets import build_dataloader, build_dataset
@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument('--show', action='store_true', help='show results')
     parser.add_argument(
         '--show-dir', help='directory where painted images will be saved')
+    parser.add_argument('--seed', type=int, default=None, help='random seed')
     parser.add_argument(
         '--options', nargs='+', action=DictAction, help='arguments in dict')
     args = parser.parse_args()
@@ -35,7 +36,15 @@ def main():
          'results / save the results) with the argument "--show" or "'
          '--show-dir"')
 
+    # set random seeds
+    if args.seed is not None:
+        print('Set random seed to {}'.format(args.seed))
+        set_random_seed(args.seed, deterministic=False)
+
     cfg = Config.fromfile(args.config)
+    if args.options is not None:
+        cfg.merge_from_dict(args.options)
+
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
@@ -175,12 +184,12 @@ def single_gpu_vis(model, data_loader, show=False, out_dir=None):
 
         if show or out_dir:
             img_tensor = data['imgs']
-            # img_norm_cfg = dict(
-            #     mean=[123.675, 116.28, 103.53],
-            #     std=[58.395, 57.12, 57.375],
-            #     to_rgb=False)
             img_norm_cfg = dict(
-                mean=[50, 0, 0], std=[50, 127, 127], to_rgb=False)
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=False)
+            # img_norm_cfg = dict(
+            #     mean=[50, 0, 0], std=[50, 127, 127], to_rgb=False)
 
             img_tensor = img_tensor.reshape((-1, ) + img_tensor.shape[2:])
             assert img_tensor.size(2) == 2, img_tensor.shape
@@ -188,8 +197,8 @@ def single_gpu_vis(model, data_loader, show=False, out_dir=None):
             imgs = []
             for _ in range(img_tensor.size(2)):
                 img = mmcv.tensor2imgs(img_tensor[:, :, _], **img_norm_cfg)
-                for k in range(len(img)):
-                    img[k] = mmcv.imconvert(img[k], 'lab', 'rgb')
+                # for k in range(len(img)):
+                #     img[k] = mmcv.imconvert(img[k], 'lab', 'rgb')
                 imgs.append(img)
 
             assert len(hidden_outputs) == 1

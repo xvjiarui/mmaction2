@@ -1,30 +1,53 @@
 # model settings
+temperature = 0.01
+with_norm = True
 model = dict(
-    type='VanillaTracker',
+    type='UVCTrackerV2',
     backbone=dict(
         type='ResNet',
-        pretrained='torchvision://resnet18',
+        pretrained=None,
         depth=18,
         out_indices=(3, ),
+        strides=(1, 2, 1, 1),
         norm_eval=False,
         zero_init_residual=True),
     cls_head=dict(
-        type='WalkerHead',
-        num_classes=400,
+        type='UVCHead',
+        loss_feat=dict(type='CosineSimLoss'),
+        loss_aff=dict(
+            type='ConcentrateLoss',
+            win_len=8,
+            stride=8,
+            temperature=temperature,
+            with_norm=with_norm,
+            loss_weight=1.),
+        loss_bbox=dict(type='MSELoss', loss_weight=10.),
         in_channels=512,
         channels=128,
-        spatial_type='avg',
-        temperature=0.07,
-        walk_len=7,
-        init_std=0.01))
+        temperature=temperature,
+        with_norm=with_norm,
+        init_std=0.01,
+        track_type='coord'))
 # model training and testing settings
-train_cfg = dict(patch_size=64, patch_stride=32)
+train_cfg = dict(
+    patch_size=96,
+    img_as_ref=True,
+    img_as_tar=True,
+    diff_crop=True,
+    skip_cycle=True,
+    strong_aug=True,
+    center_ratio=0.)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=1. / 23,
+    temperature=temperature,
     strides=(1, 2, 1, 1),
-    out_indices=(2, 3),
+    out_indices=(
+        2,
+        3,
+    ),
+    neighbor_range=40,
+    with_norm=with_norm,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
@@ -39,12 +62,13 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=8, frame_interval=2, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
+    dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -64,8 +88,9 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=8,
+    videos_per_gpu=48,
     workers_per_gpu=4,
+    val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,
@@ -88,7 +113,7 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
-optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0001)
+optimizer = dict(type='Adam', lr=1e-4)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0)
@@ -102,6 +127,18 @@ log_config = dict(
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmactions2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

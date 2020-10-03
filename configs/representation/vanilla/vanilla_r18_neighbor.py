@@ -24,8 +24,8 @@ test_cfg = dict(
     topk=5,
     temperature=1. / 23,
     strides=(1, 2, 1, 1),
-    out_indices=(2, ),
-    neighbor_range=24,
+    out_indices=(2, 3),
+    neighbor_range=40,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
