@@ -27,7 +27,11 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'))
+        track_type='center',
+        spatial_type='avg',
+        norm_cfg=dict(type='BN'),
+        act_cfg=dict(type='ReLU'),
+        num_convs=2))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
@@ -68,6 +72,7 @@ train_pipeline = [
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
+    dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),

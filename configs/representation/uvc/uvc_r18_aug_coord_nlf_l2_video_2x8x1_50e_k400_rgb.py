@@ -13,7 +13,7 @@ model = dict(
         zero_init_residual=True),
     cls_head=dict(
         type='UVCHead',
-        loss_feat=dict(type='CosineSimLoss'),
+        loss_feat=None,
         loss_aff=dict(
             type='ConcentrateLoss',
             win_len=8,
@@ -21,7 +21,7 @@ model = dict(
             temperature=temperature,
             with_norm=with_norm,
             loss_weight=1.),
-        loss_bbox=dict(type='L1Loss', loss_weight=10.),
+        loss_bbox=dict(type='MSELoss', loss_weight=10.),
         in_channels=512,
         channels=128,
         temperature=temperature,
@@ -68,6 +68,7 @@ train_pipeline = [
     # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
+    dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),

@@ -13,7 +13,7 @@ model = dict(
         zero_init_residual=True),
     cls_head=dict(
         type='UVCHead',
-        loss_feat=dict(type='CosineSimLoss'),
+        loss_feat=None,
         loss_aff=dict(
             type='ConcentrateLoss',
             win_len=8,

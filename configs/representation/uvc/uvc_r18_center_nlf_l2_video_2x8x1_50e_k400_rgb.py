@@ -13,7 +13,7 @@ model = dict(
         zero_init_residual=True),
     cls_head=dict(
         type='UVCHead',
-        loss_feat=dict(type='CosineSimLoss'),
+        loss_feat=None,
         loss_aff=dict(
             type='ConcentrateLoss',
             win_len=8,
@@ -21,13 +21,13 @@ model = dict(
             temperature=temperature,
             with_norm=with_norm,
             loss_weight=1.),
-        loss_bbox=dict(type='L1Loss', loss_weight=10.),
+        loss_bbox=dict(type='MSELoss', loss_weight=10.),
         in_channels=512,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'))
+        track_type='center'))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,

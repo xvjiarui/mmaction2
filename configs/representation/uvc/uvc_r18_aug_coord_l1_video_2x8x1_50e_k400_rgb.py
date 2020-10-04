@@ -133,7 +133,7 @@ log_config = dict(
         dict(
             type='WandbLoggerHook',
             init_kwargs=dict(
-                project='mmactions2',
+                project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
                 dir='wandb/{{fileBasenameNoExtension}}',
