@@ -61,7 +61,7 @@ def main():
         videos_per_gpu=4,
         workers_per_gpu=0,
         dist=distributed,
-        shuffle=False)
+        shuffle=True)
 
     # build the model and load checkpoint
     model = build_model(

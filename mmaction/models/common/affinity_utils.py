@@ -38,7 +38,14 @@ def propagate(img, affinity, topk=None):
     return new_img
 
 
-def spatial_neighbor(batches, height, width, neighbor_range, device, dtype):
+def spatial_neighbor(batches,
+                     height,
+                     width,
+                     neighbor_range,
+                     device,
+                     dtype,
+                     dim=1):
+    assert dim in [1, 2]
     neighbor_range = _pair(neighbor_range)
     mask = torch.zeros(
         batches, height, width, height, width, device=device, dtype=dtype)
@@ -51,4 +58,6 @@ def spatial_neighbor(batches, height, width, neighbor_range, device, dtype):
             mask[:, top:bottom, left:right, i, j] = 1
 
     mask = mask.view(batches, height * width, height * width)
+    if dim == 2:
+        mask = mask.transpose(1, 2).contiguous()
     return mask

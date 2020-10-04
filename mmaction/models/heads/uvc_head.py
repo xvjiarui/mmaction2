@@ -4,7 +4,7 @@ from mmcv.cnn import ConvModule
 from mmcv.ops.point_sample import generate_grid
 
 from ..builder import build_loss
-from ..common import center2bbox, compute_affinity, coord2bbox
+from ..common import bbox2mask, center2bbox, compute_affinity, coord2bbox
 from ..registry import HEADS
 
 
@@ -41,6 +41,7 @@ class UVCHead(nn.Module):
                  temperature=1.,
                  track_type='center',
                  spatial_type=None,
+                 neighbor_range=None,
                  **kwargs):
         super().__init__()
         self.in_channels = in_channels
@@ -101,6 +102,7 @@ class UVCHead(nn.Module):
         self.track_type = track_type
         assert spatial_type in ['avg', None]
         self.spatial_type = spatial_type
+        self.neighbor_range = neighbor_range
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
@@ -115,7 +117,7 @@ class UVCHead(nn.Module):
         """Initiate the parameters from scratch."""
         pass
 
-    def get_tar_bboxes(self, ref_crop_x, tar_x):
+    def get_tar_bboxes(self, ref_crop_x, tar_x, ref_bboxes):
         # [N, tar_w*tar_h, 2]
         tar_grid = generate_grid(
             tar_x.size(0), tar_x.shape[2:], device=ref_crop_x.device)
@@ -132,6 +134,13 @@ class UVCHead(nn.Module):
             temperature=self.temperature,
             normalize=self.with_norm,
             softmax_dim=2).contiguous()
+        if self.neighbor_range is not None:
+            spatial_neighbor_mask = bbox2mask(ref_bboxes, tar_x.shape[2:],
+                                              self.neighbor_range)
+            aff_ref_tar = aff_ref_tar * spatial_neighbor_mask.view(
+                aff_ref_tar.size(0), 1, aff_ref_tar.size(2))
+            aff_ref_tar = aff_ref_tar / (
+                aff_ref_tar.sum(keepdim=True, dim=2) + 1e-12)
         # [N, ref_w*ref_h, 2]
         ref_coords = torch.bmm(aff_ref_tar, tar_coords)
         if self.track_type == 'coord':

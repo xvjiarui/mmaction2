@@ -58,9 +58,16 @@ class UVCTrackerV2(VanillaTracker):
 
         return crop_grid
 
-    def track(self, tar_frame, tar_x, ref_crop_x, tar_bboxes=None):
+    def track(self,
+              tar_frame,
+              tar_x,
+              ref_crop_x,
+              *,
+              ref_bboxes=None,
+              tar_bboxes=None):
         if tar_bboxes is None:
-            tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x)
+            tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x,
+                                                      ref_bboxes)
         tar_crop_x = self.crop_x_from_img(tar_frame, tar_x, tar_bboxes,
                                           self.train_cfg.img_as_tar)
 
@@ -102,9 +109,6 @@ class UVCTrackerV2(VanillaTracker):
             ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)
             ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
                                               self.train_cfg.img_as_ref)
-            # ref_crop_grid = get_crop_grid(ref_frame,
-            #                               ref_bboxes * self.stride,
-            #                               self.patch_img_size)
             ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
@@ -115,6 +119,7 @@ class UVCTrackerV2(VanillaTracker):
                     tar_frame,
                     tar_x,
                     last_crop_x,
+                    ref_bboxes=last_bboxes,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
@@ -129,15 +134,13 @@ class UVCTrackerV2(VanillaTracker):
                     tar_frame,
                     tar_x,
                     last_crop_x,
+                    ref_bboxes=last_bboxes,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
                 backward_hist.append((tar_bboxes, tar_crop_x))
             assert len(backward_hist) == step
 
             loss_step = dict()
             ref_pred_bboxes = backward_hist[-1][0]
-            # ref_pred_crop_grid = get_crop_grid(ref_frame,
-            #                                    ref_pred_bboxes * self.stride,
-            #                                    self.patch_img_size)
             ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                ref_pred_bboxes)
             loss_step['dist_bbox'] = self.cls_head.loss_bbox(
@@ -184,14 +187,8 @@ class UVCTrackerV2(VanillaTracker):
                         add_suffix(
                             self.cls_head.loss(cur_pred_crop_x, tar_crop_x),
                             suffix='backward'))
-                    # cur_pred_crop_grid = get_crop_grid(
-                    #     cur_frame, cur_pred_bboxes * self.stride,
-                    #     self.patch_img_size)
                     cur_pred_crop_grid = self.get_grid(cur_frame, cur_x,
                                                        cur_pred_bboxes)
-                    # cur_crop_grid = get_crop_grid(cur_frame,
-                    #                               cur_bboxes * self.stride,
-                    #                               self.patch_img_size)
                     cur_crop_grid = self.get_grid(cur_frame, cur_x, cur_bboxes)
                     loss_cur['loss_bbox'] = self.cls_head.loss_bbox(
                         cur_pred_crop_grid, cur_crop_grid) * step_weight
@@ -211,9 +208,6 @@ class UVCTrackerV2(VanillaTracker):
                     ref_x,
                     tar_crop_x,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
-                # ref_pred_crop_grid = get_crop_grid(
-                #     ref_frame, ref_pred_bboxes * self.stride,
-                #     self.patch_img_size)
                 ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                    ref_pred_bboxes)
                 loss_skip['dist_bbox'] = self.cls_head.loss_bbox(

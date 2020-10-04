@@ -210,3 +210,33 @@ def get_top_diff_crop_bbox(imgs,
     bbox = torch.stack([crop_x1, crop_y1, crop_x2, crop_y2], dim=1).float()
 
     return bbox
+
+
+@torch.no_grad()
+def bbox2mask(bboxes, mask_shape, neighbor_range=0):
+    assert bboxes.size(1) == 4
+    assert bboxes.ndim == 2
+    batches = bboxes.size(0)
+    height, width = mask_shape
+    mask = bboxes.new_zeros(batches, height, width)
+    neighbor_range = _pair(neighbor_range)
+
+    mask_out = []
+    # TODO: Looking for a vectorized way
+    for m, box in zip(mask, bboxes):
+        x1, y1, x2, y2 = box.split(1, dim=0)
+        top = max(0, y1.item() - neighbor_range[0] // 2)
+        left = max(0, x1.item() - neighbor_range[1] // 2)
+        bottom = min(height, y2.item() + neighbor_range[0] // 2 + 1)
+        right = min(width, x2.item() + neighbor_range[1] // 2 + 1)
+        m = m.index_fill(
+            1, torch.arange(left, right, dtype=torch.long, device=box.device),
+            torch.tensor(1, dtype=box.dtype, device=box.device))
+        m = m.index_fill(
+            0, torch.arange(top, bottom, dtype=torch.long, device=box.device),
+            torch.tensor(1, dtype=box.dtype, device=box.device))
+        m = m.unsqueeze(dim=0)
+        m_out = (m == 1).all(dim=1) * (m == 1).all(dim=2).T
+        mask_out.append(m_out)
+
+    return torch.stack(mask_out, dim=0).to(dtype=bboxes.dtype)
