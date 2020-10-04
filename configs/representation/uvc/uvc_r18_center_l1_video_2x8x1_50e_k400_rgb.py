@@ -120,7 +120,10 @@ lr_config = dict(policy='Fixed')
 total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=1,
+    metrics='davis',
+    key_indicator='feat_1.J&F-Mean',
+    rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
