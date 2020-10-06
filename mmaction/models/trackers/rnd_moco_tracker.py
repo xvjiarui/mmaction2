@@ -6,15 +6,15 @@ from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_suffix
 from .. import builder
-from ..common import (bbox_overlaps, concat_all_gather, crop_and_resize,
-                      get_crop_grid, get_random_crop_bbox,
-                      get_top_diff_crop_bbox, images2video, video2images)
+from ..common import (concat_all_gather, crop_and_resize, get_crop_grid,
+                      get_random_crop_bbox, get_top_diff_crop_bbox,
+                      images2video, video2images)
 from ..registry import WALKERS
 from .vanilla_tracker import VanillaTracker
 
 
 @WALKERS.register_module()
-class UVCMoCoTracker(VanillaTracker):
+class RNDMoCoTracker(VanillaTracker):
     """3D recognizer model framework."""
 
     def __init__(self,
@@ -27,6 +27,7 @@ class UVCMoCoTracker(VanillaTracker):
                  patch_queue_size=65536,
                  **kwargs):
         super().__init__(*args, backbone=backbone, **kwargs)
+        delattr(self, 'cls_head')
         self.stride = self.backbone.output_stride
         self.encoder_k = builder.build_backbone(backbone)
         self.img_head_q = builder.build_head(img_head)
@@ -60,12 +61,10 @@ class UVCMoCoTracker(VanillaTracker):
                     degrees=10, same_on_batch=same_on_batch)
             else:
                 self.aug = nn.Identity()
-            self.skip_cycle = self.train_cfg.get('skip_cycle', False)
             self.border = self.train_cfg.get('border', 0)
             self.grid_size = self.train_cfg.get('grid_size', 9)
             self.diff_crop = self.train_cfg.get('diff_crop', False)
-            self.img_as_grid = self.train_cfg.get('img_as_grid', True)
-            self.shuffle_bn = self.train_cfg.get('shuffle_bn', False)
+            self.shuffle_bn = self.train_cfg.get('shuffle_bn', True)
             self.momentum = self.train_cfg.get('momentum', 0.999)
             self.track_on_q = self.train_cfg.get('track_on_q', True)
 
@@ -200,14 +199,6 @@ class UVCMoCoTracker(VanillaTracker):
 
         return crop_grid
 
-    def track(self, tar_frame, tar_x, ref_crop_x, *, ref_bboxes=None):
-        tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x,
-                                                  ref_bboxes)
-        tar_crop_x = self.crop_x_from_img(tar_frame, tar_bboxes,
-                                          self.encoder_q)
-
-        return tar_bboxes, tar_crop_x
-
     def get_ref_crop_bbox(self, batches, imgs, idx=0):
         if self.diff_crop:
             ref_bboxes = get_top_diff_crop_bbox(
@@ -249,19 +240,15 @@ class UVCMoCoTracker(VanillaTracker):
                 # [N, C, T, H, W]
                 x_k = self.encoder_k(self.aug(video2images(imgs_k_shuffled)))
                 embed_x_k = self.img_head_k(x_k)
-                x_k = images2video(x_k, clip_len)
                 embed_x_k = images2video(embed_x_k, clip_len)
 
                 # undo shuffle
-                x_k = self._batch_unshuffle_ddp(x_k, idx_unshuffle)
                 embed_x_k = self._batch_unshuffle_ddp(embed_x_k, idx_unshuffle)
             else:
                 # [N, C, T, H, W]
                 x_k = self.encoder_k(self.aug(video2images(imgs_k)))
                 embed_x_k = self.img_head_k(x_k)
-                x_k = images2video(x_k, clip_len)
                 embed_x_k = images2video(embed_x_k, clip_len)
-        track_x = x_q if self.track_on_q else x_k
         track_imgs = imgs_q if self.track_on_q else imgs_k
         assert self.track_on_q, 'only track on query is implemented'
         loss = dict()
@@ -270,56 +257,30 @@ class UVCMoCoTracker(VanillaTracker):
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
             ref_frame = track_imgs[:, :, 0].contiguous()
-            ref_x = track_x[:, :, 0].contiguous()
             # TODO: all bboxes are in feature space
             ref_bboxes = self.get_ref_crop_bbox(batches, track_imgs)
             ref_crop_x = self.crop_x_from_img(ref_frame, ref_bboxes,
                                               self.encoder_q)
-            ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
-                last_bboxes, last_crop_x = forward_hist[-1]
                 tar_frame = track_imgs[:, :, tar_idx].contiguous()
-                tar_x = track_x[:, :, tar_idx].contiguous()
-                tar_bboxes, tar_crop_x = self.track(
-                    tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
+                tar_bboxes = self.get_ref_crop_bbox(
+                    batches, track_imgs, idx=tar_idx)
+                tar_crop_x = self.crop_x_from_img(tar_frame, tar_bboxes,
+                                                  self.encoder_q)
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
 
             backward_hist = [forward_hist[-1]]
             for last_idx in reversed(range(1, step)):
                 tar_idx = last_idx - 1
-                last_bboxes, last_crop_x = backward_hist[-1]
                 tar_frame = track_imgs[:, :, tar_idx].contiguous()
-                tar_x = track_x[:, :, tar_idx].contiguous()
-                tar_bboxes, tar_crop_x = self.track(
-                    tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
+                tar_bboxes = self.get_ref_crop_bbox(
+                    batches, track_imgs, idx=tar_idx)
+                tar_crop_x = self.crop_x_from_img(tar_frame, tar_bboxes,
+                                                  self.encoder_q)
                 backward_hist.append((tar_bboxes, tar_crop_x))
             assert len(backward_hist) == step
-
-            loss_step = dict()
-            ref_pred_bboxes = backward_hist[-1][0]
-            ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
-                                               ref_pred_bboxes)
-            loss_step['iou_bbox'] = bbox_overlaps(
-                ref_pred_bboxes, ref_bboxes, is_aligned=True)
-            loss_step['loss_bbox'] = self.cls_head.loss_bbox(
-                ref_crop_grid, ref_pred_crop_grid)
-
-            for tar_idx in range(1, step):
-                last_crop_x = forward_hist[tar_idx - 1][1]
-                tar_crop_x = forward_hist[tar_idx][1]
-                loss_step.update(
-                    add_suffix(
-                        self.cls_head.loss(last_crop_x, tar_crop_x),
-                        suffix=f'forward.t{tar_idx}'))
-            for last_idx in reversed(range(1, step)):
-                tar_crop_x = backward_hist[last_idx - 1][1]
-                last_crop_x = backward_hist[last_idx][1]
-                loss_step.update(
-                    add_suffix(
-                        self.cls_head.loss(tar_crop_x, last_crop_x),
-                        suffix=f'backward.t{last_idx}'))
 
             for idx in range(step):
                 last_bboxes, last_crop_x_q = forward_hist[idx]
@@ -338,30 +299,6 @@ class UVCMoCoTracker(VanillaTracker):
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
-            loss.update(add_suffix(loss_step, f'step{step}'))
-
-            if self.skip_cycle and step > 2:
-                loss_skip = dict()
-                tar_frame = track_imgs[:, :, step - 1].contiguou()
-                tar_x = track_x[:, :, step - 1].contiguous()
-                _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
-                ref_pred_bboxes, ref_pred_crop_x = self.track(
-                    ref_frame, ref_x, tar_crop_x)
-                ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
-                                                   ref_pred_bboxes)
-                loss_step['iou_bbox'] = bbox_overlaps(
-                    ref_pred_bboxes, ref_bboxes, is_aligned=True)
-                loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
-                    ref_crop_grid, ref_pred_crop_grid)
-                loss_skip.update(
-                    add_suffix(
-                        self.cls_head.loss(ref_crop_x, tar_crop_x),
-                        suffix='forward'))
-                loss_skip.update(
-                    add_suffix(
-                        self.cls_head.loss(tar_crop_x, ref_pred_crop_x),
-                        suffix='backward'))
-                loss.update(add_suffix(loss_skip, f'skip{step}'))
         patch_embed_x_k = torch.stack(patch_embed_x_k, dim=2)
         patch_embed_x_q = torch.stack(patch_embed_x_q, dim=2)
         loss_img = self.img_head_q.loss(q_embed_x, embed_x_k, self.img_queue)

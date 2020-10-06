@@ -4,6 +4,7 @@ from collections.abc import Sequence
 import mmcv
 import numpy as np
 from numpy import random as npr
+from PIL import Image, ImageFilter
 from torch.nn.modules.utils import _pair
 
 from ..registry import PIPELINES
@@ -558,13 +559,18 @@ class Flip(object):
     """
     _directions = ['horizontal', 'vertical']
 
-    def __init__(self, flip_ratio=0.5, direction='horizontal', lazy=False):
+    def __init__(self,
+                 flip_ratio=0.5,
+                 direction='horizontal',
+                 lazy=False,
+                 same_on_clip=True):
         if direction not in self._directions:
             raise ValueError(f'Direction {direction} is not supported. '
                              f'Currently support ones are {self._directions}')
         self.flip_ratio = flip_ratio
         self.direction = direction
         self.lazy = lazy
+        self.same_on_clip = same_on_clip
 
     def __call__(self, results):
         """Performs the Flip augmentation.
@@ -587,6 +593,11 @@ class Flip(object):
         results['flip_direction'] = self.direction
 
         if not self.lazy:
+            if not self.same_on_clip:
+                if np.random.rand() < self.flip_ratio:
+                    flip = True
+                else:
+                    flip = False
             if flip:
                 for i, img in enumerate(results['imgs']):
                     mmcv.imflip_(img, self.direction)
@@ -1019,12 +1030,14 @@ class PhotoMetricDistortion(object):
                  contrast_range=(0.5, 1.5),
                  saturation_range=(0.5, 1.5),
                  hue_delta=18,
-                 p=0.5):
+                 p=0.5,
+                 same_on_clip=True):
         self.brightness_delta = brightness_delta
         self.contrast_lower, self.contrast_upper = contrast_range
         self.saturation_lower, self.saturation_upper = saturation_range
         self.hue_delta = hue_delta
         self.p = p
+        self.same_on_clip = same_on_clip
 
     def convert(self, img, alpha=1, beta=0):
         """Multiple with alpha and add beat with clip."""
@@ -1077,6 +1090,19 @@ class PhotoMetricDistortion(object):
         apply_mode = npr.rand() < self.p
 
         for i, img in enumerate(results['imgs']):
+            if not self.same_on_clip:
+                apply_bright = npr.rand() < self.p
+                bright_beta = npr.uniform(-self.brightness_delta,
+                                          self.brightness_delta)
+                apply_contrast = npr.rand() < self.p
+                contrast_alpha = npr.uniform(self.contrast_lower,
+                                             self.contrast_upper)
+                apply_saturation = npr.rand() < self.p
+                saturation_alpha = npr.uniform(self.saturation_lower,
+                                               self.saturation_upper)
+                apply_hue = npr.rand() < self.p
+                hue_delta = npr.randint(-self.hue_delta, self.hue_delta)
+                apply_mode = npr.rand() < self.p
             # random brightness
             if apply_bright:
                 img = self.brightness(img, beta=bright_beta)
@@ -1108,3 +1134,49 @@ class PhotoMetricDistortion(object):
                      f'{self.saturation_upper}), '
                      f'hue_delta={self.hue_delta})')
         return repr_str
+
+
+@PIPELINES.register_module()
+class RandomGaussianBlur(object):
+
+    def __init__(self, sigma_range=(0.1, 0.2), p=0.5, same_on_clip=True):
+        self.sigma_range = sigma_range
+        self.p = p
+        self.same_on_clip = same_on_clip
+
+    def __call__(self, results):
+        apply = npr.rand() < self.p
+        sigma = random.uniform(self.sigma_range[0], self.sigma_range[1])
+        for i, img in enumerate(results['imgs']):
+            if not self.same_on_clip:
+                apply = npr.rand() < self.p
+                sigma = random.uniform(self.sigma_range[0],
+                                       self.sigma_range[1])
+            if apply:
+                pil_image = Image.fromarray(img)
+                pil_image = pil_image.filter(
+                    ImageFilter.GaussianBlur(radius=sigma))
+                img = np.array(pil_image)
+                results['imgs'][i] = img
+
+        return results
+
+
+@PIPELINES.register_module()
+class RandomGrayScale(object):
+
+    def __init__(self, p=0.5, same_on_clip=True):
+        self.p = p
+        self.same_on_clip = same_on_clip
+
+    def __call__(self, results):
+        apply = npr.rand() < self.p
+        for i, img in enumerate(results['imgs']):
+            if not self.same_on_clip:
+                apply = npr.rand() < self.p
+            if apply:
+                img = mmcv.rgb2gray(img, keepdim=True)
+                img = np.repeat(img, 3, axis=-1)
+                results['imgs'][i] = img
+
+        return results

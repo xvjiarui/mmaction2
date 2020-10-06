@@ -51,6 +51,7 @@ def train_model(model,
             build_dataloader(
                 ds,
                 workers_per_gpu=train_workers if i == 0 else val_workers,
+                drop_last=True if i == 0 else False,
                 **dataloader_setting))
 
     # put model on gpus

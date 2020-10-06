@@ -187,6 +187,19 @@ class SampleFrames(object):
 
 
 @PIPELINES.register_module()
+class DuplicateFrames(object):
+
+    def __init__(self, times=2):
+        self.times = times
+
+    def __call__(self, results):
+        results['frame_inds'] = np.tile(results['frame_inds'], self.times)
+        results['num_clips'] *= self.times
+
+        return results
+
+
+@PIPELINES.register_module()
 class UntrimmedSampleFrames(object):
     """Sample frames from the untrimmed video.
 

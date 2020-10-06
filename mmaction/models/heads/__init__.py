@@ -1,5 +1,6 @@
 from .base import BaseHead
 from .i3d_head import I3DHead
+from .moco_head import MoCoHead
 from .slowfast_head import SlowFastHead
 from .ssn_head import SSNHead
 from .tsm_head import TSMHead
@@ -9,5 +10,5 @@ from .walker_head import WalkerHead
 
 __all__ = [
     'TSNHead', 'I3DHead', 'BaseHead', 'TSMHead', 'SlowFastHead', 'SSNHead',
-    'WalkerHead', 'UVCHead'
+    'WalkerHead', 'UVCHead', 'MoCoHead'
 ]

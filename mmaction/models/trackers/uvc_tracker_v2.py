@@ -4,8 +4,9 @@ import torch.nn as nn
 from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_suffix
-from ..common import (crop_and_resize, get_crop_grid, get_random_crop_bbox,
-                      get_top_diff_crop_bbox, images2video, video2images)
+from ..common import (bbox_overlaps, crop_and_resize, get_crop_grid,
+                      get_random_crop_bbox, get_top_diff_crop_bbox,
+                      images2video, video2images)
 from ..registry import WALKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -35,6 +36,7 @@ class UVCTrackerV2(VanillaTracker):
             self.img_as_tar = self.train_cfg.get('img_as_tar')
             self.diff_crop = self.train_cfg.get('diff_crop', False)
             self.img_as_grid = self.train_cfg.get('img_as_grid', True)
+            self.loss_on_grid = self.train_cfg.get('loss_on_grid', True)
 
     def crop_x_from_img(self, img, x, bboxes, crop_first):
         assert isinstance(crop_first, (bool, float))
@@ -99,16 +101,16 @@ class UVCTrackerV2(VanillaTracker):
         x = images2video(
             self.extract_feat(self.aug(video2images(imgs))), clip_len)
         loss = dict()
+        ref_frame = imgs[:, :, 0]
+        ref_x = x[:, :, 0]
+        ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)
+        ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
+                                          self.train_cfg.img_as_ref)
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
             step_weight = 1.
             skip_weight = 1.
-            ref_frame = imgs[:, :, 0]
-            ref_x = x[:, :, 0]
             # TODO: all bboxes are in feature space
-            ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)
-            ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
-                                              self.train_cfg.img_as_ref)
             ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
@@ -143,11 +145,14 @@ class UVCTrackerV2(VanillaTracker):
             ref_pred_bboxes = backward_hist[-1][0]
             ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                ref_pred_bboxes)
-            loss_step['dist_bbox'] = self.cls_head.loss_bbox(
-                ref_pred_bboxes / self.patch_x_size[0],
-                ref_bboxes / self.patch_x_size[0])
-            loss_step['loss_bbox'] = self.cls_head.loss_bbox(
-                ref_crop_grid, ref_pred_crop_grid) * step_weight
+            loss_step['iou_bbox'] = bbox_overlaps(
+                ref_pred_bboxes, ref_bboxes, is_aligned=True)
+            if self.loss_on_grid:
+                loss_step['loss_bbox'] = self.cls_head.loss_bbox(
+                    ref_crop_grid, ref_pred_crop_grid) * step_weight
+            else:
+                loss_step['loss_bbox'] = self.cls_head.loss_bbox(
+                    ref_pred_bboxes, ref_bboxes) * step_weight
 
             for tar_idx in range(1, step):
                 last_crop_x = forward_hist[tar_idx - 1][1]
@@ -210,9 +215,8 @@ class UVCTrackerV2(VanillaTracker):
                     tar_bboxes=ref_bboxes if is_center_crop else None)
                 ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                    ref_pred_bboxes)
-                loss_skip['dist_bbox'] = self.cls_head.loss_bbox(
-                    ref_pred_bboxes / self.patch_x_size[0],
-                    ref_bboxes / self.patch_x_size[0])
+                loss_step['iou_bbox'] = bbox_overlaps(
+                    ref_pred_bboxes, ref_bboxes, is_aligned=True)
                 loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
                     ref_crop_grid, ref_pred_crop_grid) * skip_weight
                 loss_skip.update(
