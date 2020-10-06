@@ -342,7 +342,7 @@ class UVCMoCoTracker(VanillaTracker):
 
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
-                tar_frame = track_imgs[:, :, step - 1].contiguou()
+                tar_frame = track_imgs[:, :, step - 1].contiguous()
                 tar_x = track_x[:, :, step - 1].contiguous()
                 _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
                 ref_pred_bboxes, ref_pred_crop_x = self.track(
