@@ -139,7 +139,7 @@ optimizer = dict(type='SGD', lr=1e-1)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-# lr_config = dict(policy='Fixed')
+lr_config = dict(policy='Fixed')
 # lr_config = dict(
 #     policy='step',
 #     warmup='linear',
