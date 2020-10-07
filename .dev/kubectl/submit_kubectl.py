@@ -26,6 +26,7 @@ def parse_args():
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
         '--cpus', type=int, default=6, help='number of cpus to use')
+    parser.add_argument('--file', '-f', type=str, help='config txt file')
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -61,10 +62,17 @@ def submit(config, args, rest):
 def main():
     args, rest = parse_args()
     if osp.isdir(args.config):
-        for cfg in mmcv.scandir(args.config, suffix='.py'):
-            if 'playground' in cfg:
-                continue
-            submit(osp.join(args.config, cfg), args, rest)
+        if args.file is not None:
+            with open(args.file) as f:
+                submit_cfg_names = [line.strip() for line in f.readlines()]
+            for cfg in mmcv.scandir(args.config, recursive=True):
+                if osp.basename(cfg) in submit_cfg_names:
+                    submit(osp.join(args.config, cfg), args, rest)
+        else:
+            for cfg in mmcv.scandir(args.config, suffix='.py'):
+                if 'playground' in cfg:
+                    continue
+                submit(osp.join(args.config, cfg), args, rest)
     else:
         submit(args.config, args, rest)
 

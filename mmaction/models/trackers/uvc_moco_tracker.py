@@ -29,21 +29,27 @@ class UVCMoCoTracker(VanillaTracker):
         super().__init__(*args, backbone=backbone, **kwargs)
         self.stride = self.backbone.output_stride
         self.encoder_k = builder.build_backbone(backbone)
-        self.img_head_q = builder.build_head(img_head)
+        self.with_img_head = img_head is not None
         self.patch_head_q = builder.build_head(patch_head)
-        self.img_head_k = builder.build_head(img_head)
         self.patch_head_k = builder.build_head(patch_head)
+        if self.with_img_head:
+            self.img_head_q = builder.build_head(img_head)
+            self.img_head_k = builder.build_head(img_head)
         # create the queue
         self.queue_dim = queue_dim
-        self.img_queue_size = img_queue_size
+        if self.with_img_head:
+            self.img_queue_size = img_queue_size
         self.patch_queue_size = patch_queue_size
 
         # image queue
-        self.register_buffer('img_queue', torch.randn(queue_dim,
-                                                      img_queue_size))
-        self.img_queue = F.normalize(self.img_queue, dim=0, p=2)
-        self.register_buffer('img_queue_ptr', torch.zeros(1, dtype=torch.long))
+        if self.with_img_head:
+            self.register_buffer('img_queue',
+                                 torch.randn(queue_dim, img_queue_size))
+            self.img_queue = F.normalize(self.img_queue, dim=0, p=2)
+            self.register_buffer('img_queue_ptr',
+                                 torch.zeros(1, dtype=torch.long))
 
+        # patch queue
         self.register_buffer('patch_queue',
                              torch.randn(queue_dim, patch_queue_size))
         self.patch_queue = F.normalize(self.patch_queue, dim=0, p=2)
@@ -74,16 +80,18 @@ class UVCMoCoTracker(VanillaTracker):
         return self.backbone
 
     def init_moco_weights(self):
-        self.img_head_q.init_weights()
+        if self.with_img_head:
+            self.img_head_q.init_weights()
         self.patch_head_q.init_weights()
         for param_q, param_k in zip(self.encoder_q.parameters(),
                                     self.encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
-        for param_q, param_k in zip(self.img_head_q.parameters(),
-                                    self.img_head_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
+        if self.with_img_head:
+            for param_q, param_k in zip(self.img_head_q.parameters(),
+                                        self.img_head_k.parameters()):
+                param_k.data.copy_(param_q.data)  # initialize
+                param_k.requires_grad = False  # not update by gradient
         for param_q, param_k in zip(self.patch_head_q.parameters(),
                                     self.patch_head_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
@@ -96,10 +104,11 @@ class UVCMoCoTracker(VanillaTracker):
                                     self.encoder_k.parameters()):
             param_k.data = param_k.data * self.momentum + \
                            param_q.data * (1. - self.momentum)
-        for param_q, param_k in zip(self.img_head_q.parameters(),
-                                    self.img_head_k.parameters()):
-            param_k.data = param_k.data * self.momentum + \
-                           param_q.data * (1. - self.momentum)
+        if self.with_img_head:
+            for param_q, param_k in zip(self.img_head_q.parameters(),
+                                        self.img_head_k.parameters()):
+                param_k.data = param_k.data * self.momentum + \
+                               param_q.data * (1. - self.momentum)
         for param_q, param_k in zip(self.patch_head_q.parameters(),
                                     self.patch_head_k.parameters()):
             param_k.data = param_k.data * self.momentum + \
@@ -234,9 +243,11 @@ class UVCMoCoTracker(VanillaTracker):
         # imgs = imgs.reshape((-1,) + imgs.shape[2:])
         batches, clip_len = imgs_q.size(0), imgs_q.size(2)
         x_q = self.encoder_q(self.aug(video2images(imgs_q)))
-        q_embed_x = self.img_head_q(x_q)
+        if self.with_img_head:
+            q_embed_x = self.img_head_q(x_q)
         x_q = images2video(x_q, clip_len)
-        q_embed_x = images2video(q_embed_x, clip_len)
+        if self.with_img_head:
+            q_embed_x = images2video(q_embed_x, clip_len)
         # compute key features
         with torch.no_grad():  # no gradient to keys
             self._momentum_update_key_encoder()  # update the key encoder
@@ -248,19 +259,25 @@ class UVCMoCoTracker(VanillaTracker):
 
                 # [N, C, T, H, W]
                 x_k = self.encoder_k(self.aug(video2images(imgs_k_shuffled)))
-                embed_x_k = self.img_head_k(x_k)
+                if self.with_img_head:
+                    embed_x_k = self.img_head_k(x_k)
                 x_k = images2video(x_k, clip_len)
-                embed_x_k = images2video(embed_x_k, clip_len)
+                if self.with_img_head:
+                    embed_x_k = images2video(embed_x_k, clip_len)
 
                 # undo shuffle
                 x_k = self._batch_unshuffle_ddp(x_k, idx_unshuffle)
-                embed_x_k = self._batch_unshuffle_ddp(embed_x_k, idx_unshuffle)
+                if self.with_img_head:
+                    embed_x_k = self._batch_unshuffle_ddp(
+                        embed_x_k, idx_unshuffle)
             else:
                 # [N, C, T, H, W]
                 x_k = self.encoder_k(self.aug(video2images(imgs_k)))
-                embed_x_k = self.img_head_k(x_k)
+                if self.with_img_head:
+                    embed_x_k = self.img_head_k(x_k)
                 x_k = images2video(x_k, clip_len)
-                embed_x_k = images2video(embed_x_k, clip_len)
+                if self.with_img_head:
+                    embed_x_k = images2video(embed_x_k, clip_len)
         track_x = x_q if self.track_on_q else x_k
         track_imgs = imgs_q if self.track_on_q else imgs_k
         assert self.track_on_q, 'only track on query is implemented'
@@ -283,17 +300,20 @@ class UVCMoCoTracker(VanillaTracker):
                 tar_x = track_x[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
+                if tar_idx > 1:
+                    tar_crop_x = tar_crop_x.detach()
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
 
             backward_hist = [forward_hist[-1]]
-            for last_idx in reversed(range(1, step)):
-                tar_idx = last_idx - 1
+            for tar_idx in reversed(range(step - 1)):
                 last_bboxes, last_crop_x = backward_hist[-1]
                 tar_frame = track_imgs[:, :, tar_idx].contiguous()
                 tar_x = track_x[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
+                if tar_idx > 0:
+                    tar_crop_x = tar_crop_x.detach()
                 backward_hist.append((tar_bboxes, tar_crop_x))
             assert len(backward_hist) == step
 
@@ -364,13 +384,16 @@ class UVCMoCoTracker(VanillaTracker):
                 loss.update(add_suffix(loss_skip, f'skip{step}'))
         patch_embed_x_k = torch.stack(patch_embed_x_k, dim=2)
         patch_embed_x_q = torch.stack(patch_embed_x_q, dim=2)
-        loss_img = self.img_head_q.loss(q_embed_x, embed_x_k, self.img_queue)
+        if self.with_img_head:
+            loss_img = self.img_head_q.loss(q_embed_x, embed_x_k,
+                                            self.img_queue)
+            loss.update(add_suffix(loss_img, 'img'))
         loss_patch = self.patch_head_q.loss(patch_embed_x_q, patch_embed_x_k,
                                             self.patch_queue)
-        loss.update(add_suffix(loss_img, 'img'))
         loss.update(add_suffix(loss_patch, 'patch'))
         # dequeue and enqueue
-        self._dequeue_and_enqueue_img(video2images(embed_x_k))
+        if self.with_img_head:
+            self._dequeue_and_enqueue_img(video2images(embed_x_k))
         self._dequeue_and_enqueue_patch(video2images(patch_embed_x_k))
         return loss
 

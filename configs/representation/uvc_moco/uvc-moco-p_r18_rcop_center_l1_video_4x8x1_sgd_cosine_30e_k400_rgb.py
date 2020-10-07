@@ -3,10 +3,10 @@ temperature = 0.01
 with_norm = True
 query_dim = 128
 model = dict(
-    type='RNDMoCoTracker',
+    type='UVCMoCoTracker',
     queue_dim=query_dim,
-    img_queue_size=256 * 18,
-    patch_queue_size=256 * 126,
+    # img_queue_size=256 * 48,
+    patch_queue_size=256 * 96 * 7,
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -32,13 +32,14 @@ model = dict(
         with_norm=with_norm,
         init_std=0.01,
         track_type='center'),
-    img_head=dict(
-        type='MoCoHead',
-        loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
-        in_channels=512,
-        channels=query_dim,
-        temperature=temperature,
-        with_norm=with_norm),
+    # img_head=dict(
+    #     type='MoCoHead',
+    #     loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
+    #     in_channels=512,
+    #     channels=query_dim,
+    #     temperature=temperature,
+    #     with_norm=with_norm),
+    img_head=None,
     patch_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
@@ -50,7 +51,7 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
-    diff_crop=False,
+    diff_crop=True,
     skip_cycle=True,
     strong_aug=True,
     center_ratio=0.,
@@ -80,11 +81,11 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=4, num_clips=1),
+    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
-    # dict(type='Resize', scale=(-1, 256)),
-    # dict(type='RandomResizedCrop'),
+    dict(type='Resize', scale=(-1, 256)),
+    dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
     dict(type='PhotoMetricDistortion', p=0.8),
@@ -109,7 +110,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=18,
+    videos_per_gpu=24,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -138,15 +139,15 @@ data = dict(
 optimizer = dict(type='SGD', lr=1e-1)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-# lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-lr_config = dict(policy='Fixed')
+lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+# lr_config = dict(policy='Fixed')
 # lr_config = dict(
 #     policy='step',
 #     warmup='linear',
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 50
+total_epochs = 30
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -164,7 +165,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['rnd-moco'],
+                tags=['uvc-moco'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,

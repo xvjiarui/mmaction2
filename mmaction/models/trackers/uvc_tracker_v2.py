@@ -28,8 +28,6 @@ class UVCTrackerV2(VanillaTracker):
             else:
                 self.aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)
-            self.cur_as_tar = self.train_cfg.get('cur_as_tar', False)
-            self.switch_ref_tar = self.train_cfg.get('switch_ref_tar', False)
             self.border = self.train_cfg.get('border', 0)
             self.grid_size = self.train_cfg.get('grid_size', 9)
             self.img_as_ref = self.train_cfg.get('img_as_ref')
@@ -101,15 +99,15 @@ class UVCTrackerV2(VanillaTracker):
         x = images2video(
             self.extract_feat(self.aug(video2images(imgs))), clip_len)
         loss = dict()
-        ref_frame = imgs[:, :, 0]
-        ref_x = x[:, :, 0]
-        ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)
-        ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
-                                          self.train_cfg.img_as_ref)
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
             step_weight = 1.
             skip_weight = 1.
+            ref_frame = imgs[:, :, 0]
+            ref_x = x[:, :, 0]
+            ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)
+            ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
+                                              self.train_cfg.img_as_ref)
             # TODO: all bboxes are in feature space
             ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
@@ -123,12 +121,13 @@ class UVCTrackerV2(VanillaTracker):
                     last_crop_x,
                     ref_bboxes=last_bboxes,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
+                if tar_idx > 1:
+                    tar_crop_x = tar_crop_x.detach()
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
 
             backward_hist = [forward_hist[-1]]
-            for last_idx in reversed(range(1, step)):
-                tar_idx = last_idx - 1
+            for tar_idx in reversed(range(step - 1)):
                 last_bboxes, last_crop_x = backward_hist[-1]
                 tar_frame = imgs[:, :, tar_idx]
                 tar_x = x[:, :, tar_idx]
@@ -138,6 +137,8 @@ class UVCTrackerV2(VanillaTracker):
                     last_crop_x,
                     ref_bboxes=last_bboxes,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
+                if tar_idx > 0:
+                    tar_crop_x = tar_crop_x.detach()
                 backward_hist.append((tar_bboxes, tar_crop_x))
             assert len(backward_hist) == step
 
@@ -172,50 +173,25 @@ class UVCTrackerV2(VanillaTracker):
                         suffix=f'backward.t{last_idx}'))
             loss.update(add_suffix(loss_step, f'step{step}'))
 
-            if self.cur_as_tar:
-                total_hist = forward_hist + backward_hist
-                idx_hist = list(range(step)) + list(reversed(range(step)))
-                for cur_idx in range(2 * step):
-                    loss_cur = dict()
-                    cur_bboxes, cur_crop_x = total_hist[cur_idx]
-                    cur_frame = imgs[:, :, idx_hist[cur_idx]]
-                    cur_x = x[:, :, idx_hist[cur_idx]]
-                    tar_bboxes, tar_crop_x = self.track(
-                        cur_frame, cur_x, cur_crop_x)
-                    loss_cur.update(
-                        add_suffix(
-                            self.cls_head.loss(cur_crop_x, tar_crop_x),
-                            suffix='forward'))
-                    cur_pred_bboxes, cur_pred_crop_x = self.track(
-                        cur_frame, cur_x, tar_crop_x)
-                    loss_cur.update(
-                        add_suffix(
-                            self.cls_head.loss(cur_pred_crop_x, tar_crop_x),
-                            suffix='backward'))
-                    cur_pred_crop_grid = self.get_grid(cur_frame, cur_x,
-                                                       cur_pred_bboxes)
-                    cur_crop_grid = self.get_grid(cur_frame, cur_x, cur_bboxes)
-                    loss_cur['loss_bbox'] = self.cls_head.loss_bbox(
-                        cur_pred_crop_grid, cur_crop_grid) * step_weight
-                    loss.update(add_suffix(loss_cur, f'cur{cur_idx}'))
-
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
                 tar_frame = imgs[:, :, step - 1]
                 tar_x = x[:, :, step - 1]
-                _, tar_crop_x = self.track(
+                tar_bboxes, tar_crop_x = self.track(
                     tar_frame,
                     tar_x,
                     ref_crop_x,
+                    ref_bboxes=ref_bboxes,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
                 ref_pred_bboxes, ref_pred_crop_x = self.track(
                     ref_frame,
                     ref_x,
                     tar_crop_x,
+                    ref_bboxes=tar_bboxes,
                     tar_bboxes=ref_bboxes if is_center_crop else None)
                 ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                    ref_pred_bboxes)
-                loss_step['iou_bbox'] = bbox_overlaps(
+                loss_skip['iou_bbox'] = bbox_overlaps(
                     ref_pred_bboxes, ref_bboxes, is_aligned=True)
                 loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
                     ref_crop_grid, ref_pred_crop_grid) * skip_weight
@@ -230,78 +206,6 @@ class UVCTrackerV2(VanillaTracker):
                             tar_crop_x, ref_pred_crop_x, weight=skip_weight),
                         suffix='backward'))
                 loss.update(add_suffix(loss_skip, f'skip{step}'))
-
-        if self.switch_ref_tar:
-            imgs = imgs.flip(dims=(2, ))
-            x = x.flip(dims=(2, ))
-            for step in range(2, clip_len + 1):
-                # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
-                ref_frame = imgs[:, :, 0]
-                ref_x = x[:, :, 0]
-                # TODO: all bboxes are in feature space
-                ref_bboxes, is_center_crop = self.get_ref_crop_bbox(
-                    batches, imgs)
-                ref_crop_x = self.crop_x_from_img(ref_frame, ref_x, ref_bboxes,
-                                                  self.train_cfg.img_as_ref)
-                # ref_crop_grid = get_crop_grid(ref_frame,
-                #                               ref_bboxes * self.stride,
-                #                               self.patch_img_size)
-                ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
-                forward_hist = [(ref_bboxes, ref_crop_x)]
-                for tar_idx in range(1, step):
-                    last_bboxes, last_crop_x = forward_hist[-1]
-                    tar_frame = imgs[:, :, tar_idx]
-                    tar_x = x[:, :, tar_idx]
-                    tar_bboxes, tar_crop_x = self.track(
-                        tar_frame,
-                        tar_x,
-                        last_crop_x,
-                        tar_bboxes=ref_bboxes if is_center_crop else None)
-                    forward_hist.append((tar_bboxes, tar_crop_x))
-                assert len(forward_hist) == step
-
-                backward_hist = [forward_hist[-1]]
-                for last_idx in reversed(range(1, step)):
-                    tar_idx = last_idx - 1
-                    last_bboxes, last_crop_x = backward_hist[-1]
-                    tar_frame = imgs[:, :, tar_idx]
-                    tar_x = x[:, :, tar_idx]
-                    tar_bboxes, tar_crop_x = self.track(
-                        tar_frame,
-                        tar_x,
-                        last_crop_x,
-                        tar_bboxes=ref_bboxes if is_center_crop else None)
-                    backward_hist.append((tar_bboxes, tar_crop_x))
-                assert len(backward_hist) == step
-
-                loss_step = dict()
-                ref_pred_bboxes = backward_hist[-1][0]
-                # ref_pred_crop_grid = get_crop_grid(
-                #     ref_frame, ref_pred_bboxes * self.stride,
-                #     self.patch_img_size)
-                ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
-                                                   ref_pred_bboxes)
-                loss_step['dist_bbox'] = self.cls_head.loss_bbox(
-                    ref_pred_bboxes / self.patch_x_size[0],
-                    ref_bboxes / self.patch_x_size[0])
-                loss_step['loss_bbox'] = self.cls_head.loss_bbox(
-                    ref_crop_grid, ref_pred_crop_grid)
-
-                for tar_idx in range(1, step):
-                    last_crop_x = forward_hist[tar_idx - 1][1]
-                    tar_crop_x = forward_hist[tar_idx][1]
-                    loss_step.update(
-                        add_suffix(
-                            self.cls_head.loss(last_crop_x, tar_crop_x),
-                            suffix=f'forward.t{tar_idx}'))
-                for last_idx in reversed(range(1, step)):
-                    tar_crop_x = backward_hist[last_idx - 1][1]
-                    last_crop_x = backward_hist[last_idx][1]
-                    loss_step.update(
-                        add_suffix(
-                            self.cls_head.loss(tar_crop_x, last_crop_x),
-                            suffix=f'backward.t{last_idx}'))
-                loss.update(add_suffix(loss_step, f'step_f{step}'))
 
         return loss
 

@@ -10,7 +10,8 @@ from torchvision.utils import save_image
 
 from mmaction.datasets import build_dataloader, build_dataset
 from mmaction.models import build_model
-from mmaction.models.common import get_crop_grid, images2video, video2images
+from mmaction.models.common import (bbox_overlaps, get_crop_grid, images2video,
+                                    video2images)
 
 
 def parse_args():
@@ -87,8 +88,8 @@ def uvc_hook(name):
         #     self.extract_feat(self.aug(video2images(imgs))), clip_len)
         x = images2video(self.extract_feat(video2images(imgs)), clip_len)
         assert x.size(1) == 512
-        assert clip_len == 2
-        step = 2
+        # assert clip_len == 2
+        step = clip_len
         ref_frame = imgs[:, :, 0]
         ref_x = x[:, :, 0]
         # all bboxes are in feature space
@@ -141,19 +142,43 @@ def uvc_hook(name):
         ref_pred_crop_grid = get_crop_grid(ref_frame,
                                            ref_pred_bboxes * self.stride,
                                            self.patch_img_size)
-        loss_step['dist_bbox'] = self.cls_head.loss_bbox(
-            ref_pred_bboxes / self.patch_x_size[0],
-            ref_bboxes / self.patch_x_size[0])
+        loss_step['iou_bbox'] = bbox_overlaps(
+            ref_pred_bboxes, ref_bboxes, is_aligned=True)
         loss_step['loss_bbox'] = self.cls_head.loss_bbox(
             ref_crop_grid, ref_pred_crop_grid)
 
-        bbox1 = forward_hist[0][0] * self.stride
-        bbox2 = forward_hist[1][0] * self.stride
-        bbox3 = backward_hist[0][0] * self.stride
-        bbox4 = backward_hist[1][0] * self.stride
-        assert torch.allclose(bbox2, bbox3)
+        bboxes = []
+        for idx in range(step):
+            bboxes.append(forward_hist[idx][0] * self.stride)
+        assert torch.allclose(forward_hist[-1][0], backward_hist[0][0])
+        for idx in reversed(range(step - 1)):
+            bboxes.append(backward_hist[idx][0] * self.stride)
 
-        hidden_outputs[name] = (bbox1, bbox2, bbox4, loss_step)
+        hidden_outputs[name] = dict(step=(bboxes, loss_step))
+        if self.skip_cycle and step > 2:
+            loss_skip = dict()
+            tar_frame = imgs[:, :, step - 1]
+            tar_x = x[:, :, step - 1]
+            tar_bboxes, tar_crop_x = self.track(
+                tar_frame,
+                tar_x,
+                ref_crop_x,
+                tar_bboxes=ref_bboxes if is_center_crop else None)
+            ref_pred_bboxes, ref_pred_crop_x = self.track(
+                ref_frame,
+                ref_x,
+                tar_crop_x,
+                tar_bboxes=ref_bboxes if is_center_crop else None)
+            loss_skip['iou_bbox'] = bbox_overlaps(
+                ref_pred_bboxes, ref_bboxes, is_aligned=True)
+            loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
+                ref_crop_grid, ref_pred_crop_grid)
+            hidden_outputs[name].update(
+                dict(
+                    skip=([
+                        ref_bboxes * self.stride, tar_bboxes *
+                        self.stride, ref_pred_bboxes * self.stride
+                    ], loss_skip)))
 
     return hook
 
@@ -192,7 +217,7 @@ def single_gpu_vis(model, data_loader, show=False, out_dir=None):
             #     mean=[50, 0, 0], std=[50, 127, 127], to_rgb=False)
 
             img_tensor = img_tensor.reshape((-1, ) + img_tensor.shape[2:])
-            assert img_tensor.size(2) == 2, img_tensor.shape
+            # assert img_tensor.size(2) == 2, img_tensor.shape
 
             imgs = []
             for _ in range(img_tensor.size(2)):
@@ -203,33 +228,60 @@ def single_gpu_vis(model, data_loader, show=False, out_dir=None):
 
             assert len(hidden_outputs) == 1
 
-            bbox1, bbox2, bbox4, loss_step = list(hidden_outputs.values())[0]
+            hidden_dict = list(hidden_outputs.values())[0]
+            bboxes, loss_step = hidden_dict['step']
+            assert len(bboxes) == 2 * len(imgs) - 1
             print(loss_step)
             imgs_show = []
-            for idx in range(batch_size):
-                imgs_show.append(
-                    torch.from_numpy(
-                        mmcv.imshow_bboxes(
-                            imgs[0][idx].copy(),
-                            bbox1[idx].unsqueeze(0).detach().cpu().numpy(),
-                            show=False)))
-                imgs_show.append(
-                    torch.from_numpy(
-                        mmcv.imshow_bboxes(
-                            imgs[1][idx].copy(),
-                            bbox2[idx].unsqueeze(0).detach().cpu().numpy(),
-                            show=False)))
-                imgs_show.append(
-                    torch.from_numpy(
-                        mmcv.imshow_bboxes(
-                            imgs[0][idx].copy(),
-                            bbox4[idx].unsqueeze(0).detach().cpu().numpy(),
-                            show=False)))
+            for batch_idx in range(batch_size):
+                for idx in range(len(imgs)):
+                    imgs_show.append(
+                        torch.from_numpy(
+                            mmcv.imshow_bboxes(
+                                imgs[idx][batch_idx].copy(),
+                                bboxes[idx][batch_idx].unsqueeze(
+                                    0).detach().cpu().numpy(),
+                                show=False)))
+                for idx in reversed(range(len(imgs) - 1)):
+                    imgs_show.append(
+                        torch.from_numpy(
+                            mmcv.imshow_bboxes(
+                                imgs[idx][batch_idx].copy(),
+                                bboxes[idx + len(imgs)][batch_idx].unsqueeze(
+                                    0).detach().cpu().numpy(),
+                                show=False)))
             mmcv.mkdir_or_exist(out_dir)
             save_image(
                 torch.stack(imgs_show).permute(0, 3, 1, 2) / 255.,
-                osp.join(out_dir, f'{i:05d}.png'),
-                nrow=3)
+                osp.join(out_dir, f'{i:05d}_step.png'),
+                nrow=len(bboxes))
+
+            if 'skip' in hidden_dict:
+                bboxes, loss_skip = hidden_dict['skip']
+                imgs_skip = [imgs[0], imgs[-1]]
+                imgs_show = []
+                for batch_idx in range(batch_size):
+                    for idx in range(len(imgs_skip)):
+                        imgs_show.append(
+                            torch.from_numpy(
+                                mmcv.imshow_bboxes(
+                                    imgs_skip[idx][batch_idx].copy(),
+                                    bboxes[idx][batch_idx].unsqueeze(
+                                        0).detach().cpu().numpy(),
+                                    show=False)))
+                    for idx in reversed(range(len(imgs_skip) - 1)):
+                        imgs_show.append(
+                            torch.from_numpy(
+                                mmcv.imshow_bboxes(
+                                    imgs_skip[idx][batch_idx].copy(),
+                                    bboxes[idx + len(imgs_skip)][batch_idx].
+                                    unsqueeze(0).detach().cpu().numpy(),
+                                    show=False)))
+                mmcv.mkdir_or_exist(out_dir)
+                save_image(
+                    torch.stack(imgs_show).permute(0, 3, 1, 2) / 255.,
+                    osp.join(out_dir, f'{i:05d}_skip.png'),
+                    nrow=len(bboxes))
 
         hidden_outputs.clear()
         for _ in range(batch_size):

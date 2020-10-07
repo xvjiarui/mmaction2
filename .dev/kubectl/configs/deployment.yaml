@@ -1,34 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deployment
+  name: http
   labels:
-    k8s-app: nginx
+    k8s-app: http
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: nginx
+      k8s-app: http
   template:
     metadata:
       labels:
-        k8s-app: nginx
+        k8s-app: http
     spec:
       containers:
       - image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
-        name: nginx-pod
-        command:
-          - sleep
-          - "100000000"
+        name: http-server
+        command: ["sh", "-c"]
+        args: ["python -m http.server 8000"]
+        # ports:
+        # - containerPort: 8000
         resources:
-          requests: # Minimum resources needed for the job
-            memory: "2Gi"
-            cpu: "1"
-            nvidia.com/gpu: 0
-          limits: # Maximum resources can be used for the job
-            memory: "8Gi"
-            cpu: "4"
-            nvidia.com/gpu: 0
+          limits:
+            cpu: 1
+            memory: 4Gi
+          requests:
+            cpu: 100m
+            memory: 500Mi
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
             name: data
