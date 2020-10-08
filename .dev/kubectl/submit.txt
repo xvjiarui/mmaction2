@@ -1,2 +1,4 @@
 uvc-moco-p_r18_rcop_center_l1_video_4x8x1_sgd_cosine_30e_k400_rgb.py
 uvc-moco-p_r18_rcop_coord_l1_video_4x8x1_sgd_cosine_30e_k400_rgb.py
+uvc_r18_rcrop_aug_center_nlf_l1_video_2x8x1_50e_k400_rgb.py
+uvc_r18_rcrop_aug_coord_nlf_l1_video_2x8x1_50e_k400_rgb.py

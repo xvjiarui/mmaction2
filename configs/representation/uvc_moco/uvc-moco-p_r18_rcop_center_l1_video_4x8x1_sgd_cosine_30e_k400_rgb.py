@@ -6,7 +6,7 @@ model = dict(
     type='UVCMoCoTracker',
     queue_dim=query_dim,
     # img_queue_size=256 * 48,
-    patch_queue_size=256 * 36 * 15,
+    patch_queue_size=256 * 32 * 15,
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -110,7 +110,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=18,
+    videos_per_gpu=16,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
