@@ -72,3 +72,18 @@ def concat_all_gather(tensor):
 
     output = torch.cat(tensors_gather, dim=0)
     return output
+
+
+class StrideContext(object):
+
+    def __init__(self, backbone, strides):
+        self.backbone = backbone
+        self.strides = strides
+
+    def __enter__(self):
+        if self.strides is not None:
+            self.backbone.switch_strides(self.strides)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.strides is not None:
+            self.backbone.switch_strides()

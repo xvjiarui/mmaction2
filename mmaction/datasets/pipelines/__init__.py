@@ -1,6 +1,7 @@
-from .augmentations import (RGB2LAB, CenterCrop, Flip, Fuse, MultiGroupCrop,
-                            MultiScaleCrop, Normalize, PhotoMetricDistortion,
-                            RandomCrop, RandomGaussianBlur, RandomGrayScale,
+from .augmentations import (RGB2LAB, CenterCrop, ColorJitter, Flip, Fuse,
+                            MultiGroupCrop, MultiScaleCrop, Normalize,
+                            PhotoMetricDistortion, RandomCrop,
+                            RandomGaussianBlur, RandomGrayScale,
                             RandomResizedCrop, Resize, TenCrop, ThreeCrop)
 from .compose import Compose
 from .formating import (Collect, FormatShape, ImageToTensor, ToDataContainer,
@@ -23,5 +24,5 @@ __all__ = [
     'DecordInit', 'OpenCVInit', 'PyAVInit', 'SampleProposalFrames',
     'UntrimmedSampleFrames', 'RawFrameDecode', 'SequentialSampleFrames',
     'PhotoMetricDistortion', 'RGB2LAB', 'RandomGaussianBlur',
-    'RandomGrayScale', 'DuplicateFrames'
+    'RandomGrayScale', 'DuplicateFrames', 'ColorJitter'
 ]

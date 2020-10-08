@@ -6,7 +6,7 @@ model = dict(
     type='UVCMoCoTracker',
     queue_dim=query_dim,
     # img_queue_size=256 * 48,
-    patch_queue_size=256 * 32 * 15,
+    patch_queue_size=256 * 144 * 4,
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -44,6 +44,10 @@ model = dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
         in_channels=512,
+        # num_convs=2,
+        # kernel_size=3,
+        # norm_cfg=dict(type='BN'),
+        # act_cfg=dict(type='ReLU'),
         channels=query_dim,
         temperature=temperature,
         with_norm=with_norm),
@@ -55,7 +59,8 @@ train_cfg = dict(
     skip_cycle=True,
     strong_aug=True,
     center_ratio=0.,
-    shuffle_bn=True)
+    shuffle_bn=True,
+    embed_strides=(1, 2, 2, 2))
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -81,16 +86,36 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(type='Resize', scale=(-1, 256)),
-    dict(type='RandomResizedCrop'),
+    dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    dict(type='Flip', flip_ratio=0.5),
-    dict(type='PhotoMetricDistortion', p=0.8),
-    dict(type='RandomGrayScale', p=0.2),
-    dict(type='RandomGaussianBlur', p=0.5),
+    dict(type='Flip', flip_ratio=0.5, same_across_clip=False),
+    dict(
+        type='ColorJitter',
+        brightness=0.4,
+        contrast=0.4,
+        saturation=0.4,
+        hue=0.1,
+        p=0.8,
+        same_across_clip=False),
+    dict(type='RandomGrayScale', p=0.2, same_across_clip=False),
+    dict(type='RandomGaussianBlur', p=0.5, same_across_clip=False),
+    # dict(type='Flip', flip_ratio=0.5, same_across_clip=True),
+    # dict(type='ColorJitter', brightness=0.4, contrast=0.4, saturation=0.4,
+    #      hue=0.1, p=0.8, same_across_clip=True),
+    # dict(type='RandomGrayScale', p=0.2, same_across_clip=True),
+    # dict(type='RandomGaussianBlur', p=0.5, same_across_clip=True),
+    # wrong
+    # dict(type='RandomResizedCrop'),
+    # dict(type='Resize', scale=(256, 256), keep_ratio=False),
+    # dict(type='Flip', flip_ratio=0.5),
+    # dict(type='PhotoMetricDistortion', p=0.8),
+    # dict(type='RandomGrayScale', p=0.2),
+    # dict(type='RandomGaussianBlur', p=0.5),
+    # end wrong
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -110,7 +135,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=48,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -147,7 +172,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     # warmup_iters=100,
 #     # warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

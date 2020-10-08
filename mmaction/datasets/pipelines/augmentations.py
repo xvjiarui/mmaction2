@@ -6,6 +6,7 @@ import numpy as np
 from numpy import random as npr
 from PIL import Image, ImageFilter
 from torch.nn.modules.utils import _pair
+from torchvision.transforms import ColorJitter as _ColorJitter
 
 from ..registry import PIPELINES
 
@@ -181,6 +182,8 @@ class RandomResizedCrop(object):
     def __init__(self,
                  area_range=(0.08, 1.0),
                  aspect_ratio_range=(3 / 4, 4 / 3),
+                 same_on_clip=True,
+                 same_across_clip=True,
                  lazy=False):
         self.area_range = area_range
         self.aspect_ratio_range = aspect_ratio_range
@@ -191,6 +194,8 @@ class RandomResizedCrop(object):
         if not mmcv.is_tuple_of(self.aspect_ratio_range, float):
             raise TypeError(f'Aspect_ratio_range must be a tuple of float, '
                             f'but got {type(aspect_ratio_range)}')
+        self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
 
     @staticmethod
     def get_crop_bbox(img_shape,
@@ -262,9 +267,18 @@ class RandomResizedCrop(object):
         results['img_shape'] = (new_h, new_w)
 
         if not self.lazy:
-            results['imgs'] = [
-                img[top:bottom, left:right] for img in results['imgs']
-            ]
+            for i, img in enumerate(results['imgs']):
+                is_new_clip = not self.same_across_clip and i % results[
+                    'clip_len']
+                if not self.same_on_clip or is_new_clip:
+                    left, top, right, bottom = self.get_crop_bbox(
+                        (img_h, img_w), self.area_range,
+                        self.aspect_ratio_range)
+                    new_h, new_w = bottom - top, right - left
+
+                    results['crop_bbox'] = np.array([left, top, right, bottom])
+                    results['img_shape'] = (new_h, new_w)
+                results['imgs'][i] = img[top:bottom, left:right]
         else:
             lazyop = results['lazy']
             if lazyop['flip']:
@@ -563,7 +577,8 @@ class Flip(object):
                  flip_ratio=0.5,
                  direction='horizontal',
                  lazy=False,
-                 same_on_clip=True):
+                 same_on_clip=True,
+                 same_across_clip=True):
         if direction not in self._directions:
             raise ValueError(f'Direction {direction} is not supported. '
                              f'Currently support ones are {self._directions}')
@@ -571,6 +586,7 @@ class Flip(object):
         self.direction = direction
         self.lazy = lazy
         self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
 
     def __call__(self, results):
         """Performs the Flip augmentation.
@@ -594,13 +610,15 @@ class Flip(object):
 
         if not self.lazy:
             if not self.same_on_clip:
-                if np.random.rand() < self.flip_ratio:
-                    flip = True
-                else:
-                    flip = False
-            if flip:
-                for i, img in enumerate(results['imgs']):
+                flip = npr.rand() < self.flip_ratio
+            for i, img in enumerate(results['imgs']):
+                is_new_clip = not self.same_across_clip and i % results[
+                    'clip_len']
+                if not self.same_on_clip or is_new_clip:
+                    flip = npr.rand() < self.flip_ratio
+                if flip:
                     mmcv.imflip_(img, self.direction)
+            if flip:
                 lt = len(results['imgs'])
                 for i in range(0, lt, 2):
                     # flow with even indexes are x_flow, which need to be
@@ -1031,13 +1049,15 @@ class PhotoMetricDistortion(object):
                  saturation_range=(0.5, 1.5),
                  hue_delta=18,
                  p=0.5,
-                 same_on_clip=True):
+                 same_on_clip=True,
+                 same_across_clip=True):
         self.brightness_delta = brightness_delta
         self.contrast_lower, self.contrast_upper = contrast_range
         self.saturation_lower, self.saturation_upper = saturation_range
         self.hue_delta = hue_delta
         self.p = p
         self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
 
     def convert(self, img, alpha=1, beta=0):
         """Multiple with alpha and add beat with clip."""
@@ -1090,7 +1110,8 @@ class PhotoMetricDistortion(object):
         apply_mode = npr.rand() < self.p
 
         for i, img in enumerate(results['imgs']):
-            if not self.same_on_clip:
+            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            if not self.same_on_clip or is_new_clip:
                 apply_bright = npr.rand() < self.p
                 bright_beta = npr.uniform(-self.brightness_delta,
                                           self.brightness_delta)
@@ -1139,16 +1160,22 @@ class PhotoMetricDistortion(object):
 @PIPELINES.register_module()
 class RandomGaussianBlur(object):
 
-    def __init__(self, sigma_range=(0.1, 0.2), p=0.5, same_on_clip=True):
+    def __init__(self,
+                 sigma_range=(0.1, 0.2),
+                 p=0.5,
+                 same_on_clip=True,
+                 same_across_clip=True):
         self.sigma_range = sigma_range
         self.p = p
         self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
 
     def __call__(self, results):
         apply = npr.rand() < self.p
         sigma = random.uniform(self.sigma_range[0], self.sigma_range[1])
         for i, img in enumerate(results['imgs']):
-            if not self.same_on_clip:
+            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            if not self.same_on_clip or is_new_clip:
                 apply = npr.rand() < self.p
                 sigma = random.uniform(self.sigma_range[0],
                                        self.sigma_range[1])
@@ -1165,18 +1192,61 @@ class RandomGaussianBlur(object):
 @PIPELINES.register_module()
 class RandomGrayScale(object):
 
-    def __init__(self, p=0.5, same_on_clip=True):
+    def __init__(self, p=0.5, same_on_clip=True, same_across_clip=True):
         self.p = p
         self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
 
     def __call__(self, results):
         apply = npr.rand() < self.p
         for i, img in enumerate(results['imgs']):
-            if not self.same_on_clip:
+            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            if not self.same_on_clip or is_new_clip:
                 apply = npr.rand() < self.p
             if apply:
                 img = mmcv.rgb2gray(img, keepdim=True)
                 img = np.repeat(img, 3, axis=-1)
+                results['imgs'][i] = img
+
+        return results
+
+
+@PIPELINES.register_module()
+class ColorJitter(object):
+
+    def __init__(self,
+                 p=0.5,
+                 same_on_clip=True,
+                 same_across_clip=True,
+                 brightness=0,
+                 contrast=0,
+                 saturation=0,
+                 hue=0):
+        trans = _ColorJitter(
+            brightness=brightness,
+            contrast=contrast,
+            saturation=saturation,
+            hue=hue)
+        self.brightness = trans.brightness
+        self.contrast = trans.contrast
+        self.saturation = trans.saturation
+        self.hue = trans.hue
+        self.p = p
+        self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
+
+    def __call__(self, results):
+        apply = npr.rand() < self.p
+        trans = _ColorJitter.get_params(self.brightness, self.contrast,
+                                        self.saturation, self.hue)
+        for i, img in enumerate(results['imgs']):
+            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            if not self.same_on_clip or is_new_clip:
+                apply = npr.rand() < self.p
+                trans = _ColorJitter.get_params(self.brightness, self.contrast,
+                                                self.saturation, self.hue)
+            if apply:
+                img = np.array(trans(Image.fromarray(img)))
                 results['imgs'][i] = img
 
         return results

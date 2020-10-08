@@ -34,7 +34,7 @@ class MoCoHead(nn.Module):
                  num_fcs=2,
                  fc_out_channels=128,
                  with_norm=True,
-                 loss_feat=dict(type='BCELossWithLogits'),
+                 loss_feat=dict(type='MultiPairNCE'),
                  dropout_ratio=0,
                  init_std=0.01,
                  temperature=1.,

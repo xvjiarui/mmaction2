@@ -6,8 +6,8 @@ from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_suffix
 from .. import builder
-from ..common import (bbox_overlaps, concat_all_gather, crop_and_resize,
-                      get_crop_grid, get_random_crop_bbox,
+from ..common import (StrideContext, bbox_overlaps, concat_all_gather,
+                      crop_and_resize, get_crop_grid, get_random_crop_bbox,
                       get_top_diff_crop_bbox, images2video, video2images)
 from ..registry import WALKERS
 from .vanilla_tracker import VanillaTracker
@@ -73,7 +73,7 @@ class UVCMoCoTracker(VanillaTracker):
             self.img_as_grid = self.train_cfg.get('img_as_grid', True)
             self.shuffle_bn = self.train_cfg.get('shuffle_bn', False)
             self.momentum = self.train_cfg.get('momentum', 0.999)
-            self.track_on_q = self.train_cfg.get('track_on_q', True)
+            self.embed_strides = self.train_cfg.get('embed_strides', None)
 
     @property
     def encoder_q(self):
@@ -194,9 +194,21 @@ class UVCMoCoTracker(VanillaTracker):
 
         return x_gather[idx_this]
 
-    def crop_x_from_img(self, img, bboxes, encoder):
-        crop_x = encoder(
-            crop_and_resize(img, bboxes * self.stride, self.patch_img_size))
+    def crop_x_from_img(self, img, bboxes, encoder, shuffle_bn=False):
+        crop_img = crop_and_resize(img, bboxes * self.stride,
+                                   self.patch_img_size)
+        if shuffle_bn:
+            # shuffle for making use of BN
+            crop_img_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
+                crop_img)
+
+            # [N, C, H, W]
+            crop_x = encoder(crop_img_shuffled)
+
+            # undo shuffle
+            crop_x = self._batch_unshuffle_ddp(crop_x, idx_unshuffle)
+        else:
+            crop_x = encoder(crop_img)
 
         return crop_x
 
@@ -238,6 +250,7 @@ class UVCMoCoTracker(VanillaTracker):
     def forward_train(self, imgs, labels=None):
         """Defines the computation performed at every call when training."""
         # [N, C, T, H, W]
+        assert imgs.size(1) == 2
         imgs_k = imgs[:, 0].contiguous().reshape(-1, *imgs.shape[2:])
         imgs_q = imgs[:, 1].contiguous().reshape(-1, *imgs.shape[2:])
         # imgs = imgs.reshape((-1,) + imgs.shape[2:])
@@ -252,7 +265,7 @@ class UVCMoCoTracker(VanillaTracker):
         with torch.no_grad():  # no gradient to keys
             self._momentum_update_key_encoder()  # update the key encoder
 
-            if self.shuffle_bn:
+            if self.shuffle_bn and self.with_img_head:
                 # shuffle for making use of BN
                 imgs_k_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
                     imgs_k)
@@ -278,26 +291,24 @@ class UVCMoCoTracker(VanillaTracker):
                 x_k = images2video(x_k, clip_len)
                 if self.with_img_head:
                     embed_x_k = images2video(embed_x_k, clip_len)
-        track_x = x_q if self.track_on_q else x_k
-        track_imgs = imgs_q if self.track_on_q else imgs_k
-        assert self.track_on_q, 'only track on query is implemented'
+            assert x_k.size() == x_q.size()
         loss = dict()
         patch_embed_x_k = []
         patch_embed_x_q = []
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
-            ref_frame = track_imgs[:, :, 0].contiguous()
-            ref_x = track_x[:, :, 0].contiguous()
+            ref_frame = imgs_q[:, :, 0].contiguous()
+            ref_x = x_q[:, :, 0].contiguous()
             # TODO: all bboxes are in feature space
-            ref_bboxes = self.get_ref_crop_bbox(batches, track_imgs)
+            ref_bboxes = self.get_ref_crop_bbox(batches, imgs_q)
             ref_crop_x = self.crop_x_from_img(ref_frame, ref_bboxes,
                                               self.encoder_q)
             ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
                 last_bboxes, last_crop_x = forward_hist[-1]
-                tar_frame = track_imgs[:, :, tar_idx].contiguous()
-                tar_x = track_x[:, :, tar_idx].contiguous()
+                tar_frame = imgs_q[:, :, tar_idx].contiguous()
+                tar_x = x_q[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
                 if tar_idx > 1:
@@ -308,8 +319,8 @@ class UVCMoCoTracker(VanillaTracker):
             backward_hist = [forward_hist[-1]]
             for tar_idx in reversed(range(step - 1)):
                 last_bboxes, last_crop_x = backward_hist[-1]
-                tar_frame = track_imgs[:, :, tar_idx].contiguous()
-                tar_x = track_x[:, :, tar_idx].contiguous()
+                tar_frame = imgs_q[:, :, tar_idx].contiguous()
+                tar_x = x_q[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
                 if tar_idx > 0:
@@ -344,26 +355,42 @@ class UVCMoCoTracker(VanillaTracker):
             for idx in range(step):
                 last_bboxes, last_crop_x_q = forward_hist[idx]
                 with torch.no_grad():
-                    last_crop_x_k = self.crop_x_from_img(
-                        track_imgs[:, :, idx].contiguous(), last_bboxes,
-                        self.encoder_k)
+                    with StrideContext(self.encoder_k, self.embed_strides):
+                        last_crop_x_k = self.crop_x_from_img(
+                            imgs_k[:, :, idx].contiguous(),
+                            last_bboxes,
+                            self.encoder_k,
+                            shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
+                if self.embed_strides is not None:
+                    with StrideContext(self.encoder_q, self.embed_strides):
+                        last_crop_x_q = self.crop_x_from_img(
+                            imgs_q[:, :, idx].contiguous(), last_bboxes,
+                            self.encoder_q)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
             for idx in reversed(range(step - 1)):
                 last_bboxes, last_crop_x_q = backward_hist[idx]
                 with torch.no_grad():
-                    last_crop_x_k = self.crop_x_from_img(
-                        track_imgs[:, :, idx].contiguous(), last_bboxes,
-                        self.encoder_k)
+                    with StrideContext(self.encoder_k, self.embed_strides):
+                        last_crop_x_k = self.crop_x_from_img(
+                            imgs_k[:, :, idx].contiguous(),
+                            last_bboxes,
+                            self.encoder_k,
+                            shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
+                if self.embed_strides is not None:
+                    with StrideContext(self.encoder_q, self.embed_strides):
+                        last_crop_x_q = self.crop_x_from_img(
+                            imgs_q[:, :, idx].contiguous(), last_bboxes,
+                            self.encoder_q)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
             loss.update(add_suffix(loss_step, f'step{step}'))
 
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
-                tar_frame = track_imgs[:, :, step - 1].contiguous()
-                tar_x = track_x[:, :, step - 1].contiguous()
+                tar_frame = imgs_q[:, :, step - 1].contiguous()
+                tar_x = x_q[:, :, step - 1].contiguous()
                 _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
                 ref_pred_bboxes, ref_pred_crop_x = self.track(
                     ref_frame, ref_x, tar_crop_x)
