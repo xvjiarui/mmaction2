@@ -118,24 +118,46 @@ class UVCHead(nn.Module):
         pass
 
     def get_tar_bboxes(self, ref_crop_x, tar_x, ref_bboxes):
+        assert tar_x.ndim in [4, 5]
+        if tar_x.ndim == 4:
+            tar_shape = tar_x.shape
+        else:
+            tar_shape = tar_x[:, :, 0].shape
         # [N, tar_w*tar_h, 2]
         tar_grid = generate_grid(
-            tar_x.size(0), tar_x.shape[2:], device=ref_crop_x.device)
+            tar_shape[0], tar_shape[2:], device=ref_crop_x.device)
         # TODO check
         # [N, tar_w*tar_h, 2]
-        tar_coords = torch.stack([
-            tar_grid[..., 0] * tar_x.size(3), tar_grid[..., 1] * tar_x.size(2)
-        ],
-                                 dim=2).contiguous()
+        tar_coords = torch.stack(
+            [tar_grid[..., 0] * tar_shape[3], tar_grid[..., 1] * tar_shape[2]],
+            dim=2).contiguous()
         # [N, ref_w*ref_h, tar_w*tar_h]
-        aff_ref_tar = compute_affinity(
-            ref_crop_x,
-            tar_x,
-            temperature=self.temperature,
-            normalize=self.with_norm,
-            softmax_dim=2).contiguous()
+        if tar_x.ndim == 4:
+            aff_ref_tar = compute_affinity(
+                ref_crop_x,
+                tar_x,
+                temperature=self.temperature,
+                normalize=self.with_norm,
+                softmax_dim=2).contiguous()
+        else:
+            clip_len = tar_x.size(2)
+            aff_ref_tar = compute_affinity(
+                ref_crop_x,
+                tar_x[:, :, 0].contiguous(),
+                temperature=self.temperature,
+                normalize=self.with_norm,
+                softmax_dim=2).contiguous()
+            for idx in range(clip_len - 1):
+                aff_next = compute_affinity(
+                    tar_x[:, :, idx].contiguous(),
+                    tar_x[:, :, idx + 1].contiguous(),
+                    temperature=self.temperature,
+                    normalize=self.with_norm,
+                    softmax_dim=2).contiguous()
+                aff_ref_tar = torch.bmm(aff_ref_tar, aff_next)
+
         if self.neighbor_range is not None:
-            spatial_neighbor_mask = bbox2mask(ref_bboxes, tar_x.shape[2:],
+            spatial_neighbor_mask = bbox2mask(ref_bboxes, tar_shape[2:],
                                               self.neighbor_range)
             aff_ref_tar = aff_ref_tar * spatial_neighbor_mask.view(
                 aff_ref_tar.size(0), 1, aff_ref_tar.size(2))
@@ -144,12 +166,12 @@ class UVCHead(nn.Module):
         # [N, ref_w*ref_h, 2]
         ref_coords = torch.bmm(aff_ref_tar, tar_coords)
         if self.track_type == 'coord':
-            tar_bboxes = coord2bbox(ref_coords, tar_x.shape[2:])
+            tar_bboxes = coord2bbox(ref_coords, tar_shape[2:])
         else:
             # [N, 2]
             ref_center = torch.mean(ref_coords, dim=1)
             tar_bboxes = center2bbox(ref_center, ref_crop_x.shape[2:],
-                                     tar_x.shape[2:])
+                                     tar_shape[2:])
 
         return tar_bboxes
 

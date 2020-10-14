@@ -31,7 +31,7 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'),
+        track_type='center'),
     # img_head=dict(
     #     type='MoCoHead',
     #     loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
@@ -53,8 +53,8 @@ train_cfg = dict(
     patch_size=96,
     diff_crop=True,
     img_as_ref=True,
-    img_as_tar=True,
-    img_as_embed=True,
+    img_as_tar=False,
+    img_as_embed=False,
     geo_aug=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -156,7 +156,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

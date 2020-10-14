@@ -55,6 +55,7 @@ train_cfg = dict(
     img_as_ref=True,
     img_as_tar=True,
     img_as_embed=True,
+    embed_strides=(1, 2, 2, 2),
     geo_aug=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -156,7 +157,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

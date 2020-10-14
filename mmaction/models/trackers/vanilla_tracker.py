@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from ..common import (compute_affinity, pil_nearest_interpolate, propagate,
-                      spatial_neighbor)
+                      propagate_temporal, spatial_neighbor)
 from ..registry import WALKERS
 from .base import BaseTracker
 
@@ -60,21 +60,13 @@ class VanillaTracker(BaseTracker):
             else:
                 spatial_neighbor_mask = None
 
+            idx_bank.append(0)
+            seg_bank.append(resized_seg_map)
             for frame_idx in range(1, clip_len):
-                # extract feature on-the-fly to save GPU memory
-                affinity = compute_affinity(
-                    self.extract_single_feat(imgs[:, :, 0], feat_idx),
-                    self.extract_single_feat(imgs[:, :, frame_idx], feat_idx),
-                    temperature=self.test_cfg.temperature,
-                    softmax_dim=1,
-                    normalize=self.test_cfg.get('with_norm', True))
-                if spatial_neighbor_mask is not None:
-                    affinity *= spatial_neighbor_mask
-                    affinity = affinity / affinity.sum(keepdim=True, dim=1)
-                seg_logit = propagate(
-                    resized_seg_map, affinity, topk=self.test_cfg.topk)
+                affinity_bank = []
                 assert len(idx_bank) == len(seg_bank)
                 for hist_idx, hist_seg in zip(idx_bank, seg_bank):
+                    # extract feature on-the-fly to save GPU memory
                     hist_affinity = compute_affinity(
                         self.extract_single_feat(imgs[:, :, hist_idx],
                                                  feat_idx),
@@ -82,14 +74,54 @@ class VanillaTracker(BaseTracker):
                                                  feat_idx),
                         temperature=self.test_cfg.temperature,
                         softmax_dim=1,
-                        normalize=self.test_cfg.get('with_norm', True))
-                    if spatial_neighbor_mask is not None:
-                        hist_affinity *= spatial_neighbor_mask
-                        hist_affinity = hist_affinity / hist_affinity.sum(
-                            keepdim=True, dim=1)
-                    seg_logit += propagate(
-                        hist_seg, hist_affinity, topk=self.test_cfg.topk)
-                seg_logit /= 1 + len(idx_bank)
+                        normalize=self.test_cfg.get('with_norm', True),
+                        mask=spatial_neighbor_mask)
+                    # if spatial_neighbor_mask is not None:
+                    #     hist_affinity *= spatial_neighbor_mask
+                    #     hist_affinity = hist_affinity / hist_affinity.sum(
+                    #         keepdim=True, dim=1).clamp(min=1e-12)
+                    affinity_bank.append(hist_affinity)
+                assert len(affinity_bank) == len(seg_bank)
+                if self.test_cfg.get('with_first', True):
+                    first_affinity = compute_affinity(
+                        self.extract_single_feat(imgs[:, :, 0], feat_idx),
+                        self.extract_single_feat(imgs[:, :, frame_idx],
+                                                 feat_idx),
+                        temperature=self.test_cfg.temperature,
+                        softmax_dim=1,
+                        normalize=self.test_cfg.get('with_norm', True),
+                        mask=spatial_neighbor_mask if self.test_cfg.get(
+                            'with_first_neighbor', True) else None)
+                    # if (spatial_neighbor_mask is not None and
+                    #         self.test_cfg.get('with_first_neighbor', True)):
+                    #     first_affinity *= spatial_neighbor_mask
+                    #     first_affinity = first_affinity / first_affinity.sum(
+                    #         keepdim=True, dim=1).clamp(min=1e-12)
+                if self.test_cfg.get('framewise', True):
+                    if self.test_cfg.get('with_first', True):
+                        seg_logit = propagate(
+                            resized_seg_map,
+                            first_affinity,
+                            topk=self.test_cfg.topk)
+                    else:
+                        seg_logit = torch.zeros_like(resized_seg_map)
+                    for hist_affinity, hist_seg in zip(affinity_bank,
+                                                       seg_bank):
+                        seg_logit += propagate(
+                            hist_seg, hist_affinity, topk=self.test_cfg.topk)
+                    seg_logit /= 1 + len(idx_bank)
+                else:
+                    if self.test_cfg.get('with_first', True):
+                        seg_logit = propagate_temporal(
+                            torch.stack([resized_seg_map] + seg_bank, dim=2),
+                            torch.stack(
+                                [first_affinity] + affinity_bank, dim=1),
+                            topk=self.test_cfg.topk * (len(seg_bank) + 1))
+                    else:
+                        seg_logit = propagate_temporal(
+                            torch.stack(seg_bank, dim=2),
+                            torch.stack(affinity_bank, dim=1),
+                            topk=self.test_cfg.topk * len(seg_bank))
 
                 idx_bank.append(frame_idx)
                 seg_bank.append(seg_logit)
@@ -107,8 +139,10 @@ class VanillaTracker(BaseTracker):
                     dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
                 seg_pred_max = seg_pred.view(*seg_pred.shape[:2], -1).max(
                     dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
+                # seg_pred = (seg_pred - seg_pred_min) / (
+                #     seg_pred_max - seg_pred_min + 1e-12)
                 normalized_seg_pred = (seg_pred - seg_pred_min) / (
-                    seg_pred_max - seg_pred_min)
+                    seg_pred_max - seg_pred_min + 1e-12)
                 seg_pred = torch.where(seg_pred_max > 0, normalized_seg_pred,
                                        seg_pred)
                 seg_pred = seg_pred.argmax(dim=1)

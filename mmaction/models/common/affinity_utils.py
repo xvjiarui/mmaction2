@@ -7,7 +7,8 @@ def compute_affinity(src_img,
                      dst_img,
                      temperature=1.,
                      normalize=True,
-                     softmax_dim=None):
+                     softmax_dim=None,
+                     mask=None):
     batches, channels = src_img.shape[:2]
     src_feat = src_img.view(batches, channels, src_img.shape[2:].numel())
     dst_feat = dst_img.view(batches, channels, dst_img.shape[2:].numel())
@@ -17,8 +18,14 @@ def compute_affinity(src_img,
     src_feat = src_feat.permute(0, 2, 1).contiguous()
     dst_feat = dst_feat.contiguous()
     affinity = torch.bmm(src_feat, dst_feat) / temperature
+    if mask is not None:
+        # affinity -= (1 - mask) * 2**30
+        affinity.masked_fill_(~mask.bool(), float('-inf'))
     if softmax_dim is not None:
         affinity = affinity.softmax(dim=softmax_dim)
+
+    if mask is not None:
+        affinity[affinity.isnan()] = 0
 
     return affinity
 
@@ -29,13 +36,85 @@ def propagate(img, affinity, topk=None):
         tk_val, tk_idx = affinity.topk(dim=1, k=topk)
         tk_val_min, _ = tk_val.min(dim=1)
         tk_val_min = tk_val_min.view(batches, 1, height * width)
-        affinity[tk_val_min > affinity] = 0
+        # use in-place ops to save memory
+        affinity -= tk_val_min
+        affinity.clamp_(min=0)
+        # TODO check
+        affinity = affinity / affinity.sum(
+            keepdim=True, dim=1).clamp(min=1e-12)
     img = img.view(batches, channels, -1)
     img = img.contiguous()
     affinity = affinity.contiguous()
     new_img = torch.bmm(img, affinity).contiguous()
     new_img = new_img.reshape(batches, channels, height, width)
     return new_img
+
+
+def propagate_temporal(imgs, affinities, topk=None):
+    batches, channels, clip_len, height, width = imgs.size()
+    assert affinities.size(0) == batches
+    assert affinities.size(1) == clip_len
+    assert affinities.size(2) == height * width
+    assert affinities.size(2) == affinities.size(3)
+    affinities = affinities.reshape(batches, clip_len * height * width,
+                                    height * width)
+    if topk is not None:
+        # tk_val, _ = affinities.topk(dim=1, k=topk)
+        # tk_val_min, _ = tk_val.min(dim=1)
+        tk_val_min = affinities.topk(dim=1, k=topk)[0][:, topk - 1]
+        tk_val_min = tk_val_min.view(batches, 1, height * width)
+        # use in-place ops to save memory
+        affinities -= tk_val_min
+        affinities.clamp_(min=0)
+        affinities = affinities / affinities.sum(
+            keepdim=True, dim=1).clamp(min=1e-12)
+    imgs = imgs.reshape(batches, channels, -1)
+    new_imgs = torch.bmm(imgs, affinities)
+    new_imgs = new_imgs.reshape(batches, channels, height, width)
+    return new_imgs
+
+
+#
+#
+# def propagate_temporal_naive(imgs, affinities, topk=None):
+#     batches, channels, clip_len, height, width = imgs.size()
+#     assert affinities.size(0) == batches
+#     assert affinities.size(1) == clip_len
+#     assert affinities.size(2) == height * width
+#     assert affinities.size(2) == affinities.size(3)
+#     affinities = affinities.reshape(batches, clip_len * height * width,
+#                                     height * width)
+#     new_imgs = imgs.new_zeros(batches, channels, height*width)
+#     num_chunks = 4 * clip_len
+#     chunk_size = height * width // num_chunks
+#     for i in range(num_chunks):
+#         new_imgs[:, :, i * chunk_size:(i + 1) * chunk_size] =
+#         _propagate_chunk(
+#             imgs, affinities[:, :, i * chunk_size:(i + 1) * chunk_size],
+#             topk=topk)
+#     # handle remaining
+#     if height * width % chunk_size != 0:
+#         new_imgs[:, :, num_chunks * chunk_size:] = _propagate_chunk(
+#             imgs, affinities[:, :, num_chunks*chunk_size:],
+#             topk=topk)
+#     new_imgs = new_imgs.reshape(batches, channels, height, width)
+#
+#     return new_imgs
+
+# def _propagate_chunk(imgs, affinities, topk=None):
+#     batches, channels = imgs.shape[:2]
+#     if topk is not None:
+#         affinities = affinities.clone()
+#         tk_val, tk_idx = affinities.topk(dim=1, k=topk)
+#         tk_val_min, _ = tk_val.min(dim=1)
+#         tk_val_min = tk_val_min.view(batches, 1, -1)
+#         affinities[tk_val_min > affinities] = 0
+#     imgs = imgs.reshape(batches, channels, -1)
+#     assert imgs.size(2) == affinities.size(1)
+#     new_img = torch.bmm(imgs, affinities)
+#
+#     return new_img
+#
 
 
 def spatial_neighbor(batches,

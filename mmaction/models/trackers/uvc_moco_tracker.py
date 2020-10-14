@@ -60,12 +60,12 @@ class UVCMoCoTracker(VanillaTracker):
         if self.train_cfg is not None:
             self.patch_img_size = _pair(self.train_cfg.patch_size)
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
-            if self.train_cfg.get('strong_aug', False):
-                same_on_batch = self.train_cfg.get('same_on_batch', False)
-                self.aug = K.RandomRotation(
-                    degrees=10, same_on_batch=same_on_batch)
+            if self.train_cfg.get('geo_aug', False):
+                self.geo_aug = nn.Sequential(
+                    K.RandomRotation(degrees=10),
+                    K.RandomHorizontalFlip(p=0.5))
             else:
-                self.aug = nn.Identity()
+                self.geo_aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)
             self.border = self.train_cfg.get('border', 0)
             self.grid_size = self.train_cfg.get('grid_size', 9)
@@ -74,6 +74,9 @@ class UVCMoCoTracker(VanillaTracker):
             self.shuffle_bn = self.train_cfg.get('shuffle_bn', False)
             self.momentum = self.train_cfg.get('momentum', 0.999)
             self.embed_strides = self.train_cfg.get('embed_strides', None)
+            self.img_as_ref = self.train_cfg.get('img_as_ref')
+            self.img_as_tar = self.train_cfg.get('img_as_tar')
+            self.img_as_embed = self.train_cfg.get('img_as_embed')
 
     @property
     def encoder_q(self):
@@ -194,21 +197,36 @@ class UVCMoCoTracker(VanillaTracker):
 
         return x_gather[idx_this]
 
-    def crop_x_from_img(self, img, bboxes, encoder, shuffle_bn=False):
-        crop_img = crop_and_resize(img, bboxes * self.stride,
-                                   self.patch_img_size)
-        if shuffle_bn:
-            # shuffle for making use of BN
-            crop_img_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
-                crop_img)
+    def crop_x_from_img(self,
+                        img,
+                        x,
+                        bboxes,
+                        encoder,
+                        crop_first,
+                        trans=None,
+                        shuffle_bn=False):
+        if crop_first:
+            crop_img = crop_and_resize(img, bboxes * self.stride,
+                                       self.patch_img_size)
+            if trans is not None:
+                crop_img = trans(crop_img)
+            if shuffle_bn:
+                # shuffle for making use of BN
+                crop_img_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
+                    crop_img)
 
-            # [N, C, H, W]
-            crop_x = encoder(crop_img_shuffled)
+                # [N, C, H, W]
+                crop_x = encoder(crop_img_shuffled)
 
-            # undo shuffle
-            crop_x = self._batch_unshuffle_ddp(crop_x, idx_unshuffle)
+                # undo shuffle
+                crop_x = self._batch_unshuffle_ddp(crop_x, idx_unshuffle)
+            else:
+                crop_x = encoder(crop_img)
         else:
-            crop_x = encoder(crop_img)
+            crop_x = crop_and_resize(x, bboxes * self.stride,
+                                     self.patch_img_size)
+            if trans is not None:
+                crop_x = trans(crop_x)
 
         return crop_x
 
@@ -224,8 +242,8 @@ class UVCMoCoTracker(VanillaTracker):
     def track(self, tar_frame, tar_x, ref_crop_x, *, ref_bboxes=None):
         tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x,
                                                   ref_bboxes)
-        tar_crop_x = self.crop_x_from_img(tar_frame, tar_bboxes,
-                                          self.encoder_q)
+        tar_crop_x = self.crop_x_from_img(tar_frame, tar_x, tar_bboxes,
+                                          self.encoder_q, self.img_as_tar)
 
         return tar_bboxes, tar_crop_x
 
@@ -255,7 +273,7 @@ class UVCMoCoTracker(VanillaTracker):
         imgs_q = imgs[:, 1].contiguous().reshape(-1, *imgs.shape[2:])
         # imgs = imgs.reshape((-1,) + imgs.shape[2:])
         batches, clip_len = imgs_q.size(0), imgs_q.size(2)
-        x_q = self.encoder_q(self.aug(video2images(imgs_q)))
+        x_q = self.encoder_q(video2images(imgs_q))
         if self.with_img_head:
             q_embed_x = self.img_head_q(x_q)
         x_q = images2video(x_q, clip_len)
@@ -271,7 +289,7 @@ class UVCMoCoTracker(VanillaTracker):
                     imgs_k)
 
                 # [N, C, T, H, W]
-                x_k = self.encoder_k(self.aug(video2images(imgs_k_shuffled)))
+                x_k = self.encoder_k(video2images(imgs_k_shuffled))
                 if self.with_img_head:
                     embed_x_k = self.img_head_k(x_k)
                 x_k = images2video(x_k, clip_len)
@@ -285,7 +303,7 @@ class UVCMoCoTracker(VanillaTracker):
                         embed_x_k, idx_unshuffle)
             else:
                 # [N, C, T, H, W]
-                x_k = self.encoder_k(self.aug(video2images(imgs_k)))
+                x_k = self.encoder_k(video2images(imgs_k))
                 if self.with_img_head:
                     embed_x_k = self.img_head_k(x_k)
                 x_k = images2video(x_k, clip_len)
@@ -301,8 +319,12 @@ class UVCMoCoTracker(VanillaTracker):
             ref_x = x_q[:, :, 0].contiguous()
             # TODO: all bboxes are in feature space
             ref_bboxes = self.get_ref_crop_bbox(batches, imgs_q)
-            ref_crop_x = self.crop_x_from_img(ref_frame, ref_bboxes,
-                                              self.encoder_q)
+            ref_crop_x = self.crop_x_from_img(
+                ref_frame,
+                ref_x,
+                ref_bboxes,
+                self.encoder_q,
+                crop_first=self.img_as_ref)
             ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
@@ -311,8 +333,6 @@ class UVCMoCoTracker(VanillaTracker):
                 tar_x = x_q[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
-                if tar_idx > 1:
-                    tar_crop_x = tar_crop_x.detach()
                 forward_hist.append((tar_bboxes, tar_crop_x))
             assert len(forward_hist) == step
 
@@ -323,8 +343,6 @@ class UVCMoCoTracker(VanillaTracker):
                 tar_x = x_q[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
-                if tar_idx > 0:
-                    tar_crop_x = tar_crop_x.detach()
                 backward_hist.append((tar_bboxes, tar_crop_x))
             assert len(backward_hist) == step
 
@@ -358,15 +376,22 @@ class UVCMoCoTracker(VanillaTracker):
                     with StrideContext(self.encoder_k, self.embed_strides):
                         last_crop_x_k = self.crop_x_from_img(
                             imgs_k[:, :, idx].contiguous(),
+                            x_k[:, :, idx].contiguous(),
                             last_bboxes,
                             self.encoder_k,
+                            crop_first=self.img_as_embed,
+                            trans=self.geo_aug,
                             shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
-                if self.embed_strides is not None:
+                if self.embed_strides is not None or self.img_as_embed:
                     with StrideContext(self.encoder_q, self.embed_strides):
                         last_crop_x_q = self.crop_x_from_img(
-                            imgs_q[:, :, idx].contiguous(), last_bboxes,
-                            self.encoder_q)
+                            imgs_q[:, :, idx].contiguous(),
+                            x_q[:, :, idx].contiguous(),
+                            last_bboxes,
+                            self.encoder_q,
+                            crop_first=self.img_as_embed,
+                            trans=self.geo_aug)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
             for idx in reversed(range(step - 1)):
                 last_bboxes, last_crop_x_q = backward_hist[idx]
@@ -374,15 +399,22 @@ class UVCMoCoTracker(VanillaTracker):
                     with StrideContext(self.encoder_k, self.embed_strides):
                         last_crop_x_k = self.crop_x_from_img(
                             imgs_k[:, :, idx].contiguous(),
+                            x_k[:, :, idx].contiguous(),
                             last_bboxes,
                             self.encoder_k,
+                            crop_first=self.img_as_embed,
+                            trans=self.geo_aug,
                             shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
-                if self.embed_strides is not None:
+                if self.embed_strides is not None or self.img_as_embed:
                     with StrideContext(self.encoder_q, self.embed_strides):
                         last_crop_x_q = self.crop_x_from_img(
-                            imgs_q[:, :, idx].contiguous(), last_bboxes,
-                            self.encoder_q)
+                            imgs_q[:, :, idx].contiguous(),
+                            x_q[:, :, idx].contiguous(),
+                            last_bboxes,
+                            self.encoder_q,
+                            crop_first=self.img_as_embed,
+                            trans=self.geo_aug)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
             loss.update(add_suffix(loss_step, f'step{step}'))

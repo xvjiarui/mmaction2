@@ -1,5 +1,5 @@
 # model settings
-temperature = 0.01
+temperature = 0.1
 with_norm = True
 query_dim = 128
 model = dict(
@@ -31,7 +31,7 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'),
+        track_type='center'),
     # img_head=dict(
     #     type='MoCoHead',
     #     loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
@@ -156,7 +156,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

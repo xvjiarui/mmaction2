@@ -1,12 +1,8 @@
 # model settings
 temperature = 0.01
 with_norm = True
-query_dim = 128
 model = dict(
-    type='UVCMoCoTracker',
-    queue_dim=query_dim,
-    # img_queue_size=256 * 48,
-    patch_queue_size=256 * 144 * 4,
+    type='UVCTrackerV3',
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -31,34 +27,15 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'),
-    # img_head=dict(
-    #     type='MoCoHead',
-    #     loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
-    #     in_channels=512,
-    #     channels=query_dim,
-    #     temperature=temperature,
-    #     with_norm=with_norm),
-    img_head=None,
-    patch_head=dict(
-        type='MoCoHead',
-        loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
-        in_channels=512,
-        channels=query_dim,
-        temperature=temperature,
-        with_norm=with_norm),
-)
+        track_type='coord'))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
-    diff_crop=True,
     img_as_ref=True,
     img_as_tar=True,
-    img_as_embed=True,
-    geo_aug=True,
+    diff_crop=True,
     skip_cycle=True,
-    center_ratio=0.,
-    shuffle_bn=True)
+    center_ratio=0.)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -83,8 +60,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
-    dict(type='DuplicateFrames', times=2),
+    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
@@ -119,7 +95,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=48,
+    videos_per_gpu=16,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -156,7 +132,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -174,7 +150,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['uvc-moco'],
+                tags=['uvc2'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,

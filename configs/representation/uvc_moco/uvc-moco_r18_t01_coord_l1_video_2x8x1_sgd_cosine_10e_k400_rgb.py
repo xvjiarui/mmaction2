@@ -1,5 +1,5 @@
 # model settings
-temperature = 0.01
+temperature = 0.1
 with_norm = True
 query_dim = 128
 model = dict(
@@ -156,7 +156,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

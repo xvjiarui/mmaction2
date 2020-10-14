@@ -58,7 +58,7 @@ train_cfg = dict(
     geo_aug=True,
     skip_cycle=True,
     center_ratio=0.,
-    shuffle_bn=True)
+    shuffle_bn=False)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -156,7 +156,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
