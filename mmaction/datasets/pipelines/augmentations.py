@@ -268,8 +268,8 @@ class RandomResizedCrop(object):
 
         if not self.lazy:
             for i, img in enumerate(results['imgs']):
-                is_new_clip = not self.same_across_clip and i % results[
-                    'clip_len']
+                is_new_clip = not self.same_across_clip and (
+                    i + 1) % results['clip_len'] == 0
                 if not self.same_on_clip or is_new_clip:
                     left, top, right, bottom = self.get_crop_bbox(
                         (img_h, img_w), self.area_range,
@@ -612,8 +612,8 @@ class Flip(object):
             if not self.same_on_clip:
                 flip = npr.rand() < self.flip_ratio
             for i, img in enumerate(results['imgs']):
-                is_new_clip = not self.same_across_clip and i % results[
-                    'clip_len']
+                is_new_clip = not self.same_across_clip and (
+                    i + 1) % results['clip_len'] == 0
                 if not self.same_on_clip or is_new_clip:
                     flip = npr.rand() < self.flip_ratio
                 if flip:
@@ -1110,7 +1110,8 @@ class PhotoMetricDistortion(object):
         apply_mode = npr.rand() < self.p
 
         for i, img in enumerate(results['imgs']):
-            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            is_new_clip = not self.same_across_clip and (
+                i + 1) % results['clip_len'] == 0
             if not self.same_on_clip or is_new_clip:
                 apply_bright = npr.rand() < self.p
                 bright_beta = npr.uniform(-self.brightness_delta,
@@ -1174,7 +1175,8 @@ class RandomGaussianBlur(object):
         apply = npr.rand() < self.p
         sigma = random.uniform(self.sigma_range[0], self.sigma_range[1])
         for i, img in enumerate(results['imgs']):
-            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            is_new_clip = not self.same_across_clip and (
+                i + 1) % results['clip_len'] == 0
             if not self.same_on_clip or is_new_clip:
                 apply = npr.rand() < self.p
                 sigma = random.uniform(self.sigma_range[0],
@@ -1200,7 +1202,8 @@ class RandomGrayScale(object):
     def __call__(self, results):
         apply = npr.rand() < self.p
         for i, img in enumerate(results['imgs']):
-            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            is_new_clip = not self.same_across_clip and (
+                i + 1) % results['clip_len'] == 0
             if not self.same_on_clip or is_new_clip:
                 apply = npr.rand() < self.p
             if apply:
@@ -1240,7 +1243,8 @@ class ColorJitter(object):
         trans = _ColorJitter.get_params(self.brightness, self.contrast,
                                         self.saturation, self.hue)
         for i, img in enumerate(results['imgs']):
-            is_new_clip = not self.same_across_clip and i % results['clip_len']
+            is_new_clip = not self.same_across_clip and (
+                i + 1) % results['clip_len'] == 0
             if not self.same_on_clip or is_new_clip:
                 apply = npr.rand() < self.p
                 trans = _ColorJitter.get_params(self.brightness, self.contrast,
