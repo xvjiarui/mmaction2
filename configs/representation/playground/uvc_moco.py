@@ -56,22 +56,23 @@ model = dict(
 train_cfg = dict(
     patch_size=96,
     diff_crop=True,
+    img_as_ref=True,
+    img_as_tar=True,
+    img_as_embed=True,
+    geo_aug=True,
     skip_cycle=True,
-    strong_aug=True,
     center_ratio=0.,
-    shuffle_bn=True,
-    embed_strides=(1, 2, 2, 2))
+    shuffle_bn=True)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
     strides=(1, 2, 1, 1),
-    out_indices=(
-        2,
-        3,
-    ),
-    neighbor_range=40,
-    with_norm=with_norm,
+    out_indices=(2, 3),
+    neighbor_range=24,
+    framewise=False,
+    with_first=True,
+    with_first_neighbor=True,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
@@ -92,7 +93,7 @@ train_pipeline = [
     dict(type='Resize', scale=(-1, 256)),
     dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    dict(type='Flip', flip_ratio=0.5, same_across_clip=False),
+    dict(type='Flip', flip_ratio=0.5),
     dict(
         type='ColorJitter',
         brightness=0.4,
