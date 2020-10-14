@@ -224,7 +224,7 @@ class UVCMoCoTracker(VanillaTracker):
                 crop_x = encoder(crop_img)
         else:
             crop_x = crop_and_resize(x, bboxes * self.stride,
-                                     self.patch_x_sizze)
+                                     self.patch_x_size)
             if trans is not None:
                 crop_x = trans(crop_x)
 
