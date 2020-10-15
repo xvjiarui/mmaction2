@@ -78,7 +78,7 @@ class BasicBlock(nn.Module):
         self.stride = stride
         self.dilation = dilation
         self.norm_cfg = norm_cfg
-        assert not with_cp
+        self.with_cp = with_cp
 
     def forward(self, x):
         """Defines the computation performed at every call.
@@ -89,15 +89,25 @@ class BasicBlock(nn.Module):
         Returns:
             torch.Tensor: The output of the module.
         """
-        identity = x
 
-        out = self.conv1(x)
-        out = self.conv2(out)
+        def _inner_forward(x):
+            identity = x
 
-        if self.downsample is not None:
-            identity = self.downsample(x)
+            out = self.conv1(x)
+            out = self.conv2(out)
 
-        out = out + identity
+            if self.downsample is not None:
+                identity = self.downsample(x)
+
+            out = out + identity
+
+            return out
+
+        if self.with_cp and x.requires_grad:
+            out = cp.checkpoint(_inner_forward, x)
+        else:
+            out = _inner_forward(x)
+
         out = self.relu(out)
 
         return out

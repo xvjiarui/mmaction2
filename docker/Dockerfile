@@ -3,7 +3,7 @@ FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu18.04
 WORKDIR /workspace
 
 ARG DEBIAN_FRONTEND=noninteractive
-ENV TZ=Asia/Shanghai
+ENV TZ=US/Pacific
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -47,7 +47,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN curl https://rclone.org/install.sh | bash
 
 # Set timezone
-RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+RUN ln -sf /usr/share/zoneinfo/US/Pacific /etc/localtime
 
 # Get Conda-ified Python.
 RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
@@ -67,8 +67,9 @@ RUN conda install av -c conda-forge
 RUN conda install -c conda-forge moviepy
 
 # Install decord
-RUN git clone --recursive https://github.com/dmlc/decord
-RUN cd decord && mkdir build && cd build && cmake .. -DUSE_CUDA=0 && make && cd ../python && python setup.py install
+#RUN git clone --recursive https://github.com/dmlc/decord
+#RUN cd decord && mkdir build && cd build && cmake .. -DUSE_CUDA=0 && make && cd ../python && python setup.py install
+RUN pip install decord
 
 # Install FAIR suit
 ENV FORCE_CUDA="1"
@@ -82,7 +83,8 @@ RUN pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/c
 # Install MMCV
 RUN pip install mmcv-full==latest+torch1.6.0+cu101 -f https://openmmlab.oss-accelerate.aliyuncs.com/mmcv/dist/index.html
 # Install Kornia
-RUN pip install kornia
+#RUN pip install kornia
+RUN pip install git+https://github.com/kornia/kornia
 
 # Install DAVIS
 RUN git clone https://github.com/xvjiarui/davis2017-evaluation.git
