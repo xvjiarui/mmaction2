@@ -4,13 +4,27 @@ import torch.nn.functional as F
 
 from ..common import (compute_affinity, pil_nearest_interpolate, propagate,
                       propagate_temporal, spatial_neighbor)
-from ..registry import WALKERS
+from ..registry import TRACKERS
 from .base import BaseTracker
 
 
-@WALKERS.register_module()
+@TRACKERS.register_module()
 class VanillaTracker(BaseTracker):
     """Pixel Tracker framework."""
+
+    @property
+    def stride(self):
+        if self.with_neck:
+            end_index = self.backbone.original_out_indices[self.neck.out_index]
+        else:
+            end_index = self.backbone.original_out_indices[0]
+        return np.prod(self.backbone.strides[:end_index + 1]) * 4
+
+    def extract_feat(self, imgs):
+        if self.with_neck and self.test_cfg.get('use_fpn', True):
+            return super().extract_feat(imgs)
+        else:
+            return self.backbone(imgs)
 
     def extract_single_feat(self, imgs, idx):
         feats = self.extract_feat(imgs)
@@ -168,5 +182,6 @@ class VanillaTracker(BaseTracker):
             self.backbone.switch_strides()
             self.backbone.switch_out_indices()
         else:
-            self.backbone.switch_strides(self.test_cfg.strides)
-            self.backbone.switch_out_indices(self.test_cfg.out_indices)
+            if not (self.with_neck and self.test_cfg.get('use_fpn', True)):
+                self.backbone.switch_strides(self.test_cfg.strides)
+                self.backbone.switch_out_indices(self.test_cfg.out_indices)

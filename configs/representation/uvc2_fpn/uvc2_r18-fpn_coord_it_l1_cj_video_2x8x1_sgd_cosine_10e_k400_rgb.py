@@ -7,10 +7,16 @@ model = dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(3, ),
-        strides=(1, 2, 1, 1),
+        out_indices=(1, 2, 3),
+        # strides=(1, 2, 1, 1),
         norm_eval=False,
         zero_init_residual=True),
+    neck=dict(
+        type='FPN',
+        in_channels=[128, 256, 512],
+        out_channels=256,
+        num_outs=4,
+        out_index=0),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -22,12 +28,12 @@ model = dict(
             with_norm=with_norm,
             loss_weight=1.),
         loss_bbox=dict(type='L1Loss', loss_weight=10.),
-        in_channels=512,
+        in_channels=256,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='center'))
+        track_type='coord'))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
@@ -40,11 +46,8 @@ test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    strides=(1, 2, 1, 1),
-    out_indices=(
-        2,
-        3,
-    ),
+    # strides=(1, 2, 1, 1),
+    out_indices=(0, ),
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
@@ -61,7 +64,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
@@ -95,7 +98,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=48,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -120,35 +123,40 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
+# optimizer = dict(type='Adam', lr=1e-4)
 optimizer = dict(type='SGD', lr=1e-1)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-# lr_config = dict(policy='CosineAnnealing', min_lr=0)
-lr_config = dict(policy='Fixed')
-total_epochs = 50
+lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+# lr_config = dict(policy='Fixed')
+# lr_config = dict(
+#     policy='step',
+#     warmup='linear',
+#     warmup_iters=100,
+#     warmup_ratio=0.001,
+#     step=[1, 2])
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1,
-    metrics='davis',
-    key_indicator='feat_1.J&F-Mean',
-    rule='greater')
+    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['uvc2-fpn'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

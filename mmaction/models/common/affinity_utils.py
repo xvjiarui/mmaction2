@@ -33,15 +33,15 @@ def compute_affinity(src_img,
 def propagate(img, affinity, topk=None):
     batches, channels, height, width = img.size()
     if topk is not None:
-        tk_val, tk_idx = affinity.topk(dim=1, k=topk)
-        tk_val_min, _ = tk_val.min(dim=1)
+        # tk_val, tk_idx = affinity.topk(dim=1, k=topk)
+        # tk_val_min, _ = tk_val.min(dim=1)
+        tk_val_min = affinity.topk(dim=1, k=topk)[0][:, topk - 1]
         tk_val_min = tk_val_min.view(batches, 1, height * width)
         # use in-place ops to save memory
         affinity -= tk_val_min
         affinity.clamp_(min=0)
         # TODO check
-        affinity = affinity / affinity.sum(
-            keepdim=True, dim=1).clamp(min=1e-12)
+        affinity /= affinity.sum(keepdim=True, dim=1).clamp(min=1e-12)
     img = img.view(batches, channels, -1)
     img = img.contiguous()
     affinity = affinity.contiguous()
@@ -66,8 +66,7 @@ def propagate_temporal(imgs, affinities, topk=None):
         # use in-place ops to save memory
         affinities -= tk_val_min
         affinities.clamp_(min=0)
-        affinities = affinities / affinities.sum(
-            keepdim=True, dim=1).clamp(min=1e-12)
+        affinities /= affinities.sum(keepdim=True, dim=1).clamp(min=1e-12)
     imgs = imgs.reshape(batches, channels, -1)
     new_imgs = torch.bmm(imgs, affinities)
     new_imgs = new_imgs.reshape(batches, channels, height, width)

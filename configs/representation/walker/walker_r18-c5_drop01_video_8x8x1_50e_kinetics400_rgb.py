@@ -1,52 +1,36 @@
 # model settings
-temperature = 0.01
-with_norm = True
 model = dict(
-    type='UVCTrackerV2',
+    type='SpaceTimeWalker',
     backbone=dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(3, ),
         strides=(1, 2, 1, 1),
+        out_indices=(3, ),
         norm_eval=False,
         zero_init_residual=True),
     cls_head=dict(
-        type='UVCHead',
-        loss_feat=None,
-        loss_aff=dict(
-            type='ConcentrateLoss',
-            win_len=8,
-            stride=8,
-            temperature=temperature,
-            with_norm=with_norm,
-            loss_weight=1.),
-        loss_bbox=dict(type='L1Loss', loss_weight=10.),
+        type='WalkerHead',
+        num_classes=400,
         in_channels=512,
         channels=128,
-        temperature=temperature,
-        with_norm=with_norm,
-        init_std=0.01,
-        track_type='center'))
+        spatial_type='avg',
+        temperature=0.07,
+        walk_len=7,
+        dropout_ratio=0.1,
+        init_std=0.01))
 # model training and testing settings
-train_cfg = dict(
-    patch_size=96,
-    img_as_ref=True,
-    img_as_tar=False,
-    diff_crop=True,
-    skip_cycle=True,
-    center_ratio=0.)
+train_cfg = dict(patch_size=64, patch_stride=32)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=temperature,
+    temperature=0.07,
     strides=(1, 2, 1, 1),
-    out_indices=(
-        2,
-        3,
-    ),
-    neighbor_range=40,
-    with_norm=with_norm,
+    out_indices=(2, 3),
+    neighbor_range=24,
+    framewise=False,
+    with_first=True,
+    with_first_neighbor=True,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
@@ -61,21 +45,12 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
+    dict(type='SampleFrames', clip_len=8, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
-    dict(type='Resize', scale=(-1, 256)),
-    dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
+    # dict(type='Resize', scale=(-1, 256)),
+    # dict(type='RandomResizedCrop'),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    # dict(
-    #     type='ColorJitter',
-    #     brightness=0.4,
-    #     contrast=0.4,
-    #     saturation=0.4,
-    #     hue=0.1,
-    #     p=0.8),
-    # dict(type='RandomGrayScale', p=0.2),
-    # dict(type='RandomGaussianBlur', p=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -95,9 +70,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=8,
     workers_per_gpu=4,
-    val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,
@@ -120,7 +94,7 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
-optimizer = dict(type='SGD', lr=1e-1)
+optimizer = dict(type='Adam', lr=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0)
@@ -137,18 +111,19 @@ log_config = dict(
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['walker'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

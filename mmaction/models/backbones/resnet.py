@@ -99,7 +99,7 @@ class BasicBlock(nn.Module):
             if self.downsample is not None:
                 identity = self.downsample(x)
 
-            out = out + identity
+            out += identity
 
             return out
 

@@ -7,11 +7,11 @@ from mmaction.utils import add_suffix
 from ..common import (bbox_overlaps, crop_and_resize, get_crop_grid,
                       get_random_crop_bbox, get_top_diff_crop_bbox,
                       images2video, video2images)
-from ..registry import WALKERS
+from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
 
-@WALKERS.register_module()
+@TRACKERS.register_module()
 class UVCTrackerV3(VanillaTracker):
     """3D recognizer model framework."""
 

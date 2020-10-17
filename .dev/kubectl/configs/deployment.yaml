@@ -37,6 +37,8 @@ spec:
             name: exps
           - mountPath: /data_backup # the directory you can access your persistent storage in container
             name: data-backup
+          - mountPath: /exps_backup # the directory you can access your persistent storage in container
+            name: exps-backup
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -47,6 +49,9 @@ spec:
         - name: data-backup
           persistentVolumeClaim:
             claimName: data-backup
+        - name: exps-backup
+          persistentVolumeClaim:
+            claimName: exps-backup
         - name: dshm
           emptyDir:
             medium: Memory

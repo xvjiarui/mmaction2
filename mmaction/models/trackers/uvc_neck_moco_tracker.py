@@ -1,3 +1,5 @@
+from functools import partial
+
 import kornia.augmentation as K
 import torch
 import torch.nn as nn
@@ -6,47 +8,31 @@ from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_suffix
 from .. import builder
-from ..common import (StrideContext, bbox_overlaps, concat_all_gather,
-                      crop_and_resize, get_crop_grid, get_random_crop_bbox,
+from ..common import (bbox_overlaps, concat_all_gather, crop_and_resize,
+                      get_crop_grid, get_random_crop_bbox,
                       get_top_diff_crop_bbox, images2video, video2images)
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
 
 @TRACKERS.register_module()
-class UVCMoCoTracker(VanillaTracker):
+class UVCNeckMoCoTracker(VanillaTracker):
     """3D recognizer model framework."""
 
     def __init__(self,
                  *args,
                  backbone,
-                 img_head,
                  patch_head,
                  queue_dim=128,
-                 img_queue_size=65536,
                  patch_queue_size=65536,
                  **kwargs):
         super().__init__(*args, backbone=backbone, **kwargs)
         self.encoder_k = builder.build_backbone(backbone)
-        self.with_img_head = img_head is not None
         self.patch_head_q = builder.build_head(patch_head)
         self.patch_head_k = builder.build_head(patch_head)
-        if self.with_img_head:
-            self.img_head_q = builder.build_head(img_head)
-            self.img_head_k = builder.build_head(img_head)
         # create the queue
         self.queue_dim = queue_dim
-        if self.with_img_head:
-            self.img_queue_size = img_queue_size
         self.patch_queue_size = patch_queue_size
-
-        # image queue
-        if self.with_img_head:
-            self.register_buffer('img_queue',
-                                 torch.randn(queue_dim, img_queue_size))
-            self.img_queue = F.normalize(self.img_queue, dim=0, p=2)
-            self.register_buffer('img_queue_ptr',
-                                 torch.zeros(1, dtype=torch.long))
 
         # patch queue
         self.register_buffer('patch_queue',
@@ -81,19 +67,19 @@ class UVCMoCoTracker(VanillaTracker):
     def encoder_q(self):
         return self.backbone
 
+    def extract_encoder_feature(self, encoder, imgs):
+        outs = encoder(imgs)
+        if isinstance(outs, tuple):
+            return outs[-1]
+        else:
+            return outs
+
     def init_moco_weights(self):
-        if self.with_img_head:
-            self.img_head_q.init_weights()
         self.patch_head_q.init_weights()
         for param_q, param_k in zip(self.encoder_q.parameters(),
                                     self.encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
-        if self.with_img_head:
-            for param_q, param_k in zip(self.img_head_q.parameters(),
-                                        self.img_head_k.parameters()):
-                param_k.data.copy_(param_q.data)  # initialize
-                param_k.requires_grad = False  # not update by gradient
         for param_q, param_k in zip(self.patch_head_q.parameters(),
                                     self.patch_head_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
@@ -106,11 +92,6 @@ class UVCMoCoTracker(VanillaTracker):
                                     self.encoder_k.parameters()):
             param_k.data = param_k.data * self.momentum + \
                            param_q.data * (1. - self.momentum)
-        if self.with_img_head:
-            for param_q, param_k in zip(self.img_head_q.parameters(),
-                                        self.img_head_k.parameters()):
-                param_k.data = param_k.data * self.momentum + \
-                               param_q.data * (1. - self.momentum)
         for param_q, param_k in zip(self.patch_head_q.parameters(),
                                     self.patch_head_k.parameters()):
             param_k.data = param_k.data * self.momentum + \
@@ -210,7 +191,7 @@ class UVCMoCoTracker(VanillaTracker):
             if trans is not None:
                 crop_img = trans(crop_img)
             if shuffle_bn:
-                with torch.no_grad():  # no gradient to keys
+                with torch.no_grad():
                     # shuffle for making use of BN
                     crop_img_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
                         crop_img)
@@ -242,7 +223,7 @@ class UVCMoCoTracker(VanillaTracker):
         tar_bboxes = self.cls_head.get_tar_bboxes(ref_crop_x, tar_x,
                                                   ref_bboxes)
         tar_crop_x = self.crop_x_from_img(tar_frame, tar_x, tar_bboxes,
-                                          self.encoder_q, self.img_as_tar)
+                                          self.extract_feat, self.img_as_tar)
 
         return tar_bboxes, tar_crop_x
 
@@ -270,66 +251,29 @@ class UVCMoCoTracker(VanillaTracker):
         assert imgs.size(1) == 2
         imgs_k = imgs[:, 0].contiguous().reshape(-1, *imgs.shape[2:])
         imgs_q = imgs[:, 1].contiguous().reshape(-1, *imgs.shape[2:])
-        # imgs = imgs.reshape((-1,) + imgs.shape[2:])
         batches, clip_len = imgs_q.size(0), imgs_q.size(2)
-        x_q = self.encoder_q(video2images(imgs_q))
-        if self.with_img_head:
-            q_embed_x = self.img_head_q(x_q)
-        x_q = images2video(x_q, clip_len)
-        if self.with_img_head:
-            q_embed_x = images2video(q_embed_x, clip_len)
-        # compute key features
-        with torch.no_grad():  # no gradient to keys
-            self._momentum_update_key_encoder()  # update the key encoder
-
-            if self.shuffle_bn and self.with_img_head:
-                # shuffle for making use of BN
-                imgs_k_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
-                    imgs_k)
-
-                # [N, C, T, H, W]
-                x_k = self.encoder_k(video2images(imgs_k_shuffled))
-                if self.with_img_head:
-                    embed_x_k = self.img_head_k(x_k)
-                x_k = images2video(x_k, clip_len)
-                if self.with_img_head:
-                    embed_x_k = images2video(embed_x_k, clip_len)
-
-                # undo shuffle
-                x_k = self._batch_unshuffle_ddp(x_k, idx_unshuffle)
-                if self.with_img_head:
-                    embed_x_k = self._batch_unshuffle_ddp(
-                        embed_x_k, idx_unshuffle)
-            else:
-                # [N, C, T, H, W]
-                x_k = self.encoder_k(video2images(imgs_k))
-                if self.with_img_head:
-                    embed_x_k = self.img_head_k(x_k)
-                x_k = images2video(x_k, clip_len)
-                if self.with_img_head:
-                    embed_x_k = images2video(embed_x_k, clip_len)
-            assert x_k.size() == x_q.size()
+        # part 1: tracking
         loss = dict()
-        patch_embed_x_k = []
-        patch_embed_x_q = []
+        track_x = images2video(
+            self.extract_feat(video2images(imgs_q)), clip_len)
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
             ref_frame = imgs_q[:, :, 0].contiguous()
-            ref_x = x_q[:, :, 0].contiguous()
+            ref_x = track_x[:, :, 0].contiguous()
             # TODO: all bboxes are in feature space
             ref_bboxes = self.get_ref_crop_bbox(batches, imgs_q)
             ref_crop_x = self.crop_x_from_img(
                 ref_frame,
                 ref_x,
                 ref_bboxes,
-                self.encoder_q,
+                self.extract_feat,
                 crop_first=self.img_as_ref)
             ref_crop_grid = self.get_grid(ref_frame, ref_x, ref_bboxes)
             forward_hist = [(ref_bboxes, ref_crop_x)]
             for tar_idx in range(1, step):
                 last_bboxes, last_crop_x = forward_hist[-1]
                 tar_frame = imgs_q[:, :, tar_idx].contiguous()
-                tar_x = x_q[:, :, tar_idx].contiguous()
+                tar_x = track_x[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
                 forward_hist.append((tar_bboxes, tar_crop_x))
@@ -339,7 +283,7 @@ class UVCMoCoTracker(VanillaTracker):
             for tar_idx in reversed(range(step - 1)):
                 last_bboxes, last_crop_x = backward_hist[-1]
                 tar_frame = imgs_q[:, :, tar_idx].contiguous()
-                tar_x = x_q[:, :, tar_idx].contiguous()
+                tar_x = track_x[:, :, tar_idx].contiguous()
                 tar_bboxes, tar_crop_x = self.track(
                     tar_frame, tar_x, last_crop_x, ref_bboxes=last_bboxes)
                 backward_hist.append((tar_bboxes, tar_crop_x))
@@ -369,51 +313,74 @@ class UVCMoCoTracker(VanillaTracker):
                         self.cls_head.loss(tar_crop_x, last_crop_x),
                         suffix=f'backward.t{last_idx}'))
 
+            # part 2: MoCo
+            patch_embed_x_k = []
+            patch_embed_x_q = []
+            x_q = images2video(
+                self.extract_encoder_feature(self.encoder_q,
+                                             video2images(imgs_q)), clip_len)
+            # compute key features
+            with torch.no_grad():  # no gradient to keys
+                self._momentum_update_key_encoder()  # update the key encoder
+
+                if self.shuffle_bn:
+                    # shuffle for making use of BN
+                    imgs_k_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
+                        imgs_k)
+
+                    # [N, C, T, H, W]
+                    x_k = images2video(
+                        self.extract_encoder_feature(self.encoder_k,
+                                                     video2images(imgs_k)),
+                        clip_len)
+                    # undo shuffle
+                    x_k = self._batch_unshuffle_ddp(x_k, idx_unshuffle)
+                else:
+                    # [N, C, T, H, W]
+                    x_k = images2video(
+                        self.extract_encoder_feature(self.encoder_k,
+                                                     video2images(imgs_k)),
+                        clip_len)
+                assert x_k.size() == x_q.size()
             for idx in range(step):
-                last_bboxes, last_crop_x_q = forward_hist[idx]
+                last_bboxes, _ = forward_hist[idx]
                 with torch.no_grad():
-                    with StrideContext(self.encoder_k, self.embed_strides):
-                        last_crop_x_k = self.crop_x_from_img(
-                            imgs_k[:, :, idx].contiguous(),
-                            x_k[:, :, idx].contiguous(),
-                            last_bboxes,
-                            self.encoder_k,
-                            crop_first=self.img_as_embed,
-                            trans=self.geo_aug,
-                            shuffle_bn=self.shuffle_bn)
+                    last_crop_x_k = self.crop_x_from_img(
+                        imgs_k[:, :, idx].contiguous(),
+                        x_k[:, :, idx].contiguous(),
+                        last_bboxes,
+                        partial(self.extract_encoder_feature, self.encoder_k),
+                        crop_first=self.img_as_embed,
+                        trans=self.geo_aug,
+                        shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
-                if self.embed_strides is not None or self.img_as_embed:
-                    with StrideContext(self.encoder_q, self.embed_strides):
-                        last_crop_x_q = self.crop_x_from_img(
-                            imgs_q[:, :, idx].contiguous(),
-                            x_q[:, :, idx].contiguous(),
-                            last_bboxes,
-                            self.encoder_q,
-                            crop_first=self.img_as_embed,
-                            trans=self.geo_aug)
+                last_crop_x_q = self.crop_x_from_img(
+                    imgs_q[:, :, idx].contiguous(),
+                    x_q[:, :, idx].contiguous(),
+                    last_bboxes,
+                    partial(self.extract_encoder_feature, self.encoder_q),
+                    crop_first=self.img_as_embed,
+                    trans=self.geo_aug)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
             for idx in reversed(range(step - 1)):
-                last_bboxes, last_crop_x_q = backward_hist[idx]
+                last_bboxes, _ = backward_hist[idx]
                 with torch.no_grad():
-                    with StrideContext(self.encoder_k, self.embed_strides):
-                        last_crop_x_k = self.crop_x_from_img(
-                            imgs_k[:, :, idx].contiguous(),
-                            x_k[:, :, idx].contiguous(),
-                            last_bboxes,
-                            self.encoder_k,
-                            crop_first=self.img_as_embed,
-                            trans=self.geo_aug,
-                            shuffle_bn=self.shuffle_bn)
+                    last_crop_x_k = self.crop_x_from_img(
+                        imgs_k[:, :, idx].contiguous(),
+                        x_k[:, :, idx].contiguous(),
+                        last_bboxes,
+                        partial(self.extract_encoder_feature, self.encoder_k),
+                        crop_first=self.img_as_embed,
+                        trans=self.geo_aug,
+                        shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
-                if self.embed_strides is not None or self.img_as_embed:
-                    with StrideContext(self.encoder_q, self.embed_strides):
-                        last_crop_x_q = self.crop_x_from_img(
-                            imgs_q[:, :, idx].contiguous(),
-                            x_q[:, :, idx].contiguous(),
-                            last_bboxes,
-                            self.encoder_q,
-                            crop_first=self.img_as_embed,
-                            trans=self.geo_aug)
+                last_crop_x_q = self.crop_x_from_img(
+                    imgs_q[:, :, idx].contiguous(),
+                    x_q[:, :, idx].contiguous(),
+                    last_bboxes,
+                    partial(self.extract_encoder_feature, self.encoder_q),
+                    crop_first=self.img_as_embed,
+                    trans=self.geo_aug)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
             loss.update(add_suffix(loss_step, f'step{step}'))
@@ -421,7 +388,7 @@ class UVCMoCoTracker(VanillaTracker):
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
                 tar_frame = imgs_q[:, :, step - 1].contiguous()
-                tar_x = x_q[:, :, step - 1].contiguous()
+                tar_x = track_x[:, :, step - 1].contiguous()
                 _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
                 ref_pred_bboxes, ref_pred_crop_x = self.track(
                     ref_frame, ref_x, tar_crop_x)
@@ -442,16 +409,10 @@ class UVCMoCoTracker(VanillaTracker):
                 loss.update(add_suffix(loss_skip, f'skip{step}'))
         patch_embed_x_k = torch.stack(patch_embed_x_k, dim=2)
         patch_embed_x_q = torch.stack(patch_embed_x_q, dim=2)
-        if self.with_img_head:
-            loss_img = self.img_head_q.loss(q_embed_x, embed_x_k,
-                                            self.img_queue)
-            loss.update(add_suffix(loss_img, 'img'))
         loss_patch = self.patch_head_q.loss(patch_embed_x_q, patch_embed_x_k,
                                             self.patch_queue)
         loss.update(add_suffix(loss_patch, 'patch'))
         # dequeue and enqueue
-        if self.with_img_head:
-            self._dequeue_and_enqueue_img(video2images(embed_x_k))
         self._dequeue_and_enqueue_patch(video2images(patch_embed_x_k))
         return loss
 

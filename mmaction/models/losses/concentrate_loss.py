@@ -48,7 +48,7 @@ class ConcentrateLoss(BaseWeightedLoss):
         self.with_norm = with_norm
 
     def _forward(self, src_x, dst_x, **kwargs):
-        assert src_x.shape == dst_x.shape
+        assert src_x.shape == dst_x.shape, f'{src_x.shape} vs {dst_x.shape}'
         batches, channels, height, width = src_x.size()
         affinity = compute_affinity(
             src_x,

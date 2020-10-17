@@ -25,10 +25,17 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
         test_cfg (dict): Config for testing. Default: None.
     """
 
-    def __init__(self, backbone, cls_head, train_cfg=None, test_cfg=None):
+    def __init__(self,
+                 backbone,
+                 cls_head,
+                 neck=None,
+                 train_cfg=None,
+                 test_cfg=None):
         super().__init__()
         self.backbone = builder.build_backbone(backbone)
         self.cls_head = builder.build_head(cls_head)
+        if neck is not None:
+            self.neck = builder.build_neck(neck)
 
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -37,10 +44,17 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
         self.fp16_enabled = False
         self.register_buffer('iteration', torch.tensor(0, dtype=torch.float))
 
+    @property
+    def with_neck(self):
+        """bool: whether the detector has a neck"""
+        return hasattr(self, 'neck') and self.neck is not None
+
     def init_weights(self):
         """Initialize the model network weights."""
         self.backbone.init_weights()
         self.cls_head.init_weights()
+        if self.with_neck:
+            self.neck.init_weights()
 
     @auto_fp16()
     def extract_feat(self, imgs):
@@ -53,6 +67,8 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
             torch.tensor: The extracted features.
         """
         x = self.backbone(imgs)
+        if self.with_neck:
+            x = self.neck(x)
         return x
 
     @abstractmethod

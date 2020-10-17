@@ -1,11 +1,11 @@
 import kornia.augmentation as K
 import torch.nn as nn
 
-from ..registry import WALKERS
+from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
 
-@WALKERS.register_module()
+@TRACKERS.register_module()
 class SpaceTimeWalker(VanillaTracker):
     """3D recognizer model framework."""
 

@@ -1,16 +1,25 @@
 # model settings
 temperature = 0.01
 with_norm = True
+query_dim = 128
 model = dict(
-    type='UVCTrackerV2',
+    type='UVCNeckMoCoTracker',
+    queue_dim=query_dim,
+    patch_queue_size=256 * 144 * 4,
     backbone=dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(3, ),
-        strides=(1, 2, 1, 1),
+        out_indices=(1, 2, 3),
+        # strides=(1, 2, 1, 1),
         norm_eval=False,
         zero_init_residual=True),
+    neck=dict(
+        type='FPN',
+        in_channels=[128, 256, 512],
+        out_channels=256,
+        num_outs=4,
+        out_index=0),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -22,29 +31,40 @@ model = dict(
             with_norm=with_norm,
             loss_weight=1.),
         loss_bbox=dict(type='L1Loss', loss_weight=10.),
-        in_channels=512,
+        in_channels=256,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='center'))
+        track_type='center'),
+    patch_head=dict(
+        type='MoCoHead',
+        loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
+        in_channels=512,
+        # num_convs=2,
+        # kernel_size=3,
+        # norm_cfg=dict(type='BN'),
+        # act_cfg=dict(type='ReLU'),
+        channels=query_dim,
+        temperature=temperature,
+        with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
     img_as_tar=False,
+    img_as_embed=True,
+    geo_aug=True,
     diff_crop=True,
     skip_cycle=True,
-    center_ratio=0.)
+    center_ratio=0.,
+    shuffle_bn=True)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    strides=(1, 2, 1, 1),
-    out_indices=(
-        2,
-        3,
-    ),
+    # strides=(1, 2, 1, 1),
+    out_indices=(0, ),
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
@@ -61,21 +81,23 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
+    dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    # dict(
-    #     type='ColorJitter',
-    #     brightness=0.4,
-    #     contrast=0.4,
-    #     saturation=0.4,
-    #     hue=0.1,
-    #     p=0.8),
-    # dict(type='RandomGrayScale', p=0.2),
-    # dict(type='RandomGaussianBlur', p=0.5),
+    dict(
+        type='ColorJitter',
+        brightness=0.4,
+        contrast=0.4,
+        saturation=0.4,
+        hue=0.1,
+        p=0.8,
+        same_across_clip=False),
+    dict(type='RandomGrayScale', p=0.2, same_across_clip=False),
+    dict(type='RandomGaussianBlur', p=0.5, same_across_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -95,7 +117,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=48,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(

@@ -7,10 +7,16 @@ model = dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(3, ),
-        strides=(1, 2, 1, 1),
+        out_indices=(1, 2, 3),
+        # strides=(1, 2, 1, 1),
         norm_eval=False,
         zero_init_residual=True),
+    neck=dict(
+        type='FPN',
+        in_channels=[128, 256, 512],
+        out_channels=256,
+        num_outs=3,
+        out_index=0),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -22,7 +28,7 @@ model = dict(
             with_norm=with_norm,
             loss_weight=1.),
         loss_bbox=dict(type='L1Loss', loss_weight=10.),
-        in_channels=512,
+        in_channels=256,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
@@ -40,14 +46,22 @@ test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    strides=(1, 2, 1, 1),
-    out_indices=(
-        2,
-        3,
-    ),
+    # strides=(1, 2, 1, 1),
+    out_indices=(0, ),
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
+# test_cfg = dict(
+#     precede_frames=7,
+#     topk=5,
+#     temperature=temperature,
+#     # strides=(1, 2, 1, 1),
+#     out_indices=(0,),
+#     neighbor_range=24,
+#     framewise=False,
+#     with_first=True,
+#     with_first_neighbor=True,
+#     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
 dataset_type_val = 'DavisDataset'
@@ -61,7 +75,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
@@ -95,7 +109,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=48,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
