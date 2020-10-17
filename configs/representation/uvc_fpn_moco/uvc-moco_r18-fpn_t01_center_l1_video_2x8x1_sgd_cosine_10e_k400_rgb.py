@@ -53,6 +53,7 @@ train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
     img_as_tar=True,
+    img_as_embed=True,
     geo_aug=True,
     diff_crop=True,
     skip_cycle=True,

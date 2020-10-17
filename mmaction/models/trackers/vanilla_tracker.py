@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from ..common import (compute_affinity, pil_nearest_interpolate, propagate,
-                      propagate_temporal, spatial_neighbor)
+from ..common import (StrideContext, compute_affinity, pil_nearest_interpolate,
+                      propagate, propagate_temporal, spatial_neighbor)
 from ..registry import TRACKERS
 from .base import BaseTracker
 
@@ -20,14 +20,27 @@ class VanillaTracker(BaseTracker):
             end_index = self.backbone.original_out_indices[0]
         return np.prod(self.backbone.strides[:end_index + 1]) * 4
 
-    def extract_feat(self, imgs):
-        if self.with_neck and self.test_cfg.get('use_fpn', True):
-            return super().extract_feat(imgs)
+    def extract_feat_test(self, imgs):
+        outs = []
+        if self.with_neck:
+            if self.test_cfg.get('use_fpn', True):
+                outs.append(self.extract_feat(imgs))
+            if self.test_cfg.get('use_backbone', False):
+                with StrideContext(self.backbone, self.test_cfg.strides,
+                                   self.test_cfg.out_indices):
+                    backbone_out = self.backbone(imgs)
+                    if isinstance(backbone_out, (tuple, list)):
+                        outs.extend(list(backbone_out))
+                    else:
+                        outs.append(backbone_out)
+            if len(outs) == 1:
+                return outs[0]
+            return tuple(outs)
         else:
-            return self.backbone(imgs)
+            return self.extract_feat(imgs)
 
     def extract_single_feat(self, imgs, idx):
-        feats = self.extract_feat(imgs)
+        feats = self.extract_feat_test(imgs)
         if isinstance(feats, (tuple, list)):
             return feats[idx]
         else:
@@ -42,7 +55,7 @@ class VanillaTracker(BaseTracker):
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
         clip_len = imgs.size(2)
         # get target shape
-        dummy_faet = self.extract_feat(imgs[0:1, :, 0])
+        dummy_faet = self.extract_feat_test(imgs[0:1, :, 0])
         if isinstance(dummy_faet, (list, tuple)):
             feat_shapes = [_.shape for _ in dummy_faet]
         else:
@@ -182,6 +195,6 @@ class VanillaTracker(BaseTracker):
             self.backbone.switch_strides()
             self.backbone.switch_out_indices()
         else:
-            if not (self.with_neck and self.test_cfg.get('use_fpn', True)):
+            if not self.with_neck:
                 self.backbone.switch_strides(self.test_cfg.strides)
                 self.backbone.switch_out_indices(self.test_cfg.out_indices)

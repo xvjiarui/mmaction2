@@ -58,7 +58,6 @@ class UVCNeckMoCoTracker(VanillaTracker):
             self.img_as_grid = self.train_cfg.get('img_as_grid', True)
             self.shuffle_bn = self.train_cfg.get('shuffle_bn', False)
             self.momentum = self.train_cfg.get('momentum', 0.999)
-            self.embed_strides = self.train_cfg.get('embed_strides', None)
             self.img_as_ref = self.train_cfg.get('img_as_ref')
             self.img_as_tar = self.train_cfg.get('img_as_tar')
             self.img_as_embed = self.train_cfg.get('img_as_embed')
@@ -256,6 +255,8 @@ class UVCNeckMoCoTracker(VanillaTracker):
         loss = dict()
         track_x = images2video(
             self.extract_feat(video2images(imgs_q)), clip_len)
+        patch_embed_x_k = []
+        patch_embed_x_q = []
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
             ref_frame = imgs_q[:, :, 0].contiguous()
@@ -313,9 +314,30 @@ class UVCNeckMoCoTracker(VanillaTracker):
                         self.cls_head.loss(tar_crop_x, last_crop_x),
                         suffix=f'backward.t{last_idx}'))
 
+            if self.skip_cycle and step > 2:
+                loss_skip = dict()
+                tar_frame = imgs_q[:, :, step - 1].contiguous()
+                tar_x = track_x[:, :, step - 1].contiguous()
+                _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
+                ref_pred_bboxes, ref_pred_crop_x = self.track(
+                    ref_frame, ref_x, tar_crop_x)
+                ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
+                                                   ref_pred_bboxes)
+                loss_step['iou_bbox'] = bbox_overlaps(
+                    ref_pred_bboxes, ref_bboxes, is_aligned=True)
+                loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
+                    ref_crop_grid, ref_pred_crop_grid)
+                loss_skip.update(
+                    add_suffix(
+                        self.cls_head.loss(ref_crop_x, tar_crop_x),
+                        suffix='forward'))
+                loss_skip.update(
+                    add_suffix(
+                        self.cls_head.loss(tar_crop_x, ref_pred_crop_x),
+                        suffix='backward'))
+                loss.update(add_suffix(loss_skip, f'skip{step}'))
+
             # part 2: MoCo
-            patch_embed_x_k = []
-            patch_embed_x_q = []
             x_q = images2video(
                 self.extract_encoder_feature(self.encoder_q,
                                              video2images(imgs_q)), clip_len)
@@ -330,8 +352,8 @@ class UVCNeckMoCoTracker(VanillaTracker):
 
                     # [N, C, T, H, W]
                     x_k = images2video(
-                        self.extract_encoder_feature(self.encoder_k,
-                                                     video2images(imgs_k)),
+                        self.extract_encoder_feature(
+                            self.encoder_k, video2images(imgs_k_shuffled)),
                         clip_len)
                     # undo shuffle
                     x_k = self._batch_unshuffle_ddp(x_k, idx_unshuffle)
@@ -384,29 +406,6 @@ class UVCNeckMoCoTracker(VanillaTracker):
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
             loss.update(add_suffix(loss_step, f'step{step}'))
-
-            if self.skip_cycle and step > 2:
-                loss_skip = dict()
-                tar_frame = imgs_q[:, :, step - 1].contiguous()
-                tar_x = track_x[:, :, step - 1].contiguous()
-                _, tar_crop_x = self.track(tar_frame, tar_x, ref_crop_x)
-                ref_pred_bboxes, ref_pred_crop_x = self.track(
-                    ref_frame, ref_x, tar_crop_x)
-                ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
-                                                   ref_pred_bboxes)
-                loss_step['iou_bbox'] = bbox_overlaps(
-                    ref_pred_bboxes, ref_bboxes, is_aligned=True)
-                loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
-                    ref_crop_grid, ref_pred_crop_grid)
-                loss_skip.update(
-                    add_suffix(
-                        self.cls_head.loss(ref_crop_x, tar_crop_x),
-                        suffix='forward'))
-                loss_skip.update(
-                    add_suffix(
-                        self.cls_head.loss(tar_crop_x, ref_pred_crop_x),
-                        suffix='backward'))
-                loss.update(add_suffix(loss_skip, f'skip{step}'))
         patch_embed_x_k = torch.stack(patch_embed_x_k, dim=2)
         patch_embed_x_q = torch.stack(patch_embed_x_q, dim=2)
         loss_patch = self.patch_head_q.loss(patch_embed_x_q, patch_embed_x_k,

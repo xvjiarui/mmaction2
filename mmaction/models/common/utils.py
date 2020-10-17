@@ -76,17 +76,22 @@ def concat_all_gather(tensor):
 
 class StrideContext(object):
 
-    def __init__(self, backbone, strides):
+    def __init__(self, backbone, strides, out_indices=None):
         self.backbone = backbone
         self.strides = strides
+        self.out_indices = out_indices
 
     def __enter__(self):
         if self.strides is not None:
             self.backbone.switch_strides(self.strides)
+        if self.out_indices is not None:
+            self.backbone.switch_out_indices(self.out_indices)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.strides is not None:
             self.backbone.switch_strides()
+        if self.out_indices is not None:
+            self.backbone.switch_out_indices()
 
 
 def unmap(data, count, inds, fill=0):
