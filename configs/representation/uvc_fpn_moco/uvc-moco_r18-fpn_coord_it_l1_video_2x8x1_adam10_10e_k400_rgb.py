@@ -50,7 +50,7 @@ model = dict(
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
-    patch_size=128,
+    patch_size=96,
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,
@@ -142,12 +142,12 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
-# optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-1)
+optimizer = dict(type='Adam', lr=1e-3)
+# optimizer = dict(type='SGD', lr=1e-1)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-# lr_config = dict(policy='Fixed')
+# lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+lr_config = dict(policy='Fixed')
 # lr_config = dict(
 #     policy='step',
 #     warmup='linear',

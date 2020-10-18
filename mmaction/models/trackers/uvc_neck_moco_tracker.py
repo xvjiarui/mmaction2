@@ -257,8 +257,14 @@ class UVCNeckMoCoTracker(VanillaTracker):
         batches, clip_len = imgs_q.size(0), imgs_q.size(2)
         # part 1: tracking
         loss = dict()
-        track_x = images2video(
-            self.extract_feat(video2images(imgs_q)), clip_len)
+        if self.with_neck:
+            x_q_full = self.encoder_q(video2images(imgs_q))
+            track_x = images2video(self.neck(x_q_full), clip_len)
+            x_q = images2video(x_q_full[-1], clip_len)
+        else:
+            track_x = images2video(
+                self.extract_feat(video2images(imgs_q)), clip_len)
+            x_q = track_x
         patch_embed_x_k = []
         patch_embed_x_q = []
         patch_embed_x_neg = []
@@ -344,9 +350,6 @@ class UVCNeckMoCoTracker(VanillaTracker):
                 loss.update(add_suffix(loss_skip, f'skip{step}'))
 
             # part 2: MoCo
-            x_q = images2video(
-                self.extract_encoder_feature(self.encoder_q,
-                                             video2images(imgs_q)), clip_len)
             # compute key features
             with torch.no_grad():  # no gradient to keys
                 self._momentum_update_key_encoder()  # update the key encoder
