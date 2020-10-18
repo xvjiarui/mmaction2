@@ -427,7 +427,7 @@ class UVCMoCoTracker(VanillaTracker):
                     ref_frame, ref_x, tar_crop_x)
                 ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                    ref_pred_bboxes)
-                loss_step['iou_bbox'] = bbox_overlaps(
+                loss_skip['iou_bbox'] = bbox_overlaps(
                     ref_pred_bboxes, ref_bboxes, is_aligned=True)
                 loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
                     ref_crop_grid, ref_pred_crop_grid)
@@ -444,10 +444,10 @@ class UVCMoCoTracker(VanillaTracker):
         patch_embed_x_q = torch.stack(patch_embed_x_q, dim=2)
         if self.with_img_head:
             loss_img = self.img_head_q.loss(q_embed_x, embed_x_k,
-                                            self.img_queue)
+                                            self.img_queue.clone().detach())
             loss.update(add_suffix(loss_img, 'img'))
         loss_patch = self.patch_head_q.loss(patch_embed_x_q, patch_embed_x_k,
-                                            self.patch_queue)
+                                            self.patch_queue.clone().detach())
         loss.update(add_suffix(loss_patch, 'patch'))
         # dequeue and enqueue
         if self.with_img_head:

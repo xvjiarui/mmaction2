@@ -65,10 +65,8 @@ test_cfg = dict(
     temperature=temperature,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
-    neighbor_range=24,
-    framewise=False,
-    with_first=True,
-    with_first_neighbor=True,
+    neighbor_range=40,
+    with_norm=with_norm,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'

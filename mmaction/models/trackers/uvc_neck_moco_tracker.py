@@ -9,8 +9,9 @@ from torch.nn.modules.utils import _pair
 from mmaction.utils import add_suffix
 from .. import builder
 from ..common import (bbox_overlaps, concat_all_gather, crop_and_resize,
-                      get_crop_grid, get_random_crop_bbox,
-                      get_top_diff_crop_bbox, images2video, video2images)
+                      get_crop_grid, get_non_overlap_crop_bbox,
+                      get_random_crop_bbox, get_top_diff_crop_bbox,
+                      images2video, video2images)
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -61,6 +62,9 @@ class UVCNeckMoCoTracker(VanillaTracker):
             self.img_as_ref = self.train_cfg.get('img_as_ref')
             self.img_as_tar = self.train_cfg.get('img_as_tar')
             self.img_as_embed = self.train_cfg.get('img_as_embed')
+            self.with_neg_bboxes = self.train_cfg.get('with_neg_bboxes', False)
+            self.neg_bboxes_radius = self.train_cfg.get(
+                'neg_bboxes_radius', 1.)
 
     @property
     def encoder_q(self):
@@ -257,6 +261,7 @@ class UVCNeckMoCoTracker(VanillaTracker):
             self.extract_feat(video2images(imgs_q)), clip_len)
         patch_embed_x_k = []
         patch_embed_x_q = []
+        patch_embed_x_neg = []
         for step in range(2, clip_len + 1):
             # step_weight = 1. if step == 2 or self.iteration > 1000 else 0
             ref_frame = imgs_q[:, :, 0].contiguous()
@@ -313,6 +318,7 @@ class UVCNeckMoCoTracker(VanillaTracker):
                     add_suffix(
                         self.cls_head.loss(tar_crop_x, last_crop_x),
                         suffix=f'backward.t{last_idx}'))
+            loss.update(add_suffix(loss_step, f'step{step}'))
 
             if self.skip_cycle and step > 2:
                 loss_skip = dict()
@@ -323,7 +329,7 @@ class UVCNeckMoCoTracker(VanillaTracker):
                     ref_frame, ref_x, tar_crop_x)
                 ref_pred_crop_grid = self.get_grid(ref_frame, ref_x,
                                                    ref_pred_bboxes)
-                loss_step['iou_bbox'] = bbox_overlaps(
+                loss_skip['iou_bbox'] = bbox_overlaps(
                     ref_pred_bboxes, ref_bboxes, is_aligned=True)
                 loss_skip['loss_bbox'] = self.cls_head.loss_bbox(
                     ref_crop_grid, ref_pred_crop_grid)
@@ -376,6 +382,22 @@ class UVCNeckMoCoTracker(VanillaTracker):
                         trans=self.geo_aug,
                         shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
+                    if self.with_neg_bboxes:
+                        neg_bboxes = get_non_overlap_crop_bbox(
+                            last_bboxes * self.stride,
+                            imgs_k.shape[3:],
+                            radius=self.neg_bboxes_radius) / self.stride
+                        last_crop_x_neg = self.crop_x_from_img(
+                            imgs_k[:, :, idx].contiguous(),
+                            x_k[:, :, idx].contiguous(),
+                            neg_bboxes,
+                            partial(self.extract_encoder_feature,
+                                    self.encoder_k),
+                            crop_first=self.img_as_embed,
+                            trans=self.geo_aug,
+                            shuffle_bn=self.shuffle_bn)
+                        patch_embed_x_neg.append(
+                            self.patch_head_k(last_crop_x_neg))
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
@@ -396,6 +418,22 @@ class UVCNeckMoCoTracker(VanillaTracker):
                         trans=self.geo_aug,
                         shuffle_bn=self.shuffle_bn)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
+                    if self.with_neg_bboxes:
+                        neg_bboxes = get_non_overlap_crop_bbox(
+                            last_bboxes * self.stride,
+                            imgs_k.shape[3:],
+                            radius=self.neg_bboxes_radius) / self.stride
+                        last_crop_x_neg = self.crop_x_from_img(
+                            imgs_k[:, :, idx].contiguous(),
+                            x_k[:, :, idx].contiguous(),
+                            neg_bboxes,
+                            partial(self.extract_encoder_feature,
+                                    self.encoder_k),
+                            crop_first=self.img_as_embed,
+                            trans=self.geo_aug,
+                            shuffle_bn=self.shuffle_bn)
+                        patch_embed_x_neg.append(
+                            self.patch_head_k(last_crop_x_neg))
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
@@ -405,11 +443,18 @@ class UVCNeckMoCoTracker(VanillaTracker):
                     trans=self.geo_aug)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
-            loss.update(add_suffix(loss_step, f'step{step}'))
         patch_embed_x_k = torch.stack(patch_embed_x_k, dim=2)
         patch_embed_x_q = torch.stack(patch_embed_x_q, dim=2)
+        if self.with_neg_bboxes:
+            patch_embed_x_neg = torch.cat([
+                torch.cat(patch_embed_x_neg).T,
+                self.patch_queue.clone().detach()
+            ],
+                                          dim=1)
+        else:
+            patch_embed_x_neg = self.patch_queue.clone().detach()
         loss_patch = self.patch_head_q.loss(patch_embed_x_q, patch_embed_x_k,
-                                            self.patch_queue)
+                                            patch_embed_x_neg)
         loss.update(add_suffix(loss_patch, 'patch'))
         # dequeue and enqueue
         self._dequeue_and_enqueue_patch(video2images(patch_embed_x_k))

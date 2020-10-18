@@ -212,6 +212,77 @@ def get_top_diff_crop_bbox(imgs,
     return bbox
 
 
+def get_non_overlap_crop_bbox(ori_bboxes,
+                              img_size,
+                              radius=1.,
+                              scale_jitter=0.):
+    """Randomly get a crop bounding box."""
+    assert ori_bboxes.size(1) == 4
+    assert ori_bboxes.ndim == 2
+    batches = ori_bboxes.size(0)
+    device = ori_bboxes.device
+    dtype = ori_bboxes.dtype
+    img_size = _pair(img_size)
+    x1 = ori_bboxes[..., 0]
+    y1 = ori_bboxes[..., 1]
+    x2 = ori_bboxes[..., 2]
+    y2 = ori_bboxes[..., 3]
+    ori_center_x = (x1 + x2) * 0.5
+    ori_center_y = (y1 + y2) * 0.5
+    ori_width = x2 - x1
+    ori_height = y2 - y1
+
+    new_center_x = torch.randint(
+        low=0, high=img_size[1], size=(batches, ), device=device, dtype=dtype)
+    new_center_x = torch.where(
+        torch.logical_and(
+            new_center_x > (ori_center_x - ori_width * 0.5 * radius - 1),
+            new_center_x < ori_center_x + 1),
+        new_center_x - ori_width * radius + 1, new_center_x)
+    new_center_x = torch.where(
+        torch.logical_and(
+            new_center_x < (ori_center_x + ori_width * 0.5 * radius + 1),
+            new_center_x > ori_center_x - 1),
+        new_center_x + ori_width * radius + 1, new_center_x)
+
+    new_center_y = torch.randint(
+        low=0, high=img_size[0], size=(batches, ), device=device, dtype=dtype)
+
+    new_center_y = torch.where(
+        torch.logical_and(
+            new_center_y > (ori_center_y - ori_height * 0.5 * radius - 1),
+            new_center_y < ori_center_y + 1),
+        new_center_y - ori_height * radius + 1, new_center_y)
+    new_center_y = torch.where(
+        torch.logical_and(
+            new_center_y < (ori_center_y + ori_height * 0.5 * radius + 1),
+            new_center_y > ori_center_y - 1),
+        new_center_y + ori_height * radius + 1, new_center_y)
+
+    if scale_jitter > 0:
+        new_width = ori_width * (
+            1 + (torch.rand(batches, device=device) * 2 - 1) * scale_jitter)
+        new_height = ori_height * (
+            1 + (torch.rand(batches, device=device) * 2 - 1) * scale_jitter)
+    else:
+        new_width = ori_width
+        new_height = ori_height
+
+    new_x1 = new_center_x - new_width * 0.5
+    new_y1 = new_center_y - new_height * 0.5
+    new_x2 = new_center_x + new_width * 0.5
+    new_y2 = new_center_y + new_height * 0.5
+
+    new_x1.clamp_(min=0, max=img_size[1])
+    new_y1.clamp_(min=0, max=img_size[0])
+    new_x2.clamp_(min=0, max=img_size[1])
+    new_y2.clamp_(min=0, max=img_size[0])
+
+    new_bboxes = torch.stack([new_x1, new_y1, new_x2, new_y2], dim=1)
+
+    return new_bboxes
+
+
 @torch.no_grad()
 def bbox2mask(bboxes, mask_shape, neighbor_range=0):
     assert bboxes.size(1) == 4

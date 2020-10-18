@@ -50,26 +50,16 @@ model = dict(
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
-    patch_size=96,
+    patch_size=144,
     img_as_ref=True,
     img_as_tar=True,
     img_as_embed=True,
+    with_neg_bboxes=True,
     geo_aug=True,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
     shuffle_bn=True)
-# test_cfg = dict(
-#     precede_frames=7,
-#     topk=5,
-#     temperature=temperature,
-#     strides=(1, 2, 1, 1),
-#     out_indices=(2, 3),
-#     use_fpn=True,
-#     # use_backbone=True,
-#     neighbor_range=40,
-#     with_norm=with_norm,
-#     output_dir='eval_results')
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -77,13 +67,24 @@ test_cfg = dict(
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
     use_fpn=True,
-    use_backbone=True,
+    # use_backbone=True,
+    neighbor_range=40,
     with_norm=with_norm,
-    neighbor_range=24,
-    framewise=False,
-    with_first=True,
-    with_first_neighbor=True,
     output_dir='eval_results')
+# test_cfg = dict(
+#     precede_frames=7,
+#     topk=5,
+#     temperature=temperature,
+#     strides=(1, 2, 1, 1),
+#     out_indices=(2, 3),
+#     use_fpn=True,
+#     use_backbone=True,
+#     with_norm=with_norm,
+#     neighbor_range=24,
+#     framewise=False,
+#     with_first=True,
+#     with_first_neighbor=True,
+#     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
 dataset_type_val = 'DavisDataset'
@@ -158,18 +159,16 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
+# optimizer = dict(type='Adam', lr=1e-2)
 optimizer = dict(type='SGD', lr=1e-1)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0)
 lr_config = dict(policy='Fixed')
-total_epochs = 50
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1,
-    metrics='davis',
-    key_indicator='feat_0.J&F-Mean',
-    rule='greater')
+    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
