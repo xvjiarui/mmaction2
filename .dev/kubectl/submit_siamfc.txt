@@ -1,0 +1,1 @@
+uvc-moco_r18-fpn_coord_l1_video_2x8x1_sgd_cosine_10e_k400_rgb.py
