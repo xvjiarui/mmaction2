@@ -3,7 +3,7 @@ temperature = 0.01
 with_norm = True
 query_dim = 128
 model = dict(
-    type='UVCMoCoTracker',
+    type='UVCNeckMoCoTracker',
     queue_dim=query_dim,
     # img_queue_size=256 * 48,
     patch_queue_size=256 * 32 * 15,
@@ -39,7 +39,7 @@ model = dict(
     #     channels=query_dim,
     #     temperature=temperature,
     #     with_norm=with_norm),
-    img_head=None,
+    # img_head=None,
     patch_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),

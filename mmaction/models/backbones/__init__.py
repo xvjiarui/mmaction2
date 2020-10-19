@@ -1,3 +1,4 @@
+from .alexnet import AlexNetV1, AlexNetV2, AlexNetV3
 from .resnet import ResNet
 from .resnet2plus1d import ResNet2Plus1d
 from .resnet3d import ResNet3d
@@ -9,5 +10,6 @@ from .resnet_tsm import ResNetTSM
 
 __all__ = [
     'ResNet', 'ResNet3d', 'ResNetTSM', 'ResNet2Plus1d', 'ResNet3dSlowFast',
-    'ResNet3dSlowOnly', 'ResNet3dCSN', 'ResNetTIN'
+    'ResNet3dSlowOnly', 'ResNet3dCSN', 'ResNetTIN', 'AlexNetV1', 'AlexNetV2',
+    'AlexNetV3'
 ]
