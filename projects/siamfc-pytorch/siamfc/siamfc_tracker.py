@@ -9,14 +9,14 @@ import torch.nn as nn
 import torch.optim as optim
 from got10k.trackers import Tracker
 from mmcv.runner import load_checkpoint
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from torch.utils.data import DataLoader
 
 from mmaction.models import build_model
 from . import ops
 from .datasets import Pair
 from .heads import SiamConvFC
-from .losses import BalancedLoss
+from .losses import BalancedLoss, FocalLoss
 from .transforms import SiamFCTransforms
 
 
@@ -28,8 +28,8 @@ class Net(nn.Module):
         self.head = head
 
     def forward(self, z, x):
-        z = self.backbone.extract_feat_test(z)
-        x = self.backbone.extract_feat_test(x)
+        z = self.backbone.extract_single_feat(z, -1)
+        x = self.backbone.extract_single_feat(x, -1)
         return self.head(z, x)
 
 
@@ -60,7 +60,7 @@ class TrackerSiamFC(Tracker):
             backbone=model,
             head=SiamConvFC(
                 cfg.model.cls_head.in_channels,
-                128,
+                256,
                 out_scale=self.cfg.out_scale))
         if cfg.load_from is not None:
             load_checkpoint(
@@ -73,19 +73,26 @@ class TrackerSiamFC(Tracker):
         self.net = self.net.to(self.device)
 
         # setup criterion
-        self.criterion = BalancedLoss()
+        if self.cfg.get('balanced_loss', True):
+            self.criterion = BalancedLoss()
+        else:
+            self.criterion = FocalLoss()
 
         # setup optimizer
         self.optimizer = optim.SGD(
             self.net.parameters(),
             lr=self.cfg.initial_lr,
-            weight_decay=self.cfg.weight_decay,
+            weight_decay=self.cfg.weight_decay
+            if not cfg.get('freeze_extractor', True) else 0,
             momentum=self.cfg.momentum)
 
         # setup lr scheduler
-        gamma = np.power(self.cfg.ultimate_lr / self.cfg.initial_lr,
-                         1.0 / self.cfg.epoch_num)
-        self.lr_scheduler = ExponentialLR(self.optimizer, gamma)
+        if self.cfg.get('exp_decay', True):
+            gamma = np.power(self.cfg.ultimate_lr / self.cfg.initial_lr,
+                             1.0 / self.cfg.epoch_num)
+            self.lr_scheduler = ExponentialLR(self.optimizer, gamma)
+        else:
+            self.lr_scheduler = StepLR(self.optimizer, 10)
 
     @torch.no_grad()
     def init(self, img, box):
@@ -129,7 +136,7 @@ class TrackerSiamFC(Tracker):
         # exemplar features
         z = torch.from_numpy(z).to(self.device).permute(
             2, 0, 1).unsqueeze(0).float()
-        self.kernel = self.net.backbone.extract_feat_test(z)
+        self.kernel = self.net.backbone.extract_single_feat(z, -1)
 
     @torch.no_grad()
     def update(self, img):
@@ -149,7 +156,7 @@ class TrackerSiamFC(Tracker):
         x = torch.from_numpy(x).to(self.device).permute(0, 3, 1, 2).float()
 
         # responses
-        x = self.net.backbone.extract_feat_test(x)
+        x = self.net.backbone.extract_single_feat(x, -1)
         responses = self.net.head(self.kernel, x)
         responses = responses.squeeze(1).cpu().numpy()
 
@@ -218,6 +225,21 @@ class TrackerSiamFC(Tracker):
 
         return boxes, times
 
+    def current_lr(self):
+        """Get current learning rates.
+
+        Returns:
+            list[float] | dict[str, list[float]]: Current learning rates of all
+                param groups. If the runner has a dict of optimizers, this
+                method will return a dict.
+        """
+        if isinstance(self.optimizer, torch.optim.Optimizer):
+            lr = [group['lr'] for group in self.optimizer.param_groups]
+        else:
+            raise RuntimeError(
+                'lr is not applicable because optimizer does not exist.')
+        return lr
+
     def train_step(self, batch, backward=True):
         # set network mode
         self.net.train(backward)
@@ -268,13 +290,17 @@ class TrackerSiamFC(Tracker):
             # loop over dataloader
             for it, batch in enumerate(dataloader):
                 loss = self.train_step(batch, backward=True)
-                if (it + 1) % self.cfg.log_config.interval == 0:
-                    self.logger.info('Epoch: {} [{}/{}] Loss: {:.5f}'.format(
-                        epoch + 1, it + 1, len(dataloader), loss))
+                if (it + 1) % self.cfg.log_config.interval == 0 or it == (
+                        len(dataloader) - 1):
+                    self.logger.info(
+                        f'Epoch: {epoch+1} [{it+1}/{len(dataloader)}]'
+                        f' lr: {self.current_lr()[0]:.5f}'
+                        f' Loss: {loss:.5f}')
             # update lr at each epoch
             self.lr_scheduler.step()
 
-            if epoch % (self.cfg.checkpoint_config.interval * 5) == 0:
+            if epoch % (self.cfg.checkpoint_config.interval * 5) == 0 or \
+                    epoch == self.cfg.epoch_num - 1:
                 save_dir = osp.join(self.cfg.work_dir, 'siamfc')
                 # save checkpoint
                 mmcv.mkdir_or_exist(save_dir)

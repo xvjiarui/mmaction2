@@ -20,6 +20,21 @@ class _AlexNet(nn.Module):
         x = self.conv5(x)
         return x
 
+    def init_weights(self):
+        gain = 1
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.xavier_uniform_(m.weight, gain)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight, gain)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
 
 @BACKBONES.register_module()
 class AlexNetV1(_AlexNet):

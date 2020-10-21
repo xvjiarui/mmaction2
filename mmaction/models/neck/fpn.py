@@ -126,7 +126,7 @@ class FPN(nn.Module):
                     act_cfg=act_cfg,
                     inplace=False)
             else:
-                l_conv = nn.Identity()
+                l_conv = None
 
             if i == self.out_index:
                 fpn_conv = ConvModule(
@@ -139,7 +139,7 @@ class FPN(nn.Module):
                     act_cfg=act_cfg,
                     inplace=False)
             else:
-                fpn_conv = nn.Identity()
+                fpn_conv = None
 
             self.lateral_convs.append(l_conv)
             self.fpn_convs.append(fpn_conv)
@@ -157,27 +157,36 @@ class FPN(nn.Module):
         assert len(inputs) == len(self.in_channels)
 
         # build laterals
-        laterals = [
-            lateral_conv(inputs[i + self.start_level])
-            for i, lateral_conv in enumerate(self.lateral_convs)
-        ]
+        # laterals = [
+        #     lateral_conv(inputs[i + self.start_level])
+        #     for i, lateral_conv in enumerate(self.lateral_convs)
+        # ]
+        laterals = []
+        for i, lateral_conv in enumerate(self.lateral_convs):
+            if i >= self.out_index:
+                laterals.append(lateral_conv(inputs[i + self.start_level]))
+            else:
+                assert lateral_conv is None
+                laterals.append(None)
 
         # build top-down path
         used_backbone_levels = len(laterals)
         for i in range(used_backbone_levels - 1, 0, -1):
             # In some cases, fixing `scale factor` (e.g. 2) is preferred, but
             #  it cannot co-exist with `size` in `F.interpolate`.
-            if 'scale_factor' in self.upsample_cfg:
-                laterals[i - 1] += F.interpolate(laterals[i],
-                                                 **self.upsample_cfg)
-            else:
-                prev_shape = laterals[i - 1].shape[2:]
-                laterals[i - 1] += F.interpolate(
-                    laterals[i], size=prev_shape, **self.upsample_cfg)
-
+            if i - 1 >= self.out_index:
+                if 'scale_factor' in self.upsample_cfg:
+                    laterals[i - 1] += F.interpolate(laterals[i],
+                                                     **self.upsample_cfg)
+                else:
+                    prev_shape = laterals[i - 1].shape[2:]
+                    laterals[i - 1] += F.interpolate(
+                        laterals[i], size=prev_shape, **self.upsample_cfg)
         # build outputs
-        outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
-        ]
+        # outs = [self.fpn_convs[i](laterals[i]) for i in range(
+        #     used_backbone_levels)]
 
-        return outs[self.out_index]
+        # return outs[self.out_index]
+        out = self.fpn_convs[self.out_index](laterals[self.out_index])
+
+        return out

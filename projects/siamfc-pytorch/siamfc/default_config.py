@@ -18,10 +18,10 @@ default_cfg = {
     'epoch_num': 50,
     'batch_size': 8,
     'num_workers': 32,
-    'initial_lr': 1e-3,
+    'initial_lr': 1e-2,
     'ultimate_lr': 1e-5,
     'weight_decay': 5e-4,
     'momentum': 0.9,
     'r_pos': 16,
-    'r_neg': 0
+    'r_neg': 0,
 }

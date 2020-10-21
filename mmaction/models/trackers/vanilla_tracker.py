@@ -192,9 +192,13 @@ class VanillaTracker(BaseTracker):
         """Set the optimization status when training."""
         super().train(mode)
         if mode:
-            self.backbone.switch_strides()
-            self.backbone.switch_out_indices()
+            if hasattr(self.backbone, 'switch_strides'):
+                self.backbone.switch_strides()
+            if hasattr(self.backbone, 'switch_out_indices'):
+                self.backbone.switch_out_indices()
         else:
             if not self.with_neck:
-                self.backbone.switch_strides(self.test_cfg.strides)
-                self.backbone.switch_out_indices(self.test_cfg.out_indices)
+                if hasattr(self.backbone, 'switch_strides'):
+                    self.backbone.switch_strides(self.test_cfg.strides)
+                if hasattr(self.backbone, 'switch_out_indices'):
+                    self.backbone.switch_out_indices(self.test_cfg.out_indices)
