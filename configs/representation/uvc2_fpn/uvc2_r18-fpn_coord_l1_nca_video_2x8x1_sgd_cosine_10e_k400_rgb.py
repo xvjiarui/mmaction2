@@ -6,19 +6,19 @@ model = dict(
     backbone=dict(
         type='ResNet',
         pretrained=None,
-        depth=50,
-        out_indices=(1, 2, 3),
+        depth=18,
+        out_indices=(0, 1, 2, 3),
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
     neck=dict(
         type='FPN',
-        in_channels=[512, 1024, 2048],
+        in_channels=[64, 128, 256, 512],
         out_channels=256,
-        num_outs=4,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
-        out_index=0),
+        num_outs=4,
+        out_index=1),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -30,7 +30,7 @@ model = dict(
             with_norm=with_norm,
             loss_weight=1.),
         loss_bbox=dict(type='L1Loss', loss_weight=10.),
-        in_channels=2048,
+        in_channels=512,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
@@ -40,7 +40,7 @@ model = dict(
 train_cfg = dict(
     patch_size=96,
     img_as_ref=True,
-    img_as_tar=False,
+    img_as_tar=True,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.)
@@ -48,10 +48,9 @@ test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    # strides=(1, 2, 1, 1),
-    out_indices=(0, ),
+    strides=(1, 2, 1, 1),
+    out_indices=(2, 3),
     neighbor_range=40,
-    with_norm=with_norm,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
@@ -68,19 +67,19 @@ train_pipeline = [
     dict(type='DecordInit'),
     dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
-    dict(type='Resize', scale=(-1, 256)),
-    dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
+    # dict(type='Resize', scale=(-1, 256)),
+    # dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    dict(
-        type='ColorJitter',
-        brightness=0.4,
-        contrast=0.4,
-        saturation=0.4,
-        hue=0.1,
-        p=0.8),
-    dict(type='RandomGrayScale', p=0.2),
-    dict(type='RandomGaussianBlur', p=0.5),
+    # dict(
+    #     type='ColorJitter',
+    #     brightness=0.4,
+    #     contrast=0.4,
+    #     saturation=0.4,
+    #     hue=0.1,
+    #     p=0.8),
+    # dict(type='RandomGrayScale', p=0.2),
+    # dict(type='RandomGaussianBlur', p=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -100,7 +99,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=48,
     workers_per_gpu=4,
     val_workers_per_gpu=1,
     train=dict(
@@ -126,7 +125,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-1)
+optimizer = dict(type='SGD', lr=1e-2, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -140,7 +139,10 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=1,
+    metrics='davis',
+    key_indicator='feat_1.J&F-Mean',
+    rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
@@ -152,7 +154,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['uvc2-fpn'],
+                tags=['uvc2'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,
