@@ -609,8 +609,6 @@ class Flip(object):
         results['flip_direction'] = self.direction
 
         if not self.lazy:
-            if not self.same_on_clip:
-                flip = npr.rand() < self.flip_ratio
             for i, img in enumerate(results['imgs']):
                 is_new_clip = not self.same_across_clip and i % results[
                     'clip_len'] == 0 and i > 0

@@ -52,8 +52,8 @@ train_cfg = dict(
     img_as_tar=False,
     img_as_embed=True,
     mix_full_imgs=True,
-    full_image_geo_aug=False,
-    geo_aug=True,
+    img_geo_aug=False,
+    img_color_aug=False,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -83,20 +83,20 @@ train_pipeline = [
     dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
-    dict(type='Resize', scale=(-1, 256)),
-    dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
+    # dict(type='Resize', scale=(-1, 256)),
+    # dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
     dict(type='Flip', flip_ratio=0.5),
-    dict(
-        type='ColorJitter',
-        brightness=0.4,
-        contrast=0.4,
-        saturation=0.4,
-        hue=0.1,
-        p=0.8,
-        same_across_clip=False),
-    dict(type='RandomGrayScale', p=0.2, same_across_clip=False),
-    dict(type='RandomGaussianBlur', p=0.5, same_across_clip=False),
+    # dict(
+    #     type='ColorJitter',
+    #     brightness=0.4,
+    #     contrast=0.4,
+    #     saturation=0.4,
+    #     hue=0.1,
+    #     p=0.8,
+    #     same_across_clip=False),
+    # dict(type='RandomGrayScale', p=0.2, same_across_clip=False),
+    # dict(type='RandomGaussianBlur', p=0.5, same_across_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -142,7 +142,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-1, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=1e-2, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)

@@ -27,6 +27,8 @@ def parse_args():
     parser.add_argument(
         '--cpus', type=int, default=6, help='number of cpus to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
+    parser.add_argument(
+        '--name-space', '-n', type=str, default='self-supervised-video')
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -35,6 +37,7 @@ def parse_args():
 def submit(config, args, rest):
     template_dict = dict(
         job_name=osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
+        name_space=args.name_space,
         branch=args.branch,
         gpus=args.gpus,
         cpus=args.cpus,

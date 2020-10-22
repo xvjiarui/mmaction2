@@ -64,12 +64,31 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
         if self.train_cfg is not None:
             self.patch_img_size = _pair(self.train_cfg.patch_size)
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
-            if self.train_cfg.get('geo_aug', False):
-                self.geo_aug = nn.Sequential(
-                    K.RandomRotation(degrees=10),
-                    K.RandomHorizontalFlip(p=0.5))
+            patch_aug = []
+            if self.train_cfg.get('patch_geo_aug', False):
+                patch_aug.append(K.RandomRotation(degrees=10))
+                patch_aug.append(K.RandomHorizontalFlip(p=0.5))
+            if self.train_cfg.get('patch_color_aug', False):
+                patch_aug.append(
+                    K.Denormalize(
+                        mean=torch.tensor([0.485, 0.456, 0.406]),
+                        std=torch.tensor([0.229, 0.224, 0.225])))
+                patch_aug.append(
+                    K.ColorJitter(
+                        brightness=0.4,
+                        contrast=0.4,
+                        saturation=0.4,
+                        hue=0.1,
+                        p=0.8))
+                patch_aug.append(K.RandomGrayscale(p=0.2))
+                patch_aug.append(
+                    K.Normalize(
+                        mean=torch.tensor([0.485, 0.456, 0.406]),
+                        std=torch.tensor([0.229, 0.224, 0.225])))
+            if len(patch_aug) > 0:
+                self.patch_aug = nn.Sequential(*patch_aug)
             else:
-                self.geo_aug = nn.Identity()
+                self.patch_aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)
             self.border = self.train_cfg.get('border', 0)
             self.grid_size = self.train_cfg.get('grid_size', 9)
@@ -84,17 +103,38 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
             self.neg_bboxes_radius = self.train_cfg.get(
                 'neg_bboxes_radius', 1.)
             self.mix_full_imgs = self.train_cfg.get('mix_full_imgs', False)
-            if self.train_cfg.get('full_image_geo_aug', False):
-                self.full_image_geo_aug = nn.Sequential(
-                    K.RandomResizedCrop(size=(256, 256), scale=(0.2, 1)),
-                    K.RandomHorizontalFlip(p=0.5))
-            else:
-                self.full_image_geo_aug = None
+            if self.mix_full_imgs or self.with_img_head:
+                img_aug = []
+                if self.train_cfg.get('img_geo_aug', False):
+                    img_aug.append(
+                        K.RandomResizedCrop(size=(256, 256), scale=(0.2, 1)))
+                    img_aug.append(K.RandomHorizontalFlip(p=0.5))
+                if self.train_cfg.get('img_color_aug', False):
+                    img_aug.append(
+                        K.Denormalize(
+                            mean=torch.tensor([0.485, 0.456, 0.406]),
+                            std=torch.tensor([0.229, 0.224, 0.225])))
+                    img_aug.append(
+                        K.ColorJitter(
+                            brightness=0.4,
+                            contrast=0.4,
+                            saturation=0.4,
+                            hue=0.1,
+                            p=0.8))
+                    img_aug.append(K.RandomGrayscale(p=0.2))
+                    img_aug.append(
+                        K.Normalize(
+                            mean=torch.tensor([0.485, 0.456, 0.406]),
+                            std=torch.tensor([0.229, 0.224, 0.225])))
+                if len(img_aug) > 0:
+                    self.img_aug = nn.Sequential(*img_aug)
+                else:
+                    self.img_aug = None
             self.patch_img_size_moco = _pair(
                 self.train_cfg.get('patch_size_moco', self.patch_img_size))
-            self.patch_x_size_moco = (self.patch_img_size_moco[0] /
+            self.patch_x_size_moco = (self.patch_img_size_moco[0] //
                                       self.stride,
-                                      self.patch_img_size_moco[1] /
+                                      self.patch_img_size_moco[1] //
                                       self.stride)
 
     @property
@@ -240,6 +280,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                         bboxes,
                         encoder,
                         crop_first,
+                        *,
                         trans=None,
                         shuffle_bn=False,
                         patch_img_size=None,
@@ -312,15 +353,15 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
         head_k = self.img_head_k if self.with_img_head else self.patch_head_k
         head_q = self.img_head_q if self.with_img_head else self.patch_head_q
         clip_len = imgs_q.size(2)
-        if self.full_image_geo_aug is None:
+        if self.img_aug is None:
             with torch.no_grad():
                 full_embed_x_k = head_k(video2images(x_k))
             full_embed_x_q = head_q(video2images(x_q))
         else:
-            imgs_q = self.full_image_geo_aug(video2images(imgs_q))
+            imgs_q = self.img_aug(video2images(imgs_q))
             x_q = self.extract_encoder_feature(self.encoder_q, imgs_q)
             with torch.no_grad():
-                imgs_k = self.full_image_geo_aug(video2images(imgs_k))
+                imgs_k = self.img_aug(video2images(imgs_k))
                 if self.shuffle_bn:
                     # shuffle for making use of BN
                     imgs_k_shuffled, idx_unshuffle = self._batch_shuffle_ddp(
@@ -443,10 +484,10 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                     last_crop_x_k = self.crop_x_from_img(
                         imgs_k[:, :, idx].contiguous(),
                         x_k[:, :, idx].contiguous(),
-                        last_bboxes,
+                        last_bboxes.clone().detach(),
                         partial(self.extract_encoder_feature, self.encoder_k),
                         crop_first=self.img_as_embed,
-                        trans=self.geo_aug,
+                        trans=self.patch_aug,
                         shuffle_bn=self.shuffle_bn,
                         patch_img_size=self.patch_img_size_moco,
                         patch_x_size=self.patch_x_size_moco)
@@ -463,7 +504,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                             partial(self.extract_encoder_feature,
                                     self.encoder_k),
                             crop_first=self.img_as_embed,
-                            trans=self.geo_aug,
+                            trans=self.patch_aug,
                             shuffle_bn=self.shuffle_bn,
                             patch_img_size=self.patch_img_size_moco,
                             patch_x_size=self.patch_x_size_moco)
@@ -472,10 +513,10 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
-                    last_bboxes,
+                    last_bboxes.clone().detach(),
                     partial(self.extract_encoder_feature, self.encoder_q),
                     crop_first=self.img_as_embed,
-                    trans=self.geo_aug,
+                    trans=self.patch_aug,
                     patch_img_size=self.patch_img_size_moco,
                     patch_x_size=self.patch_x_size_moco)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
@@ -485,10 +526,10 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                     last_crop_x_k = self.crop_x_from_img(
                         imgs_k[:, :, idx].contiguous(),
                         x_k[:, :, idx].contiguous(),
-                        last_bboxes,
+                        last_bboxes.clone().detach(),
                         partial(self.extract_encoder_feature, self.encoder_k),
                         crop_first=self.img_as_embed,
-                        trans=self.geo_aug,
+                        trans=self.patch_aug,
                         shuffle_bn=self.shuffle_bn,
                         patch_img_size=self.patch_img_size_moco,
                         patch_x_size=self.patch_x_size_moco)
@@ -505,7 +546,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                             partial(self.extract_encoder_feature,
                                     self.encoder_k),
                             crop_first=self.img_as_embed,
-                            trans=self.geo_aug,
+                            trans=self.patch_aug,
                             shuffle_bn=self.shuffle_bn,
                             patch_img_size=self.patch_img_size_moco,
                             patch_x_size=self.patch_x_size_moco)
@@ -514,10 +555,10 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
-                    last_bboxes,
+                    last_bboxes.clone().detach(),
                     partial(self.extract_encoder_feature, self.encoder_q),
                     crop_first=self.img_as_embed,
-                    trans=self.geo_aug,
+                    trans=self.patch_aug,
                     patch_img_size=self.patch_img_size_moco,
                     patch_x_size=self.patch_x_size_moco)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
