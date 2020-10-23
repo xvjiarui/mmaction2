@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job # Deployment will automatically restart when killed. Use Pod if not needed
+metadata:
+  labels:
+    k8s-app: research
+    user: jiarui
+  generateName: '{{job_name}}' # replace <your_name> with something that identifies you
+  namespace: '{{name_space}}'
+spec:
+  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: research
+        image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh"] # replace this with your own job execution scripts
+        args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
+        ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
+        DETECTRON2_DATASETS=data/VOCdevkit python projects/moco/detection/train_net.py
+        --config-file projects/moco/detection/configs/pascal_voc_R_50_C4_24k_moco.yaml
+        --num-gpus {{gpus}} {{py_args}} MMACTION_CFG {{config}} PRETRAINED_CKPT {{pretrained_ckpt}}"]
+        resources:
+          requests: # Minimum resources needed for the job
+            memory: "6Gi"
+            cpu: "{{ cpus }}"
+            nvidia.com/gpu: "{{ gpus }}"
+          limits: # Maximum resources can be used for the job
+            memory: "32Gi"
+            cpu: "32"
+            nvidia.com/gpu: "{{ gpus }}"
+        volumeMounts:
+          - mountPath: /data # the directory you can access your persistent storage in container
+            name: data
+          - mountPath: /exps # the directory you can access your persistent storage in container
+            name: exps
+          - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
+            name: dshm
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+#                  - key: nautilus.io/group
+#                    operator: In
+#                    values:
+#                      - haosu
+                  - key: gpu-type
+                    operator: In
+                    values:
+                      - 1080Ti
+                      - 2080Ti
+                      - titan-xp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data
+        - name: exps
+          persistentVolumeClaim:
+            claimName: exps
+        - name: dshm
+          emptyDir:
+            medium: Memory
