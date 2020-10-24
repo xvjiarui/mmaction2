@@ -95,7 +95,7 @@ if __name__ == "__main__":
         dist_url=args.dist_url,
         args=(args,),
     )
-    with open('output/metrics', 'r') as f:
+    with open('output/metrics.json', 'r') as f:
         for line in f:
             log = json.loads(line)
             iterations = log.pop('iteration')

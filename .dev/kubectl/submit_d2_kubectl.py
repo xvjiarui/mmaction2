@@ -39,13 +39,12 @@ def parse_args():
 def submit(config, args, rest):
     imgs_per_batch = args.gpus * args.imgs_per_gpu
     multiplier = 16 // imgs_per_batch
-    work_dir = osp.join('./work_dirs',
-                        osp.splitext(osp.basename(args.config))[0])
+    work_dir = osp.join('./work_dirs', osp.splitext(osp.basename(config))[0])
     pretrained_ckpt = osp.join(work_dir, args.epoch)
     arch_args = 'MODEL.RESNETS.DEPTH 18 ' \
                 'MODEL.RESNETS.RES2_OUT_CHANNELS 64' if 'r18' in config else ''
     template_dict = dict(
-        job_name='d2' +
+        job_name='d2-' +
         osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
         name_space=args.name_space,
         branch=args.branch,
@@ -56,7 +55,7 @@ def submit(config, args, rest):
         py_args=f'{arch_args} '
         f'SOLVER.IMS_PER_BATCH {imgs_per_batch} '
         f'SOLVER.BASE_LR {0.02 / multiplier} '
-        f'SOLVER.STEPS "({18000 * multiplier}, {22000 * multiplier})" '
+        f'SOLVER.STEPS \'({18000 * multiplier}, {22000 * multiplier})\' '
         f'SOLVER.MAX_ITER {24000 * multiplier} '
         f'SOLVER.WARMUP_ITERS {100 * multiplier} ' + ' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',

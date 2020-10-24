@@ -23,11 +23,11 @@ spec:
         # - containerPort: 8000
         resources:
           limits:
-            cpu: 1
+            cpu: 4
             memory: 4Gi
           requests:
-            cpu: 100m
-            memory: 500Mi
+            cpu: 2
+            memory: 2G
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
             name: data
