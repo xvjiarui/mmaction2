@@ -29,7 +29,6 @@ def parse_args():
         help='model architecture: ' + ' | '.join(model_names) +
         ' (default: resnet18)')
     parser.add_argument(
-        '-b',
         '--batch-size',
         default=256,
         type=int,
@@ -37,7 +36,7 @@ def parse_args():
         help='mini-batch size (default: 256), this is the total '
         'batch size of all GPUs on the current node when '
         'using Data Parallel or Distributed Data Parallel')
-    parser.add_argument('--version', default='v1', choices=['v1', 'v2'])
+    parser.add_argument('--version', '-v', default='v1', choices=['v1', 'v2'])
     parser.add_argument('--wandb', '-w', action='store_true', help='use wandb')
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
@@ -54,7 +53,7 @@ def submit(args, rest):
     imgs_per_batch = args.batch_size * args.gpus
     multiplier = 256 * 8 // imgs_per_batch
     py_args = f'-a {args.arch} --lr {0.03 / multiplier} ' \
-              f'--batch-size {args.batch_size} ',
+              f'--batch-size {args.batch_size} '
     if args.version == 'v2':
         py_args += '--mlp --moco-t 0.2 --aug-plus --cos '
     if args.wandb:

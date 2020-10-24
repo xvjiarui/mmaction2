@@ -139,10 +139,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1,
-    metrics='davis',
-    key_indicator='feat_1.J&F-Mean',
-    rule='greater')
+    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
