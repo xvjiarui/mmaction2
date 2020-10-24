@@ -24,6 +24,8 @@ import torchvision.models as models
 
 import moco.loader
 import moco.builder
+import moco.datasets as moco_datasets
+import wandb
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -97,6 +99,14 @@ parser.add_argument('--aug-plus', action='store_true',
 parser.add_argument('--cos', action='store_true',
                     help='use cosine lr schedule')
 
+# options to speed up dataloading
+parser.add_argument('--anno', action='store_true',
+                    help='use annotation file')
+
+# options for logging
+parser.add_argument('--wandb', action='store_true',
+                    help='use wandb log')
+
 
 def main():
     args = parser.parse_args()
@@ -135,6 +145,12 @@ def main():
 
 def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
+
+    if args.multiprocessing_distributed and args.gpu == 0 and args.wandb:
+        wandb.init(project='mmaction2',
+                   name=f'moco_{args.arch}_{args.batch_size}x{ngpus_per_node}',
+                   tags=['vanilla_moco'],
+                   config=vars(args))
 
     # suppress printing if not master
     if args.multiprocessing_distributed and args.gpu != 0:
@@ -244,9 +260,14 @@ def main_worker(gpu, ngpus_per_node, args):
             normalize
         ]
 
-    train_dataset = datasets.ImageFolder(
-        traindir,
-        moco.loader.TwoCropsTransform(transforms.Compose(augmentation)))
+    if args.anno:
+        train_dataset = moco_datasets.ImageFolder(
+            traindir, traindir+'_map.txt',
+            moco.loader.TwoCropsTransform(transforms.Compose(augmentation)))
+    else:
+        train_dataset = datasets.ImageFolder(
+            traindir,
+            moco.loader.TwoCropsTransform(transforms.Compose(augmentation)))
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -320,6 +341,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+            total_steps = epoch * len(train_loader) + i
+            if args.multiprocessing_distributed and args.gpu == 0 and args.wandb:
+                metrics = dict()
+                for meter in progress.meters:
+                    metrics[meter.name] = meter.val
+                wandb.log(metrics, step=total_steps)
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
