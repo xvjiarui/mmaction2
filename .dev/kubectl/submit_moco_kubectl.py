@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
-        '--cpus', type=int, default=4, help='number of cpus to use')
+        '--cpus', type=int, default=8, help='number of cpus to use')
     parser.add_argument(
         '--name-space', '-n', type=str, default='self-supervised-video')
     args, rest = parser.parse_known_args()
@@ -50,8 +50,7 @@ def parse_args():
 
 
 def submit(args, rest):
-    imgs_per_batch = args.batch_size * args.gpus
-    multiplier = 256 * 8 // imgs_per_batch
+    multiplier = 256 // args.batch_size
     py_args = f'-a {args.arch} --lr {0.03 / multiplier} ' \
               f'--batch-size {args.batch_size} '
     if args.version == 'v2':
@@ -60,8 +59,8 @@ def submit(args, rest):
         py_args += '--wandb '
     py_args += ' '.join(rest)
     template_dict = dict(
-        job_name=f'vanilla_moco{args.version}_'
-        f'{args.arch}_{args.batch_size}x{args.gpus}',
+        job_name=f'vanilla-moco{args.version}-'
+        f'{args.arch}-{args.batch_size}x{args.gpus}-',
         name_space=args.name_space,
         branch=args.branch,
         gpus=args.gpus,

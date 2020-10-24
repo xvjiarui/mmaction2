@@ -146,12 +146,6 @@ def main():
 def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
 
-    if args.multiprocessing_distributed and args.gpu == 0 and args.wandb:
-        wandb.init(project='mmaction2',
-                   name=f'moco_{args.arch}_{args.batch_size}x{ngpus_per_node}',
-                   tags=['vanilla_moco'],
-                   config=vars(args))
-
     # suppress printing if not master
     if args.multiprocessing_distributed and args.gpu != 0:
         def print_pass(*args):
@@ -204,6 +198,12 @@ def main_worker(gpu, ngpus_per_node, args):
         # AllGather implementation (batch shuffle, queue update, etc.) in
         # this code only supports DistributedDataParallel.
         raise NotImplementedError("Only DistributedDataParallel is supported.")
+
+    if args.multiprocessing_distributed and args.gpu == 0 and args.wandb:
+        wandb.init(project='mmaction2',
+                   name=f'moco_{args.arch}_{args.batch_size}x{ngpus_per_node}',
+                   tags=['vanilla_moco'],
+                   config=vars(args))
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)

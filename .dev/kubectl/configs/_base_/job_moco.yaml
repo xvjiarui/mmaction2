@@ -22,11 +22,11 @@ spec:
         {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
-            memory: "6Gi"
+            memory: "128Gi"
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
           limits: # Maximum resources can be used for the job
-            memory: "32Gi"
+            memory: "128Gi"
             cpu: "32"
             nvidia.com/gpu: "{{ gpus }}"
         volumeMounts:
