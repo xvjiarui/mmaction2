@@ -10,18 +10,11 @@ model = dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(3, ),
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
-    neck=dict(
-        type='FPN',
-        in_channels=[64, 128, 256, 512],
-        out_channels=256,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
-        num_outs=4,
-        out_index=1),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -38,8 +31,9 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'),
-    patch_head=dict(
+        track_type='center'),
+    patch_head=None,
+    img_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
         in_channels=512,
@@ -53,11 +47,13 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
+    patch_size_moco=256,
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,
-    patch_geo_aug=True,
-    patch_color_aug=True,
+    mix_full_imgs=True,
+    img_geo_aug=False,
+    img_color_aug=False,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -66,8 +62,8 @@ test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    # strides=(1, 2, 1, 1),
-    out_indices=(0, ),
+    strides=(1, 2, 1, 1),
+    out_indices=(2, 3),
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
@@ -146,7 +142,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-1, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=1e-2, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -157,10 +153,13 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 10
+total_epochs = 30
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=1,
+    metrics='davis',
+    key_indicator='feat_1.J&F-Mean',
+    rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
@@ -172,7 +171,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['uvc-fpn-moco2'],
+                tags=['moco2'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,

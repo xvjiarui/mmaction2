@@ -202,5 +202,16 @@ class MoCoHead(nn.Module):
 
         losses = dict()
         if self.loss_feat is not None:
+            # l_pos = torch.einsum('nc,bc->nb', [query, key])
+            # # negative logits: NxK
+            # l_neg = torch.einsum('nc,ck->nk', [query, queue])
+            #
+            # # logits: Nx(1+K)
+            # logits_x = torch.cat([l_pos, l_neg], dim=1) / self.temperature
+            # # labels: positive key indicators
+            # labels_x = torch.arange(logits.shape[0], dtype=torch.long,
+            #                         device=logits.device)
+            #
+            # loss_x = self.xent(logits_x, labels_x)
             losses['loss_nce'] = self.loss_feat(logits, labels)
         return losses

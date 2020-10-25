@@ -22,7 +22,7 @@ spec:
         {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
-            memory: "128Gi"
+            memory: "32Gi"
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
           limits: # Maximum resources can be used for the job

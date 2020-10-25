@@ -38,7 +38,7 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='coord'),
+        track_type='center'),
     patch_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
@@ -53,6 +53,7 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
+    patch_moco_scale=(0.8, 2.0),
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,

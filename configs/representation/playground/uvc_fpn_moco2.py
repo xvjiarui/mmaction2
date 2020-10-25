@@ -66,9 +66,10 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
-    patch_size_moco=256,
+    # patch_size_moco=256,
+    patch_moco_scale=(0.8, 1.2),
     img_as_ref=True,
-    img_as_tar=True,
+    img_as_tar=False,
     img_as_embed=True,
     with_neg_bboxes=False,
     mix_full_imgs=False,

@@ -11,7 +11,7 @@ from .. import builder
 from ..common import (bbox_overlaps, concat_all_gather, crop_and_resize,
                       get_crop_grid, get_non_overlap_crop_bbox,
                       get_random_crop_bbox, get_top_diff_crop_bbox,
-                      images2video, video2images)
+                      images2video, scale_bboxes, video2images)
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -132,10 +132,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                     self.img_aug = None
             self.patch_img_size_moco = _pair(
                 self.train_cfg.get('patch_size_moco', self.patch_img_size))
-            self.patch_x_size_moco = (self.patch_img_size_moco[0] //
-                                      self.stride,
-                                      self.patch_img_size_moco[1] //
-                                      self.stride)
+            self.patch_moco_scale = self.train_cfg.get('patch_moco_scale', 1.)
 
     @property
     def with_patch_head(self):
@@ -284,14 +281,18 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                         trans=None,
                         shuffle_bn=False,
                         patch_img_size=None,
-                        patch_x_size=None):
+                        patch_x_size=None,
+                        stride=None):
         if patch_img_size is None:
             patch_img_size = self.patch_img_size
         if patch_x_size is None:
             patch_x_size = self.patch_x_size
+        if stride is None:
+            stride = self.stride
+        assert img.size(2) // x.size(2) == stride
+        assert patch_img_size[0] // patch_x_size[0] == stride
         if crop_first:
-            crop_img = crop_and_resize(img, bboxes * self.stride,
-                                       patch_img_size)
+            crop_img = crop_and_resize(img, bboxes * stride, patch_img_size)
             if trans is not None:
                 crop_img = trans(crop_img)
             if shuffle_bn:
@@ -478,19 +479,26 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                 loss.update(add_suffix(loss_skip, f'skip{step}'))
 
             # part 2: MoCo
+            moco_stride = imgs_q[:, :, 0].size(2) // x_q[:, :, 0].size(2)
+            patch_x_size_moco = (self.patch_img_size_moco[0] // moco_stride,
+                                 self.patch_img_size_moco[1] // moco_stride)
             for idx in range(step):
                 last_bboxes, _ = forward_hist[idx]
                 with torch.no_grad():
                     last_crop_x_k = self.crop_x_from_img(
                         imgs_k[:, :, idx].contiguous(),
                         x_k[:, :, idx].contiguous(),
-                        last_bboxes.clone().detach(),
+                        scale_bboxes(
+                            last_bboxes.clone().detach() * self.stride,
+                            imgs_k[:, :, idx].shape[2:], self.patch_moco_scale)
+                        / moco_stride,
                         partial(self.extract_encoder_feature, self.encoder_k),
                         crop_first=self.img_as_embed,
                         trans=self.patch_aug,
                         shuffle_bn=self.shuffle_bn,
                         patch_img_size=self.patch_img_size_moco,
-                        patch_x_size=self.patch_x_size_moco)
+                        patch_x_size=patch_x_size_moco,
+                        stride=moco_stride)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
                     if self.with_neg_bboxes:
                         neg_bboxes = get_non_overlap_crop_bbox(
@@ -500,25 +508,31 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                         last_crop_x_neg = self.crop_x_from_img(
                             imgs_k[:, :, idx].contiguous(),
                             x_k[:, :, idx].contiguous(),
-                            neg_bboxes,
+                            scale_bboxes(neg_bboxes * self.stride,
+                                         imgs_k[:, :, idx].shape[2:],
+                                         self.patch_moco_scale) / moco_stride,
                             partial(self.extract_encoder_feature,
                                     self.encoder_k),
                             crop_first=self.img_as_embed,
                             trans=self.patch_aug,
                             shuffle_bn=self.shuffle_bn,
                             patch_img_size=self.patch_img_size_moco,
-                            patch_x_size=self.patch_x_size_moco)
+                            patch_x_size=patch_x_size_moco,
+                            stride=moco_stride)
                         patch_embed_x_neg.append(
                             self.patch_head_k(last_crop_x_neg))
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
-                    last_bboxes.clone().detach(),
+                    scale_bboxes(last_bboxes.clone().detach() * self.stride,
+                                 imgs_q[:, :, idx].shape[2:],
+                                 self.patch_moco_scale) / moco_stride,
                     partial(self.extract_encoder_feature, self.encoder_q),
                     crop_first=self.img_as_embed,
                     trans=self.patch_aug,
                     patch_img_size=self.patch_img_size_moco,
-                    patch_x_size=self.patch_x_size_moco)
+                    patch_x_size=patch_x_size_moco,
+                    stride=moco_stride)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
             for idx in reversed(range(step - 1)):
                 last_bboxes, _ = backward_hist[idx]
@@ -526,13 +540,17 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                     last_crop_x_k = self.crop_x_from_img(
                         imgs_k[:, :, idx].contiguous(),
                         x_k[:, :, idx].contiguous(),
-                        last_bboxes.clone().detach(),
+                        scale_bboxes(
+                            last_bboxes.clone().detach() * self.stride,
+                            imgs_k[:, :, idx].shape[2:], self.patch_moco_scale)
+                        / moco_stride,
                         partial(self.extract_encoder_feature, self.encoder_k),
                         crop_first=self.img_as_embed,
                         trans=self.patch_aug,
                         shuffle_bn=self.shuffle_bn,
                         patch_img_size=self.patch_img_size_moco,
-                        patch_x_size=self.patch_x_size_moco)
+                        patch_x_size=patch_x_size_moco,
+                        stride=moco_stride)
                     patch_embed_x_k.append(self.patch_head_k(last_crop_x_k))
                     if self.with_neg_bboxes:
                         neg_bboxes = get_non_overlap_crop_bbox(
@@ -542,25 +560,31 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                         last_crop_x_neg = self.crop_x_from_img(
                             imgs_k[:, :, idx].contiguous(),
                             x_k[:, :, idx].contiguous(),
-                            neg_bboxes,
+                            scale_bboxes(neg_bboxes * self.stride,
+                                         imgs_k[:, :, idx].shape[2:],
+                                         self.patch_moco_scale) / moco_stride,
                             partial(self.extract_encoder_feature,
                                     self.encoder_k),
                             crop_first=self.img_as_embed,
                             trans=self.patch_aug,
                             shuffle_bn=self.shuffle_bn,
                             patch_img_size=self.patch_img_size_moco,
-                            patch_x_size=self.patch_x_size_moco)
+                            patch_x_size=patch_x_size_moco,
+                            stride=moco_stride)
                         patch_embed_x_neg.append(
                             self.patch_head_k(last_crop_x_neg))
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
-                    last_bboxes.clone().detach(),
+                    scale_bboxes(last_bboxes.clone().detach() * self.stride,
+                                 imgs_q[:, :, idx].shape[2:],
+                                 self.patch_moco_scale) / moco_stride,
                     partial(self.extract_encoder_feature, self.encoder_q),
                     crop_first=self.img_as_embed,
                     trans=self.patch_aug,
                     patch_img_size=self.patch_img_size_moco,
-                    patch_x_size=self.patch_x_size_moco)
+                    patch_x_size=patch_x_size_moco,
+                    stride=moco_stride)
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
 
         patch_embed_x_k = torch.stack(patch_embed_x_k, dim=2)

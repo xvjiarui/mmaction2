@@ -416,3 +416,38 @@ def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
     ious = overlap / union
 
     return ious
+
+
+def scale_bboxes(bboxes, img_size, scale=1.):
+    assert bboxes.size(1) == 4
+    assert bboxes.ndim == 2
+    batches = bboxes.size(0)
+    x1 = bboxes[..., 0]
+    y1 = bboxes[..., 1]
+    x2 = bboxes[..., 2]
+    y2 = bboxes[..., 3]
+    center_x = (x1 + x2) * 0.5
+    center_y = (y1 + y2) * 0.5
+    width = x2 - x1
+    height = y2 - y1
+
+    if isinstance(scale, tuple):
+        scale = torch.rand(
+            batches, device=bboxes.device) * (scale[1] - scale[0]) + scale[0]
+
+    new_width = width * scale
+    new_height = height * scale
+
+    new_x1 = center_x - new_width * 0.5
+    new_y1 = center_y - new_height * 0.5
+    new_x2 = center_x + new_width * 0.5
+    new_y2 = center_y + new_height * 0.5
+
+    new_x1.clamp_(min=0, max=img_size[1])
+    new_y1.clamp_(min=0, max=img_size[0])
+    new_x2.clamp_(min=0, max=img_size[1])
+    new_y2.clamp_(min=0, max=img_size[0])
+
+    new_bboxes = torch.stack([new_x1, new_y1, new_x2, new_y2], dim=1)
+
+    return new_bboxes
