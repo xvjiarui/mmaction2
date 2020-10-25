@@ -154,3 +154,25 @@ def _batch_unshuffle_ddp(x, idx_unshuffle):
     idx_this = idx_unshuffle.view(num_gpus, -1)[gpu_idx]
 
     return x_gather[idx_this]
+
+
+class Clamp(nn.Module):
+
+    def __init__(self, min=None, max=None):
+        super(Clamp, self).__init__()
+        self.min = min
+        self.max = max
+        assert self.min is not None or self.max is not None
+
+    def forward(self, x):
+        kwargs = {}
+        if self.min is not None:
+            kwargs['min'] = self.min
+        if self.max is not None:
+            kwargs['max'] = self.max
+        return x.clamp(**kwargs)
+
+    def extra_repr(self):
+        """Extra repr."""
+        s = f'min={self.min}, max={self.max}'
+        return s

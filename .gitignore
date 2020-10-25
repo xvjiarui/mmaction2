@@ -117,6 +117,10 @@ work_dirs/
 
 # Pytorch
 *.pth
+*.pth.tar
+
+# W&B
+wandb/
 
 # Profile
 *.prof

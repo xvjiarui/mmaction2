@@ -8,7 +8,7 @@ from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_prefix, add_suffix
 from .. import builder
-from ..common import (bbox_overlaps, concat_all_gather, crop_and_resize,
+from ..common import (Clamp, bbox_overlaps, concat_all_gather, crop_and_resize,
                       get_crop_grid, get_non_overlap_crop_bbox,
                       get_random_crop_bbox, get_top_diff_crop_bbox,
                       images2video, scale_bboxes, video2images)
@@ -66,13 +66,14 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
             patch_aug = []
             if self.train_cfg.get('patch_geo_aug', False):
-                patch_aug.append(K.RandomRotation(degrees=10))
+                if self.train_cfg.get('patch_crop_aug', False):
+                    patch_aug.append(
+                        K.RandomResizedCrop(
+                            size=self.patch_img_size, scale=(0.2, 1)))
+                else:
+                    patch_aug.append(K.RandomRotation(degrees=10))
                 patch_aug.append(K.RandomHorizontalFlip(p=0.5))
             if self.train_cfg.get('patch_color_aug', False):
-                patch_aug.append(
-                    K.Denormalize(
-                        mean=torch.tensor([0.485, 0.456, 0.406]),
-                        std=torch.tensor([0.229, 0.224, 0.225])))
                 patch_aug.append(
                     K.ColorJitter(
                         brightness=0.4,
@@ -81,12 +82,15 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                         hue=0.1,
                         p=0.8))
                 patch_aug.append(K.RandomGrayscale(p=0.2))
-                patch_aug.append(
+            if len(patch_aug) > 0:
+                self.patch_aug = nn.Sequential(
+                    K.Denormalize(
+                        mean=torch.tensor([0.485, 0.456, 0.406]),
+                        std=torch.tensor([0.229, 0.224, 0.225])),
+                    Clamp(min=0, max=1), *patch_aug,
                     K.Normalize(
                         mean=torch.tensor([0.485, 0.456, 0.406]),
                         std=torch.tensor([0.229, 0.224, 0.225])))
-            if len(patch_aug) > 0:
-                self.patch_aug = nn.Sequential(*patch_aug)
             else:
                 self.patch_aug = nn.Identity()
             self.skip_cycle = self.train_cfg.get('skip_cycle', False)
@@ -111,10 +115,6 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                     img_aug.append(K.RandomHorizontalFlip(p=0.5))
                 if self.train_cfg.get('img_color_aug', False):
                     img_aug.append(
-                        K.Denormalize(
-                            mean=torch.tensor([0.485, 0.456, 0.406]),
-                            std=torch.tensor([0.229, 0.224, 0.225])))
-                    img_aug.append(
                         K.ColorJitter(
                             brightness=0.4,
                             contrast=0.4,
@@ -122,12 +122,15 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                             hue=0.1,
                             p=0.8))
                     img_aug.append(K.RandomGrayscale(p=0.2))
-                    img_aug.append(
+                if len(img_aug) > 0:
+                    self.img_aug = nn.Sequential(
+                        K.Denormalize(
+                            mean=torch.tensor([0.485, 0.456, 0.406]),
+                            std=torch.tensor([0.229, 0.224, 0.225])),
+                        Clamp(min=0, max=1), *img_aug,
                         K.Normalize(
                             mean=torch.tensor([0.485, 0.456, 0.406]),
                             std=torch.tensor([0.229, 0.224, 0.225])))
-                if len(img_aug) > 0:
-                    self.img_aug = nn.Sequential(*img_aug)
                 else:
                     self.img_aug = None
             self.patch_img_size_moco = _pair(
@@ -484,14 +487,14 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                                  self.patch_img_size_moco[1] // moco_stride)
             for idx in range(step):
                 last_bboxes, _ = forward_hist[idx]
+                last_bboxes = last_bboxes.clone().detach()
                 with torch.no_grad():
                     last_crop_x_k = self.crop_x_from_img(
                         imgs_k[:, :, idx].contiguous(),
                         x_k[:, :, idx].contiguous(),
-                        scale_bboxes(
-                            last_bboxes.clone().detach() * self.stride,
-                            imgs_k[:, :, idx].shape[2:], self.patch_moco_scale)
-                        / moco_stride,
+                        scale_bboxes(last_bboxes * self.stride,
+                                     imgs_k[:, :, idx].shape[2:],
+                                     self.patch_moco_scale) / moco_stride,
                         partial(self.extract_encoder_feature, self.encoder_k),
                         crop_first=self.img_as_embed,
                         trans=self.patch_aug,
@@ -524,7 +527,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
-                    scale_bboxes(last_bboxes.clone().detach() * self.stride,
+                    scale_bboxes(last_bboxes * self.stride,
                                  imgs_q[:, :, idx].shape[2:],
                                  self.patch_moco_scale) / moco_stride,
                     partial(self.extract_encoder_feature, self.encoder_q),
@@ -536,14 +539,14 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                 patch_embed_x_q.append(self.patch_head_q(last_crop_x_q))
             for idx in reversed(range(step - 1)):
                 last_bboxes, _ = backward_hist[idx]
+                last_bboxes = last_bboxes.clone().detach()
                 with torch.no_grad():
                     last_crop_x_k = self.crop_x_from_img(
                         imgs_k[:, :, idx].contiguous(),
                         x_k[:, :, idx].contiguous(),
-                        scale_bboxes(
-                            last_bboxes.clone().detach() * self.stride,
-                            imgs_k[:, :, idx].shape[2:], self.patch_moco_scale)
-                        / moco_stride,
+                        scale_bboxes(last_bboxes * self.stride,
+                                     imgs_k[:, :, idx].shape[2:],
+                                     self.patch_moco_scale) / moco_stride,
                         partial(self.extract_encoder_feature, self.encoder_k),
                         crop_first=self.img_as_embed,
                         trans=self.patch_aug,
@@ -576,7 +579,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                 last_crop_x_q = self.crop_x_from_img(
                     imgs_q[:, :, idx].contiguous(),
                     x_q[:, :, idx].contiguous(),
-                    scale_bboxes(last_bboxes.clone().detach() * self.stride,
+                    scale_bboxes(last_bboxes * self.stride,
                                  imgs_q[:, :, idx].shape[2:],
                                  self.patch_moco_scale) / moco_stride,
                     partial(self.extract_encoder_feature, self.encoder_q),

@@ -1,5 +1,6 @@
 from typing import Tuple
 
+import mmcv
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -432,6 +433,7 @@ def scale_bboxes(bboxes, img_size, scale=1.):
     height = y2 - y1
 
     if isinstance(scale, tuple):
+        assert scale[1] >= scale[0]
         scale = torch.rand(
             batches, device=bboxes.device) * (scale[1] - scale[0]) + scale[0]
 
@@ -451,3 +453,14 @@ def scale_bboxes(bboxes, img_size, scale=1.):
     new_bboxes = torch.stack([new_x1, new_y1, new_x2, new_y2], dim=1)
 
     return new_bboxes
+
+
+def vis_bboxes(img):
+    mean = torch.tensor([123.675, 116.28, 103.53]).to(img).view(1, 3, 1, 1)
+    std = torch.tensor([58.395, 57.12, 57.375]).to(img).view(1, 3, 1, 1)
+    save_img = img * std + mean
+    for save_idx in range(save_img.size(0)):
+        img_cur = save_img[save_idx].permute(1, 2, 0).detach().cpu().numpy()
+        img_cur = mmcv.rgb2bgr(img_cur)
+        mmcv.mkdir_or_exist('debug_results')
+        mmcv.imwrite(img_cur, f'debug_results/{save_idx}.jpg')

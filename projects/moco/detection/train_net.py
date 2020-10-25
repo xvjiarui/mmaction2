@@ -72,20 +72,23 @@ if __name__ == "__main__":
     cfg.PRETRAINED_CKPT = ""
     cfg.merge_from_list(args.opts)
     pretrained_ckpt = cfg.PRETRAINED_CKPT
-    weight_path = os.path.realpath(pretrained_ckpt).replace('epoch_', os.path.basename(cfg.MMACTION_CFG)+'_ep').replace('.pth', '-d2.pkl')
-    os.system(f'MKL_THREADING_LAYER=GNU python projects/moco/detection/convert-mmaction-to-detectron2.py {pretrained_ckpt} {weight_path}')
-    mmaction_cfg = mmcv.Config.fromfile(cfg.MMACTION_CFG)
-    args.opts.extend(['MODEL.WEIGHTS', weight_path])
-    for h in mmaction_cfg.log_config.hooks:
-        if h.type == 'WandbLoggerHook':
-            wandb_cfg = h.init_kwargs.to_dict()
-            os.makedirs(f'wandb/{os.path.basename(weight_path)}', exist_ok=True)
-            wandb_cfg.update(
-                dict(
-                    name=os.path.basename(weight_path),
-                    resume=False,
-                    dir=f'wandb/{os.path.basename(weight_path)}'))
-            wandb.init(**wandb_cfg)
+    if len(pretrained_ckpt):
+        assert os.path.exists(pretrained_ckpt)
+        weight_path = os.path.realpath(pretrained_ckpt).replace('epoch_', os.path.basename(cfg.MMACTION_CFG)+'_ep').replace('.pth', '-d2.pkl')
+        os.system(f'MKL_THREADING_LAYER=GNU python projects/moco/detection/convert-mmaction-to-detectron2.py {pretrained_ckpt} {weight_path}')
+        args.opts.extend(['MODEL.WEIGHTS', weight_path])
+    if len(cfg.MMACTION_CFG) and len(pretrained_ckpt):
+        mmaction_cfg = mmcv.Config.fromfile(cfg.MMACTION_CFG)
+        for h in mmaction_cfg.log_config.hooks:
+            if h.type == 'WandbLoggerHook':
+                wandb_cfg = h.init_kwargs.to_dict()
+                os.makedirs(f'wandb/{os.path.basename(weight_path)}', exist_ok=True)
+                wandb_cfg.update(
+                    dict(
+                        name=os.path.basename(weight_path),
+                        resume=False,
+                        dir=f'wandb/{os.path.basename(weight_path)}'))
+                wandb.init(**wandb_cfg)
     print("Command Line Args:", args)
     launch(
         main,
@@ -95,8 +98,9 @@ if __name__ == "__main__":
         dist_url=args.dist_url,
         args=(args,),
     )
-    with open('output/metrics.json', 'r') as f:
-        for line in f:
-            log = json.loads(line)
-            iterations = log.pop('iteration')
-            wandb.log(log, step=iterations)
+    if len(cfg.MMACTION_CFG):
+        with open('output/metrics.json', 'r') as f:
+            for line in f:
+                log = json.loads(line)
+                iterations = log.pop('iteration')
+                wandb.log(log, step=iterations)

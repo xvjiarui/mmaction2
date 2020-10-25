@@ -47,17 +47,20 @@ model = dict(
         # kernel_size=3,
         # norm_cfg=dict(type='BN'),
         # act_cfg=dict(type='ReLU'),
+        multi_pair=False,
         channels=query_dim,
         temperature=temperature,
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
+    patch_moco_scale=(0.8, 2.0),
     img_as_ref=True,
     img_as_tar=False,
-    img_as_embed=False,
+    img_as_embed=True,
     patch_geo_aug=True,
-    patch_color_aug=False,
+    patch_color_aug=True,
+    patch_crop_aug=True,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -157,7 +160,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 10
+total_epochs = 30
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
