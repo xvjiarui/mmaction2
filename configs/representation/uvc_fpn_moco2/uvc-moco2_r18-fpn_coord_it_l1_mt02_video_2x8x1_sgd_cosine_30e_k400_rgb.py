@@ -1,20 +1,27 @@
 # model settings
-temperature = 0.2
+temperature = 0.01
 with_norm = True
 query_dim = 128
 model = dict(
     type='UVCNeckMoCoTrackerV2',
     queue_dim=query_dim,
-    patch_queue_size=256 * 256,
+    patch_queue_size=256 * 144 * 5,
     backbone=dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(3, ),
+        out_indices=(0, 1, 2, 3),
         # strides=(1, 2, 1, 1),
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
+    neck=dict(
+        type='FPN',
+        in_channels=[64, 128, 256, 512],
+        out_channels=256,
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        num_outs=4,
+        out_index=1),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -31,9 +38,8 @@ model = dict(
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
-        track_type='center'),
-    patch_head=None,
-    img_head=dict(
+        track_type='coord'),
+    patch_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
         in_channels=512,
@@ -41,20 +47,17 @@ model = dict(
         # kernel_size=3,
         # norm_cfg=dict(type='BN'),
         # act_cfg=dict(type='ReLU'),
-        multi_pair=False,
-        intra_batch=True,
         channels=query_dim,
-        temperature=temperature,
+        temperature=0.2,
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
-    patch_size_moco=256,
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,
-    mix_full_imgs=True,
-    img_geo_aug=False,
+    patch_geo_aug=True,
+    patch_color_aug=True,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -63,16 +66,16 @@ test_cfg = dict(
     precede_frames=7,
     topk=5,
     temperature=temperature,
-    strides=(1, 2, 1, 1),
-    out_indices=(2, 3),
+    # strides=(1, 2, 1, 1),
+    out_indices=(0, ),
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
 # dataset settings
-dataset_type = 'ImageDataset'
+dataset_type = 'VideoDataset'
 dataset_type_val = 'DavisDataset'
-data_prefix = 'data/imagenet/2012/train'
-ann_file_train = 'data/imagenet/2012/train_map.txt'
+data_prefix = 'data/kinetics400/videos_train'
+ann_file_train = 'data/kinetics400/kinetics400_train_list_videos.txt'
 data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
@@ -80,39 +83,24 @@ ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
-    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=1),
+    dict(type='DecordInit'),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
-    dict(type='RawImageDecode'),
-    dict(
-        type='RandomResizedCrop',
-        area_range=(0.2, 1.),
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(type='Resize', scale=(224, 224), keep_ratio=False),
-    dict(
-        type='Flip',
-        flip_ratio=0.5,
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(
-        type='ColorJitter',
-        brightness=0.4,
-        contrast=0.4,
-        saturation=0.4,
-        hue=0.1,
-        p=0.8,
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(
-        type='RandomGrayScale',
-        p=0.2,
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(
-        type='RandomGaussianBlur',
-        p=0.5,
-        same_across_clip=False,
-        same_on_clip=False),
+    dict(type='DecordDecode'),
+    # dict(type='Resize', scale=(-1, 256)),
+    # dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
+    dict(type='Resize', scale=(256, 256), keep_ratio=False),
+    dict(type='Flip', flip_ratio=0.5),
+    # dict(
+    #     type='ColorJitter',
+    #     brightness=0.4,
+    #     contrast=0.4,
+    #     saturation=0.4,
+    #     hue=0.1,
+    #     p=0.8,
+    #     same_across_clip=False),
+    # dict(type='RandomGrayScale', p=0.2, same_across_clip=False),
+    # dict(type='RandomGaussianBlur', p=0.5, same_across_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -132,7 +120,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=128,
+    videos_per_gpu=48,
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
@@ -158,7 +146,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=3e-2, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=1e-1, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -169,13 +157,10 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 200
+total_epochs = 10
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1,
-    metrics='davis',
-    key_indicator='feat_1.J&F-Mean',
-    rule='greater')
+    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
@@ -187,7 +172,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['moco2'],
+                tags=['uvc-fpn-moco2'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,

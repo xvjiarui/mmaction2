@@ -110,8 +110,10 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
             if self.mix_full_imgs or self.with_img_head:
                 img_aug = []
                 if self.train_cfg.get('img_geo_aug', False):
+                    img_size = self.train_cfg.get('img_size', 256)
                     img_aug.append(
-                        K.RandomResizedCrop(size=(256, 256), scale=(0.2, 1)))
+                        K.RandomResizedCrop(
+                            size=(img_size, img_size), scale=(0.2, 1)))
                     img_aug.append(K.RandomHorizontalFlip(p=0.5))
                 if self.train_cfg.get('img_color_aug', False):
                     img_aug.append(

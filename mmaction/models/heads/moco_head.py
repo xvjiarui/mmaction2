@@ -40,6 +40,7 @@ class MoCoHead(nn.Module):
                  temperature=1.,
                  spatial_type='avg',
                  multi_pair=True,
+                 intra_batch=True,
                  **kwargs):
         super().__init__()
         self.in_channels = in_channels
@@ -110,6 +111,9 @@ class MoCoHead(nn.Module):
         assert spatial_type in ['avg', None]
         self.spatial_type = spatial_type
         self.multi_pair = multi_pair
+        self.intra_batch = intra_batch
+        if not intra_batch:
+            assert not multi_pair
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
@@ -169,20 +173,34 @@ class MoCoHead(nn.Module):
         query = query.transpose(1, 2).reshape(batches * clip_len, channels)
         # [NxT, C]
         key = key.transpose(1, 2).reshape(batches * clip_len, channels)
-        # [NxT, NxT+K] <- [NxT, C] * [C, NxT+K]
-        logits = torch.mm(query, torch.cat([key.T, queue], dim=1))
+        if self.intra_batch:
+            # [NxT, NxT+K] <- [NxT, C] * [C, NxT+K]
+            logits = torch.mm(query, torch.cat([key.T, queue], dim=1))
+        else:
+            # [NxT, K+1] <- [NxT, C] * [C, K+1]
+            logits = torch.cat([
+                torch.einsum('nc,nc->n', [query, key]).unsqueeze(-1),
+                torch.mm(query, queue)
+            ],
+                               dim=1)
 
-        # [NxT, NxT]
         if self.multi_pair:
+            # [NxT, NxT]
             key_labels = torch.block_diag(
                 *[logits.new_ones((clip_len, clip_len), dtype=torch.long)] *
                 batches)
         else:
-            key_labels = torch.eye(
-                batches * clip_len, device=key.device, dtype=torch.long)
+            if self.intra_batch:
+                # [NxT, NxT]
+                key_labels = torch.eye(
+                    batches * clip_len, device=key.device, dtype=torch.long)
+            else:
+                # [NxT, 1]
+                key_labels = torch.ones(
+                    batches * clip_len, 1, device=key.device, dtype=torch.long)
         queue_labels = logits.new_zeros((batches * clip_len, queue_size),
                                         dtype=torch.long)
-        # [NxT, NxT+k]
+        # [NxT, NxT+K] or [NxT, 1+K]
         labels = torch.cat([key_labels, queue_labels], dim=1)
 
         # # compute logits

@@ -5,14 +5,14 @@ query_dim = 128
 model = dict(
     type='UVCNeckMoCoTrackerV2',
     queue_dim=query_dim,
-    patch_queue_size=256 * 144 * 5,
+    patch_queue_size=256 * 256,
     backbone=dict(
         type='ResNet',
         pretrained=None,
         depth=18,
         out_indices=(3, ),
         # strides=(1, 2, 1, 1),
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
     cls_head=dict(
@@ -41,6 +41,8 @@ model = dict(
         # kernel_size=3,
         # norm_cfg=dict(type='BN'),
         # act_cfg=dict(type='ReLU'),
+        multi_pair=False,
+        intra_batch=True,
         channels=query_dim,
         temperature=temperature,
         with_norm=with_norm))
@@ -82,13 +84,12 @@ train_pipeline = [
     dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
     dict(type='RawImageDecode'),
-    dict(type='Resize', scale=(-1, 256)),
     dict(
         type='RandomResizedCrop',
         area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
     dict(
         type='Flip',
         flip_ratio=0.5,
@@ -132,8 +133,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=96,
-    workers_per_gpu=4,
+    videos_per_gpu=128,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
@@ -158,7 +159,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-2, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=3e-2, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -169,7 +170,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 30
+total_epochs = 200
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -177,7 +178,7 @@ evaluation = dict(
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=50,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
