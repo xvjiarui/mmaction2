@@ -30,7 +30,11 @@ def parse_args():
         '--mem', type=int, default=6, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
-        '--name-space', '-n', type=str, default='self-supervised-video')
+        '--name-space',
+        '-n',
+        type=str,
+        default='self-supervised-video',
+        choices=['self-supervised-video', 'ece3d-vision'])
     args, rest = parser.parse_known_args()
 
     return args, rest
