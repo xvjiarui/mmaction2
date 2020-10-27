@@ -163,7 +163,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 10
+total_epochs = 30
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
