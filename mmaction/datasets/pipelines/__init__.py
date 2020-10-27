@@ -10,7 +10,7 @@ from .loading import (DecordDecode, DecordInit, DenseSampleFrames,
                       DuplicateFrames, FrameSelector,
                       GenerateLocalizationLabels, LoadLocalizationFeature,
                       LoadProposals, OpenCVDecode, OpenCVInit, PyAVDecode,
-                      PyAVInit, RawFrameDecode, SampleFrames,
+                      PyAVInit, RawFrameDecode, RawImageDecode, SampleFrames,
                       SampleProposalFrames, SequentialSampleFrames,
                       UntrimmedSampleFrames)
 
@@ -24,5 +24,5 @@ __all__ = [
     'DecordInit', 'OpenCVInit', 'PyAVInit', 'SampleProposalFrames',
     'UntrimmedSampleFrames', 'RawFrameDecode', 'SequentialSampleFrames',
     'PhotoMetricDistortion', 'RGB2LAB', 'RandomGaussianBlur',
-    'RandomGrayScale', 'DuplicateFrames', 'ColorJitter'
+    'RandomGrayScale', 'DuplicateFrames', 'ColorJitter', 'RawImageDecode'
 ]

@@ -961,6 +961,65 @@ class RawFrameDecode(object):
 
 
 @PIPELINES.register_module()
+class RawImageDecode(object):
+    """Load and decode frames with given indices.
+
+    Required keys are "frame_dir", "filename_tmpl" and "frame_inds",
+    added or modified keys are "imgs", "img_shape" and "original_shape".
+
+    Args:
+        io_backend (str): IO backend where frames are stored. Default: 'disk'.
+        decoding_backend (str): Backend used for image decoding.
+            Default: 'cv2'.
+        kwargs (dict, optional): Arguments for FileClient.
+    """
+
+    def __init__(self, io_backend='disk', decoding_backend='cv2', **kwargs):
+        self.io_backend = io_backend
+        self.decoding_backend = decoding_backend
+        self.kwargs = kwargs
+        self.file_client = None
+
+    def __call__(self, results):
+        """Perform the ``RawFrameDecode`` to pick frames given indices.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        mmcv.use_backend(self.decoding_backend)
+
+        if self.file_client is None:
+            self.file_client = FileClient(self.io_backend, **self.kwargs)
+
+        imgs = list()
+
+        if results['frame_inds'].ndim != 1:
+            results['frame_inds'] = np.squeeze(results['frame_inds'])
+
+        offset = results.get('offset', 0)
+
+        # image decode check
+        assert np.all(results['frame_inds'] == 0)
+        assert offset == 0
+        filename = results['filename']
+
+        for frame_idx in results['frame_inds']:
+            frame_idx += offset
+            filepath = osp.join(filename)
+            img_bytes = self.file_client.get(filepath)
+            # Get frame with channel order RGB directly.
+            cur_frame = mmcv.imfrombytes(img_bytes, channel_order='rgb')
+            imgs.append(cur_frame)
+
+        results['imgs'] = imgs
+        results['original_shape'] = imgs[0].shape[:2]
+        results['img_shape'] = imgs[0].shape[:2]
+
+        return results
+
+
+@PIPELINES.register_module()
 class FrameSelector(RawFrameDecode):
     """Deprecated class for ``RawFrameDecode``."""
 

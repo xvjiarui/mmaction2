@@ -1,3 +1,4 @@
+import os.path as osp
 from typing import Tuple
 
 import mmcv
@@ -455,12 +456,12 @@ def scale_bboxes(bboxes, img_size, scale=1.):
     return new_bboxes
 
 
-def vis_bboxes(img):
+def vis_imgs(img, save_dir='debug_results'):
     mean = torch.tensor([123.675, 116.28, 103.53]).to(img).view(1, 3, 1, 1)
     std = torch.tensor([58.395, 57.12, 57.375]).to(img).view(1, 3, 1, 1)
     save_img = img * std + mean
     for save_idx in range(save_img.size(0)):
         img_cur = save_img[save_idx].permute(1, 2, 0).detach().cpu().numpy()
         img_cur = mmcv.rgb2bgr(img_cur)
-        mmcv.mkdir_or_exist('debug_results')
-        mmcv.imwrite(img_cur, f'debug_results/{save_idx}.jpg')
+        mmcv.mkdir_or_exist(save_dir)
+        mmcv.imwrite(img_cur, osp.join(save_dir, f'{save_idx}.jpg'))
