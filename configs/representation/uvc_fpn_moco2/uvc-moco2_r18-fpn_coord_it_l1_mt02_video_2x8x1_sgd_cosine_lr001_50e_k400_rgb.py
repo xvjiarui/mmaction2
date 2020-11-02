@@ -39,13 +39,6 @@ model = dict(
         with_norm=with_norm,
         init_std=0.01,
         track_type='coord'),
-    img_head=dict(
-        type='MoCoHead',
-        loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
-        in_channels=512,
-        channels=query_dim,
-        temperature=temperature,
-        with_norm=with_norm),
     patch_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
@@ -55,7 +48,7 @@ model = dict(
         # norm_cfg=dict(type='BN'),
         # act_cfg=dict(type='ReLU'),
         channels=query_dim,
-        temperature=temperature,
+        temperature=0.2,
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
@@ -63,8 +56,6 @@ train_cfg = dict(
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,
-    img_color_aug=False,
-    img_geo_aug=False,
     patch_geo_aug=True,
     patch_color_aug=True,
     diff_crop=True,
@@ -74,9 +65,11 @@ train_cfg = dict(
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=temperature,
-    # strides=(1, 2, 1, 1),
-    out_indices=(0, ),
+    temperature=0.2,
+    strides=(1, 2, 1, 1),
+    out_indices=(2, 3),
+    use_fpn=True,
+    use_backbone=True,
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
@@ -129,8 +122,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
-    workers_per_gpu=4,
+    videos_per_gpu=48,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
@@ -166,10 +159,14 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 10
+total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=total_epochs,
+    save_best=False,
+    metrics='davis',
+    key_indicator='J&F-Mean',
+    rule='greater')
 log_config = dict(
     interval=50,
     hooks=[

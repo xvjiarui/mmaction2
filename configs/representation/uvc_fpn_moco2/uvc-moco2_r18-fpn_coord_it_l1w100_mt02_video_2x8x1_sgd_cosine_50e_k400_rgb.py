@@ -1,5 +1,5 @@
 # model settings
-temperature = 0.1
+temperature = 0.01
 with_norm = True
 query_dim = 128
 model = dict(
@@ -32,20 +32,13 @@ model = dict(
             temperature=temperature,
             with_norm=with_norm,
             loss_weight=1.),
-        loss_bbox=dict(type='L1Loss', loss_weight=10.),
+        loss_bbox=dict(type='L1Loss', loss_weight=100.),
         in_channels=256,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
         track_type='coord'),
-    img_head=dict(
-        type='MoCoHead',
-        loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
-        in_channels=512,
-        channels=query_dim,
-        temperature=temperature,
-        with_norm=with_norm),
     patch_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
@@ -55,7 +48,7 @@ model = dict(
         # norm_cfg=dict(type='BN'),
         # act_cfg=dict(type='ReLU'),
         channels=query_dim,
-        temperature=temperature,
+        temperature=0.2,
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
@@ -63,8 +56,6 @@ train_cfg = dict(
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,
-    img_color_aug=True,
-    img_geo_aug=True,
     patch_geo_aug=True,
     patch_color_aug=True,
     diff_crop=True,
@@ -74,9 +65,11 @@ train_cfg = dict(
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=temperature,
-    # strides=(1, 2, 1, 1),
-    out_indices=(0, ),
+    temperature=0.2,
+    strides=(1, 2, 1, 1),
+    out_indices=(2, 3),
+    use_fpn=True,
+    use_backbone=True,
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
@@ -129,8 +122,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
-    workers_per_gpu=4,
+    videos_per_gpu=48,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
@@ -155,7 +148,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-2, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=1e-1, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -166,10 +159,14 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 10
+total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=total_epochs,
+    save_best=False,
+    metrics='davis',
+    key_indicator='J&F-Mean',
+    rule='greater')
 log_config = dict(
     interval=50,
     hooks=[

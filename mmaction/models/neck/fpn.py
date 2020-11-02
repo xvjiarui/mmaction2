@@ -75,6 +75,7 @@ class FPN(nn.Module):
                  norm_cfg=None,
                  act_cfg=None,
                  upsample_cfg=dict(mode='bilinear', align_corners=False),
+                 extra_fpn_out_act=False,
                  out_index=0):
         super(FPN, self).__init__()
         assert isinstance(in_channels, list)
@@ -87,6 +88,7 @@ class FPN(nn.Module):
         self.fp16_enabled = False
         self.upsample_cfg = upsample_cfg.copy()
         self.out_index = out_index
+        self.extra_fpn_out_act = extra_fpn_out_act
         assert out_index < num_outs
 
         if end_level == -1:
@@ -129,15 +131,35 @@ class FPN(nn.Module):
                 l_conv = None
 
             if i == self.out_index:
-                fpn_conv = ConvModule(
-                    out_channels,
-                    out_channels,
-                    3,
-                    padding=1,
-                    conv_cfg=conv_cfg,
-                    norm_cfg=norm_cfg,
-                    act_cfg=act_cfg,
-                    inplace=False)
+                if self.extra_fpn_out_act:
+                    fpn_conv = nn.Sequential(
+                        ConvModule(
+                            out_channels,
+                            out_channels,
+                            3,
+                            padding=1,
+                            conv_cfg=conv_cfg,
+                            norm_cfg=norm_cfg,
+                            act_cfg=act_cfg,
+                            inplace=False), nn.ReLU(),
+                        ConvModule(
+                            out_channels,
+                            out_channels,
+                            1,
+                            conv_cfg=conv_cfg,
+                            norm_cfg=norm_cfg,
+                            act_cfg=act_cfg,
+                            inplace=False))
+                else:
+                    fpn_conv = ConvModule(
+                        out_channels,
+                        out_channels,
+                        3,
+                        padding=1,
+                        conv_cfg=conv_cfg,
+                        norm_cfg=norm_cfg,
+                        act_cfg=act_cfg,
+                        inplace=False)
             else:
                 fpn_conv = None
 

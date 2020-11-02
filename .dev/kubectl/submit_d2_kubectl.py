@@ -28,7 +28,11 @@ def parse_args():
         '--cpus', type=int, default=4, help='number of cpus to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
-        '--name-space', '-n', type=str, default='self-supervised-video')
+        '--name-space',
+        '-n',
+        type=str,
+        default='self-supervised-video',
+        choices=['self-supervised-video', 'ece3d-vision', 'image-model'])
     parser.add_argument('--epoch', type=str, default='latest.pth')
     parser.add_argument('--imgs_per_gpu', type=int, default=4)
     args, rest = parser.parse_known_args()

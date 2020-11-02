@@ -25,16 +25,16 @@ def parse_args():
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
-        '--cpus', type=int, default=4, help='number of cpus to use')
+        '--cpus', type=int, default=6, help='number of cpus to use')
     parser.add_argument(
-        '--mem', type=int, default=6, help='amount of memory to use')
+        '--mem', type=int, default=20, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
         '-n',
         type=str,
         default='self-supervised-video',
-        choices=['self-supervised-video', 'ece3d-vision'])
+        choices=['self-supervised-video', 'ece3d-vision', 'image-model'])
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -48,6 +48,10 @@ def submit(config, args, rest):
         gpus=args.gpus,
         cpus=args.cpus,
         mem=f'{args.mem}Gi',
+        # mem='8Gi',
+        max_cpus=int(args.cpus * 1.5),
+        max_mem=f'{int(args.mem * 1.5)}Gi',
+        # max_mem='32Gi',
         config=config,
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',

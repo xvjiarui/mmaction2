@@ -10,21 +10,11 @@ model = dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        # depth=50,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(3, ),
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
-    neck=dict(
-        type='FPN',
-        # in_channels=[256, 512, 1024, 2048],
-        in_channels=[64, 128, 256, 512],
-        out_channels=256,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
-        extra_fpn_out_act=True,
-        num_outs=4,
-        out_index=1),
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
@@ -35,25 +25,15 @@ model = dict(
             temperature=temperature,
             with_norm=with_norm,
             loss_weight=1.),
-        loss_bbox=dict(type='L1Loss', loss_weight=100.),
+        loss_bbox=dict(type='L1Loss', loss_weight=10.),
         in_channels=256,
         channels=128,
         temperature=temperature,
         with_norm=with_norm,
         init_std=0.01,
         track_type='center'),
-    # img_head=dict(
-    #     type='MoCoHead',
-    #     loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
-    #     in_channels=512,
-    #     # num_convs=2,
-    #     # kernel_size=3,
-    #     # norm_cfg=dict(type='BN'),
-    #     # act_cfg=dict(type='ReLU'),
-    #     channels=query_dim,
-    #     temperature=temperature,
-    #     with_norm=with_norm),
-    patch_head=dict(
+    patch_head=None,
+    img_head=dict(
         type='MoCoHead',
         loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
         in_channels=512,
@@ -62,23 +42,18 @@ model = dict(
         # norm_cfg=dict(type='BN'),
         # act_cfg=dict(type='ReLU'),
         channels=query_dim,
-        temperature=temperature,
+        temperature=0.2,
         with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(
     patch_size=96,
-    # patch_size_moco=256,
-    patch_moco_scale=(0.8, 2.),
+    patch_size_moco=256,
     img_as_ref=True,
     img_as_tar=False,
     img_as_embed=True,
-    with_neg_bboxes=False,
-    mix_full_imgs=False,
-    img_color_aug=True,
+    mix_full_imgs=True,
     img_geo_aug=True,
-    patch_geo_aug=True,
-    patch_crop_aug=True,
-    patch_color_aug=True,
+    img_color_aug=True,
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
@@ -86,28 +61,12 @@ train_cfg = dict(
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=0.2,
+    temperature=temperature,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
-    use_fpn=True,
-    use_backbone=True,
     neighbor_range=40,
     with_norm=with_norm,
     output_dir='eval_results')
-# test_cfg = dict(
-#     precede_frames=7,
-#     topk=5,
-#     temperature=temperature,
-#     strides=(1, 2, 1, 1),
-#     out_indices=(2, 3),
-#     use_fpn=True,
-#     use_backbone=True,
-#     with_norm=with_norm,
-#     neighbor_range=24,
-#     framewise=False,
-#     with_first=True,
-#     with_first_neighbor=True,
-#     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'
 dataset_type_val = 'DavisDataset'
@@ -183,32 +142,43 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-1, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-# lr_config = dict(policy='CosineAnnealing', min_lr=0)
-lr_config = dict(policy='Fixed')
-total_epochs = 10
+lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+# lr_config = dict(policy='Fixed')
+# lr_config = dict(
+#     policy='step',
+#     warmup='linear',
+#     warmup_iters=100,
+#     warmup_ratio=0.001,
+#     step=[1, 2])
+total_epochs = 100
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=total_epochs,
+    save_best=False,
+    metrics='davis',
+    key_indicator='J&F-Mean',
+    rule='greater')
 log_config = dict(
     interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['moco2'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')
