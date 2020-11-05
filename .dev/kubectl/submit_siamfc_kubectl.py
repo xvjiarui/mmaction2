@@ -25,9 +25,9 @@ def parse_args():
     parser.add_argument(
         '--gpus', type=int, default=1, help='number of gpus to use ')
     parser.add_argument(
-        '--cpus', type=int, default=10, help='number of cpus to use')
+        '--cpus', type=int, default=6, help='number of cpus to use')
     parser.add_argument(
-        '--mem', type=int, default=36, help='amount of memory to use')
+        '--mem', type=int, default=12, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',

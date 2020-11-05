@@ -3,8 +3,9 @@ kind: Job # Deployment will automatically restart when killed. Use Pod if not ne
 metadata:
   labels:
     k8s-app: research
+    user: jiarui
   generateName: '{{job_name}}' # replace <your_name> with something that identifies you
-  namespace: self-supervised-video
+  namespace: '{{name_space}}'
 spec:
   ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
   template:

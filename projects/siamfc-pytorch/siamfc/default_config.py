@@ -16,7 +16,7 @@ default_cfg = {
     'total_stride': 8,
     # train parameters
     'epoch_num': 40,
-    'batch_size': 128,
+    'batch_size': 256,
     # 'epoch_num': 50,
     # 'num_workers': 32,
     'num_workers': 32,
