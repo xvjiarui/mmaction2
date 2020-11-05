@@ -4,7 +4,7 @@ metadata:
   name: http
   labels:
     k8s-app: http
-  namespace: 'image-model'
+  namespace: 'ece3d-vision'
 spec:
   replicas: 1
   selector:

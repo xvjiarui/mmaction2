@@ -15,8 +15,10 @@ default_cfg = {
     'response_up': 16,
     'total_stride': 8,
     # train parameters
-    'epoch_num': 50,
-    'batch_size': 8,
+    'epoch_num': 40,
+    'batch_size': 256,
+    # 'epoch_num': 50,
+    # 'num_workers': 32,
     'num_workers': 32,
     'initial_lr': 1e-2,
     'ultimate_lr': 1e-5,
@@ -24,4 +26,25 @@ default_cfg = {
     'momentum': 0.9,
     'r_pos': 16,
     'r_neg': 0,
+    # 'pairs_per_seq': 1,
+    'pairs_per_seq': 25,
+    # customize
+    # 'optimizer': 'SGD',
+    # 'loss': 'balance',
+    # 'lr_schedule': 'exp',
+    'optimizer': 'Adam',
+    'loss': 'focal',
+    'lr_schedule': 'step',
+    'lr_step_size': 10,
+    'extra_conv': True,
+    # MMAction
+    'model': {
+        'backbone': {
+            'frozen_stages': 4,
+            'dilations': (1, 1, 2, 4),
+            'strides': (1, 2, 1, 1),
+            'out_indices': (3, ),
+            'with_cp': True
+        }
+    },
 }

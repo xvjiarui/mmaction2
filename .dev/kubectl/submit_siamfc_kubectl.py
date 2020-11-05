@@ -25,9 +25,7 @@ def parse_args():
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
-        '--cpus', type=int, default=6, help='number of cpus to use')
-    parser.add_argument(
-        '--mem', type=int, default=20, help='amount of memory to use')
+        '--cpus', type=int, default=4, help='number of cpus to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
@@ -35,24 +33,26 @@ def parse_args():
         type=str,
         default='self-supervised-video',
         choices=['self-supervised-video', 'ece3d-vision', 'image-model'])
+    parser.add_argument('--epoch', type=str, default='latest.pth')
     args, rest = parser.parse_known_args()
 
     return args, rest
 
 
 def submit(config, args, rest):
+    work_dir = osp.join('./work_dirs', osp.splitext(osp.basename(config))[0])
+    pretrained_ckpt = osp.join(work_dir, args.epoch)
     template_dict = dict(
-        job_name=osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
+        job_name='sf-' +
+        osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
         name_space=args.name_space,
         branch=args.branch,
-        gpus=args.gpus,
         cpus=args.cpus,
-        mem=f'{args.mem}Gi',
-        # mem='8Gi',
+        gpus=args.gpus,
         max_cpus=int(args.cpus * 1.5),
         max_mem=f'{int(args.mem * 1.5)}Gi',
-        # max_mem='32Gi',
         config=config,
+        pretrained_ckpt=pretrained_ckpt,
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
         wandb='mkdir -p /exps/mmaction2/wandb; '
@@ -79,11 +79,9 @@ def main():
         if args.file is not None:
             with open(args.file) as f:
                 submit_cfg_names = [line.strip() for line in f.readlines()]
-            all_config_names = list(mmcv.scandir(args.config, recursive=True))
-            for submit_cfg_name in submit_cfg_names:
-                for cfg in all_config_names:
-                    if osp.basename(cfg) == submit_cfg_name:
-                        submit(osp.join(args.config, cfg), args, rest)
+            for cfg in mmcv.scandir(args.config, recursive=True):
+                if osp.basename(cfg) in submit_cfg_names:
+                    submit(osp.join(args.config, cfg), args, rest)
         else:
             for cfg in mmcv.scandir(args.config, suffix='.py'):
                 if 'playground' in cfg:

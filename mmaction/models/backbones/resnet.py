@@ -282,7 +282,7 @@ def make_res_layer(block,
             inplanes,
             planes,
             stride,
-            dilation,
+            dilation if dilation == 1 else dilation // 2,
             downsample,
             style=style,
             conv_cfg=conv_cfg,
@@ -527,10 +527,12 @@ class ResNet(nn.Module):
             logger = get_root_logger()
             if self.torchvision_pretrain:
                 # torchvision's
+                logger.info(f'Loading {self.pretrained} as torchvision')
                 self._load_torchvision_checkpoint(
                     self.pretrained, strict=False, logger=logger)
             else:
                 # ours
+                logger.info(f'Loading {self.pretrained} not as torchvision')
                 load_checkpoint(
                     self, self.pretrained, strict=False, logger=logger)
         elif self.pretrained is None:

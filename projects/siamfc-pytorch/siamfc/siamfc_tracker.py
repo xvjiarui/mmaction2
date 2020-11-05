@@ -1,23 +1,46 @@
+import datetime
 import os.path as osp
 import time
 
-import cv2
+import kornia.augmentation as K
 import mmcv
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from got10k.trackers import Tracker
 from mmcv.runner import load_checkpoint
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from torch.utils.data import DataLoader
 
-from mmaction.models import build_model
+from mmaction.models import build_backbone
 from . import ops
 from .datasets import Pair
-from .heads import SiamConvFC
+from .heads import SiamConvFC, SiamFC
 from .losses import BalancedLoss, FocalLoss
 from .transforms import SiamFCTransforms
+
+
+def _convert_batchnorm(module):
+    module_output = module
+    if isinstance(module, torch.nn.SyncBatchNorm):
+        module_output = torch.nn.BatchNorm2d(module.num_features, module.eps,
+                                             module.momentum, module.affine,
+                                             module.track_running_stats)
+        if module.affine:
+            module_output.weight.data = module.weight.data.clone().detach()
+            module_output.bias.data = module.bias.data.clone().detach()
+            # keep requires_grad unchanged
+            module_output.weight.requires_grad = module.weight.requires_grad
+            module_output.bias.requires_grad = module.bias.requires_grad
+        module_output.running_mean = module.running_mean
+        module_output.running_var = module.running_var
+        module_output.num_batches_tracked = module.num_batches_tracked
+    for name, child in module.named_children():
+        module_output.add_module(name, _convert_batchnorm(child))
+    del module
+    return module_output
 
 
 class Net(nn.Module):
@@ -28,8 +51,8 @@ class Net(nn.Module):
         self.head = head
 
     def forward(self, z, x):
-        z = self.backbone.extract_single_feat(z, -1)
-        x = self.backbone.extract_single_feat(x, -1)
+        z = self.backbone(z)
+        x = self.backbone(x)
         return self.head(z, x)
 
 
@@ -45,54 +68,68 @@ class TrackerSiamFC(Tracker):
         self.device = torch.device('cuda:0' if self.cuda else 'cpu')
 
         # setup model
-        model = build_model(
-            cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
-        # load checkpoint if provided
-        if cfg.pretrained is not None:
-            load_checkpoint(
-                model, cfg.pretrained, map_location=self.device, logger=logger)
-            logger.info(f'pretrained from {cfg.pretrained}')
-        logger.info(f'Model: {str(model)}')
-        if cfg.get('freeze_extractor', True):
-            for param in model.parameters():
-                param.requires_grad = False
-        self.net = Net(
-            backbone=model,
-            head=SiamConvFC(
-                cfg.model.cls_head.in_channels,
-                256,
-                out_scale=self.cfg.out_scale))
-        if cfg.load_from is not None:
-            load_checkpoint(
-                self.net,
-                cfg.load_from,
-                map_location=self.device,
-                logger=logger)
-            logger.info(f'loaded from {cfg.load_from}')
+        backbone = build_backbone(cfg.model.backbone)
+        backbone = _convert_batchnorm(backbone)
+        backbone.init_weights()
+        if cfg.extra_conv:
+            self.net = Net(
+                backbone=backbone,
+                head=SiamConvFC(512, 256, out_scale=self.cfg.out_scale))
+        else:
+            self.net = Net(
+                backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale))
+        logger.info(f'Model: {str(self.net)}')
+        if cfg.checkpoint is not None:
+            load_checkpoint(self.net, cfg.checkpoint, map_location='cpu')
 
         self.net = self.net.to(self.device)
 
         # setup criterion
-        if self.cfg.get('balanced_loss', True):
+        if cfg.loss == 'balance':
             self.criterion = BalancedLoss()
-        else:
+        elif cfg.loss == 'focal':
             self.criterion = FocalLoss()
+        else:
+            raise NotImplementedError
 
         # setup optimizer
-        self.optimizer = optim.SGD(
-            self.net.parameters(),
-            lr=self.cfg.initial_lr,
-            weight_decay=self.cfg.weight_decay
-            if not cfg.get('freeze_extractor', True) else 0,
-            momentum=self.cfg.momentum)
+        if cfg.optimizer == 'SGD':
+            self.optimizer = optim.SGD(
+                self.net.parameters(),
+                lr=self.cfg.initial_lr,
+                weight_decay=self.cfg.weight_decay
+                if cfg.model.backbone.frozen_stages < 4 else 0,
+                momentum=self.cfg.momentum)
+        elif cfg.optimizer == 'Adam':
+            self.optimizer = optim.Adam(
+                self.net.parameters(),
+                lr=self.cfg.initial_lr,
+                weight_decay=self.cfg.weight_decay
+                if cfg.model.backbone.frozen_stages < 4 else 0)
+        else:
+            raise NotImplementedError
+
+        # for #param
+        self.net.train()
+        num_trainable_params = len(
+            [p for p in self.net.parameters() if p.requires_grad])
+        num_params = len([p for p in self.net.parameters()])
+        logger.info(f'Number of trainable parameters: {num_trainable_params}')
+        logger.info(f'Number of total parameters: {num_params}')
 
         # setup lr scheduler
-        if self.cfg.get('exp_decay', True):
+        if cfg.lr_schedule == 'exp':
             gamma = np.power(self.cfg.ultimate_lr / self.cfg.initial_lr,
                              1.0 / self.cfg.epoch_num)
             self.lr_scheduler = ExponentialLR(self.optimizer, gamma)
+        elif cfg.lr_schedule == 'step':
+            self.lr_scheduler = StepLR(self.optimizer, cfg.lr_step_size)
         else:
-            self.lr_scheduler = StepLR(self.optimizer, 10)
+            raise NotImplementedError
+
+        self.normalize = K.Normalize(
+            mean=torch.tensor([123.675, 116.28, 103.53]),
+            std=torch.tensor([58.395, 57.12, 57.375]))
 
     @torch.no_grad()
     def init(self, img, box):
@@ -136,7 +173,8 @@ class TrackerSiamFC(Tracker):
         # exemplar features
         z = torch.from_numpy(z).to(self.device).permute(
             2, 0, 1).unsqueeze(0).float()
-        self.kernel = self.net.backbone.extract_single_feat(z, -1)
+        z = self.normalize(z)
+        self.kernel = self.net.backbone(z)
 
     @torch.no_grad()
     def update(self, img):
@@ -154,18 +192,25 @@ class TrackerSiamFC(Tracker):
         ]
         x = np.stack(x, axis=0)
         x = torch.from_numpy(x).to(self.device).permute(0, 3, 1, 2).float()
+        x = self.normalize(x)
 
         # responses
-        x = self.net.backbone.extract_single_feat(x, -1)
+        x = self.net.backbone(x)
         responses = self.net.head(self.kernel, x)
-        responses = responses.squeeze(1).cpu().numpy()
+        # responses = responses.squeeze(1).cpu().numpy()
 
         # upsample responses and penalize scale changes
-        responses = np.stack([
-            cv2.resize(
-                u, (self.upscale_sz, self.upscale_sz),
-                interpolation=cv2.INTER_CUBIC) for u in responses
-        ])
+        # responses = np.stack([
+        #     cv2.resize(
+        #         u, (self.upscale_sz, self.upscale_sz),
+        #         interpolation=cv2.INTER_CUBIC) for u in responses
+        # ])
+        responses = F.interpolate(
+            responses,
+            size=(self.upscale_sz, self.upscale_sz),
+            mode='bicubic',
+            align_corners=False)
+        responses = responses.squeeze(1).cpu().numpy()
         responses[:self.cfg.scale_num // 2] *= self.cfg.scale_penalty
         responses[self.cfg.scale_num // 2 + 1:] *= self.cfg.scale_penalty
 
@@ -209,6 +254,7 @@ class TrackerSiamFC(Tracker):
         boxes = np.zeros((frame_num, 4))
         boxes[0] = box
         times = np.zeros(frame_num)
+        prog_bar = mmcv.ProgressBar(len(img_files))
 
         for f, img_file in enumerate(img_files):
             img = ops.read_image(img_file)
@@ -222,6 +268,7 @@ class TrackerSiamFC(Tracker):
 
             if visualize:
                 ops.show_image(img, boxes[f, :])
+            prog_bar.update()
 
         return boxes, times
 
@@ -250,6 +297,8 @@ class TrackerSiamFC(Tracker):
 
         with torch.set_grad_enabled(backward):
             # inference
+            z = self.normalize(z)
+            x = self.normalize(x)
             responses = self.net(z, x)
 
             # calculate loss
@@ -274,7 +323,10 @@ class TrackerSiamFC(Tracker):
             exemplar_sz=self.cfg.exemplar_sz,
             instance_sz=self.cfg.instance_sz,
             context=self.cfg.context)
-        dataset = Pair(seqs=seqs, transforms=transforms)
+        dataset = Pair(
+            seqs=seqs,
+            transforms=transforms,
+            pairs_per_seq=self.cfg.pairs_per_seq)
 
         # setup dataloader
         dataloader = DataLoader(
@@ -286,22 +338,34 @@ class TrackerSiamFC(Tracker):
             drop_last=True)
 
         # loop over epochs
+        start_time = time.perf_counter()
+        last_iter = 0
+        total_iters = self.cfg.epoch_num * len(dataloader)
         for epoch in range(self.cfg.epoch_num):
             # loop over dataloader
             for it, batch in enumerate(dataloader):
                 loss = self.train_step(batch, backward=True)
                 if (it + 1) % self.cfg.log_config.interval == 0 or it == (
                         len(dataloader) - 1):
+                    passed_iters = it + epoch * len(dataloader) + 1
+                    total_seconds_per_img = (time.perf_counter() -
+                                             start_time) / (
+                                                 passed_iters - last_iter)
+                    eta = datetime.timedelta(
+                        seconds=int(total_seconds_per_img *
+                                    (total_iters - passed_iters - 1)))
                     self.logger.info(
                         f'Epoch: {epoch+1} [{it+1}/{len(dataloader)}]'
+                        f' ETA: {str(eta)}'
                         f' lr: {self.current_lr()[0]:.5f}'
                         f' Loss: {loss:.5f}')
+                    last_iter = passed_iters
+                    start_time = time.perf_counter()
             # update lr at each epoch
             self.lr_scheduler.step()
 
-            if epoch % (self.cfg.checkpoint_config.interval * 5) == 0 or \
-                    epoch == self.cfg.epoch_num - 1:
-                save_dir = osp.join(self.cfg.work_dir, 'siamfc')
+            if epoch == self.cfg.epoch_num - 1:
+                save_dir = osp.join(self.cfg.work_dir, self.cfg.suffix)
                 # save checkpoint
                 mmcv.mkdir_or_exist(save_dir)
                 net_path = osp.join(save_dir, f'epoch_{epoch + 1}.pth')

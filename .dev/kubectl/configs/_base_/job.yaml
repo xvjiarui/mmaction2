@@ -45,6 +45,7 @@ spec:
                   - key: gpu-type
                     operator: In
                     values:
+#                      - "1080"
                       - 1080Ti
                       - 2080Ti
                       - titan-xp
