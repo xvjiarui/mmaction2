@@ -59,6 +59,7 @@ def main():
                                 osp.splitext(osp.basename(args.config))[0])
     cfg.suffix = args.suffix
     cfg.checkpoint = args.checkpoint
+    wandb = None
     if args.pretrained is not None:
         assert osp.exists(args.pretrained)
         weight_path = osp.realpath(args.pretrained).replace(
@@ -69,7 +70,6 @@ def main():
                   f'{args.pretrained} {weight_path}')
         assert osp.exists(weight_path)
         cfg.model.backbone.pretrained = weight_path
-        wandb = None
         for h in cfg.log_config.hooks:
             if h.type == 'WandbLoggerHook' and not args.disable_wandb:
                 import wandb

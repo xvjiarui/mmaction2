@@ -40,7 +40,7 @@ class _AlexNet(nn.Module):
 class AlexNetV1(_AlexNet):
     output_stride = 8
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         super(AlexNetV1, self).__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(3, 96, 11, 2), _BatchNorm2d(96), nn.ReLU(inplace=True),

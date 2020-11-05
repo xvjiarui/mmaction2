@@ -23,9 +23,11 @@ def parse_args():
         help='link experiment directory')
     parser.add_argument('--wandb', '-w', action='store_true', help='use wandb')
     parser.add_argument(
-        '--gpus', type=int, default=2, help='number of gpus to use ')
+        '--gpus', type=int, default=1, help='number of gpus to use ')
     parser.add_argument(
-        '--cpus', type=int, default=4, help='number of cpus to use')
+        '--cpus', type=int, default=10, help='number of cpus to use')
+    parser.add_argument(
+        '--mem', type=int, default=36, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
@@ -49,6 +51,7 @@ def submit(config, args, rest):
         branch=args.branch,
         cpus=args.cpus,
         gpus=args.gpus,
+        mem=f'{args.mem}Gi',
         max_cpus=int(args.cpus * 1.5),
         max_mem=f'{int(args.mem * 1.5)}Gi',
         config=config,

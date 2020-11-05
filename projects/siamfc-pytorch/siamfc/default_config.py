@@ -16,7 +16,7 @@ default_cfg = {
     'total_stride': 8,
     # train parameters
     'epoch_num': 40,
-    'batch_size': 256,
+    'batch_size': 128,
     # 'epoch_num': 50,
     # 'num_workers': 32,
     'num_workers': 32,
@@ -37,6 +37,7 @@ default_cfg = {
     'lr_schedule': 'step',
     'lr_step_size': 10,
     'extra_conv': True,
+    'out_channels': 512,
     # MMAction
     'model': {
         'backbone': {
