@@ -77,7 +77,7 @@ def main():
                 mmcv.mkdir_or_exist(f'wandb/{os.path.basename(weight_path)}')
                 init_kwargs.update(
                     dict(
-                        name=h.init_kwargs.name,
+                        name=os.path.basename(weight_path),
                         resume=False,
                         dir=f'wandb/{os.path.basename(weight_path)}',
                         tags=[*h.init_kwargs.tags, 'siamfc'],
