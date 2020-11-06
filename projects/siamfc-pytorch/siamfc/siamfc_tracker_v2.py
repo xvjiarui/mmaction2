@@ -2,6 +2,7 @@ import datetime
 import os.path as osp
 import time
 
+import kornia.augmentation as K
 import mmcv
 import numpy as np
 import torch
@@ -129,6 +130,10 @@ class TrackerSiamFC(Tracker):
         else:
             raise NotImplementedError
 
+        self.normalize = K.Normalize(
+            mean=torch.tensor([123.675, 116.28, 103.53]),
+            std=torch.tensor([58.395, 57.12, 57.375]))
+
     @torch.no_grad()
     def init(self, img, box):
         # set to evaluation mode
@@ -171,6 +176,7 @@ class TrackerSiamFC(Tracker):
         # exemplar features
         z = torch.from_numpy(z).to(self.device).permute(
             2, 0, 1).unsqueeze(0).float()
+        z = self.normalize(z)
         self.kernel = self.net.backbone(z)
 
     @torch.no_grad()
@@ -189,6 +195,7 @@ class TrackerSiamFC(Tracker):
         ]
         x = np.stack(x, axis=0)
         x = torch.from_numpy(x).to(self.device).permute(0, 3, 1, 2).float()
+        x = self.normalize(x)
 
         # responses
         x = self.net.backbone(x)
@@ -357,7 +364,7 @@ class TrackerSiamFC(Tracker):
                                                  passed_iters - last_iter)
                     eta = datetime.timedelta(
                         seconds=int(total_seconds_per_img *
-                                    (total_iters - passed_iters - 1)))
+                                    (total_iters - passed_iters + 1)))
                     self.logger.info(
                         f'Epoch: {epoch+1} [{it+1}/{len(dataloader)}]'
                         f' ETA: {str(eta)}'
