@@ -64,12 +64,15 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
         if self.train_cfg is not None:
             self.patch_img_size = _pair(self.train_cfg.patch_size)
             self.patch_x_size = _pair(self.train_cfg.patch_size // self.stride)
+            self.patch_img_size_moco = _pair(
+                self.train_cfg.get('patch_size_moco', self.patch_img_size))
+            self.patch_moco_scale = self.train_cfg.get('patch_moco_scale', 1.)
             patch_aug = []
             if self.train_cfg.get('patch_geo_aug', False):
                 if self.train_cfg.get('patch_crop_aug', False):
                     patch_aug.append(
                         K.RandomResizedCrop(
-                            size=self.patch_img_size, scale=(0.2, 1)))
+                            size=self.patch_img_size_moco, scale=(0.2, 1)))
                 else:
                     patch_aug.append(K.RandomRotation(degrees=10))
                 patch_aug.append(K.RandomHorizontalFlip(p=0.5))
@@ -135,9 +138,6 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
                             std=torch.tensor([0.229, 0.224, 0.225])))
                 else:
                     self.img_aug = None
-            self.patch_img_size_moco = _pair(
-                self.train_cfg.get('patch_size_moco', self.patch_img_size))
-            self.patch_moco_scale = self.train_cfg.get('patch_moco_scale', 1.)
 
     @property
     def with_patch_head(self):
