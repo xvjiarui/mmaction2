@@ -22,7 +22,7 @@ model = dict(
         in_channels=[64, 128, 256, 512],
         out_channels=256,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
-        extra_fpn_out_act=True,
+        extra_fpn_out_act=False,
         num_outs=4,
         out_index=1),
     cls_head=dict(
@@ -86,7 +86,7 @@ train_cfg = dict(
 test_cfg = dict(
     precede_frames=7,
     topk=5,
-    temperature=0.2,
+    temperature=0.01,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
     use_fpn=True,

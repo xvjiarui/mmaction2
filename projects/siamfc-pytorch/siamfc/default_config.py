@@ -2,7 +2,7 @@
 default_cfg = {
     # basic parameters
     'out_scale': 0.001,
-    'exemplar_sz': 127,
+    'exemplar_sz': 120,
     'instance_sz': 255,
     'context': 0.5,
     # inference parameters
@@ -13,6 +13,7 @@ default_cfg = {
     'window_influence': 0.176,
     'response_sz': 17,
     'response_up': 16,
+    'positive_label_width': 5,
     'total_stride': 8,
     # train parameters
     'epoch_num': 40,
