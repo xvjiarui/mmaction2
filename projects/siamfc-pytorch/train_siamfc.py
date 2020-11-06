@@ -22,6 +22,11 @@ def parse_args():
     parser.add_argument('--pretrained', type=str, help='pretrained file')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(
+        '--gpus',
+        type=int,
+        help='number of gpus to use '
+        '(only applicable to non-distributed training)')
+    parser.add_argument(
         '--suffix', type=str, default='siamfc', help='result save suffix')
     parser.add_argument('--seed', type=int, default=None, help='random seed')
     parser.add_argument(
@@ -47,6 +52,7 @@ def main():
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
+    cfg.gpus = args.gpus
 
     # work_dir is determined in this priority:
     # CLI > config file > default (base filename)
@@ -121,7 +127,8 @@ def main():
     overall = performance[tracker.name]['overall']
     success_curve = overall.pop('success_curve')
     precision_curve = overall.pop('precision_curve')
-    logger.info(overall)
+    result_str = '\n'.join(f'{k}: {v}' for k, v in overall.items())
+    logger.info(result_str)
     if wandb is not None:
         wandb.log(overall)
 

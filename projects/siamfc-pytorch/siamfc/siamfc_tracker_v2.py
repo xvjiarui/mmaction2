@@ -316,6 +316,10 @@ class TrackerSiamFC(Tracker):
 
     @torch.enable_grad()
     def train_over(self, seqs):
+        if self.cuda:
+            gpu_ids = range(1) if self.cfg.gpus is None else range(
+                self.cfg.gpus)
+            self.net = torch.nn.DataParallel(self.net, device_ids=gpu_ids)
         # set to train mode
         self.net.train()
 
