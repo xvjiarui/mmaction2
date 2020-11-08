@@ -16,17 +16,20 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "rm -rf mmaction2; pip install --upgrade got10k; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
-        ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
-        python projects/siamfc-pytorch/train_siamfc.py {{config}} --pretrained {{pretrained_ckpt}} --gpus {{gpus}} {{py_args}}"]
+        args: ["-c", "RM -RF MMACTION2; GIT CLONE -B {{BRANCH}} HTTPS://GITHUB.COM/XVJIARUI/MMACTION2.GIT; CD MMACTION2; PYTHON SETUP.PY DEVELOP;
+        LN -S /DATA; MKDIR -P /EXPS/MMACTION2/WORK_DIRS; {{LINK}} {{WANDB}}
+        PYTHON PROJECTS/MOCO/MAIN_LINCLS.PY {{DATA}}
+        -A {{ARCH}} --MMACTION-PRETRAINED {{PRETRAINED_CKPT}} --NUM-CLASSES {{NUM_CLASSES}} --CONFIG {{CONFIG}}
+        --DIST-URL 'TCP://LOCALHOST:10001' --MULTIPROCESSING-DISTRIBUTED --WORLD-SIZE 1 --RANK 0
+        {{PY_ARGS}}"]
         resources:
           requests: # Minimum resources needed for the job
-            memory: "{{mem}}"
+            memory: "32Gi"
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
           limits: # Maximum resources can be used for the job
-            memory: "{{max_mem}}"
-            cpu: "{{max_cpus}}"
+            memory: "128Gi"
+            cpu: "32"
             nvidia.com/gpu: "{{ gpus }}"
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
@@ -40,6 +43,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
+#                  - key: nautilus.io/group
+#                    operator: In
+#                    values:
+#                      - haosu
                   - key: gpu-type
                     operator: In
                     values:

@@ -127,8 +127,8 @@ def main():
     overall = performance[tracker.name]['overall']
     success_curve = overall.pop('success_curve')
     precision_curve = overall.pop('precision_curve')
-    result_str = '\n'.join(f'{k}: {v}' for k, v in overall.items())
-    logger.info(result_str)
+    result_str = '\n'.join(f'{k}: {v:.4f}' for k, v in overall.items())
+    logger.info('results:\n' + result_str)
     if wandb is not None:
         wandb.log(overall)
 

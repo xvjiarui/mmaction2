@@ -3,6 +3,7 @@
 import argparse
 import builtins
 import os
+import os.path as osp
 import random
 import shutil
 import time
@@ -20,6 +21,10 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+import wandb
+import mmcv
+from mmcv.runner import load_checkpoint
+from mmaction.utils import get_root_logger
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -80,7 +85,20 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
 parser.add_argument('--pretrained', default='', type=str,
                     help='path to moco pretrained checkpoint')
 
+# options for logging
+parser.add_argument('--wandb', action='store_true',
+                    help='use wandb log')
+parser.add_argument('--config', type=str, help='train config file path')
+parser.add_argument('--work-dir', help='the dir to save logs and models')
+parser.add_argument('--mmaction-pretrained', help='mmaction pretrained weight')
+
+# for imagenet 100
+parser.add_argument('--num-classes', default=1000, type=int, help='Number of classes')
+
 best_acc1 = 0
+
+def is_master_worker(args):
+    return not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % 8 == 0)
 
 
 def main():
@@ -142,7 +160,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                 world_size=args.world_size, rank=args.rank)
     # create model
     print("=> creating model '{}'".format(args.arch))
-    model = models.__dict__[args.arch]()
+    model = models.__dict__[args.arch](num_classes=args.num_classes)
 
     # freeze all layers but the last fc
     for name, param in model.named_parameters():
@@ -175,6 +193,51 @@ def main_worker(gpu, ngpus_per_node, args):
             print("=> loaded pre-trained model '{}'".format(args.pretrained))
         else:
             print("=> no checkpoint found at '{}'".format(args.pretrained))
+
+    cfg = mmcv.Config.fromfile(args.config)
+    # work_dir is determined in this priority:
+    # CLI > config file > default (base filename)
+    if args.work_dir is not None:
+        # update configs according to CLI args if args.work_dir is not None
+        cfg.work_dir = args.work_dir
+    elif cfg.get('work_dir', None) is None:
+        # use config filename as default work_dir if cfg.work_dir is None
+        cfg.work_dir = osp.join('./work_dirs',
+                                osp.splitext(osp.basename(args.config))[0])
+    if is_master_worker(args):
+        # init logger before other steps
+        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        log_file = osp.join(cfg.work_dir, f'{timestamp}.log')
+        logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
+        logger.info('logger inited')
+        builtins.print = logger.info
+    if args.mmaction_pretrained is not None:
+        assert osp.exists(args.mmaction_pretrained)
+        weight_path = osp.realpath(args.mmaction_pretrained).replace(
+            'epoch_',
+            osp.basename(args.config) + '_ep').replace('.pth', '-backbone.pth')
+        if is_master_worker(args):
+            os.system(f'MKL_THREADING_LAYER=GNU python '
+                      f'tools/convert_weights/convert_to_pretrained.py '
+                      f'{args.mmaction_pretrained} {weight_path}')
+            assert osp.exists(weight_path)
+            print(f'loading {weight_path}')
+            for h in cfg.log_config.hooks:
+                if h.type == 'WandbLoggerHook' and args.wandb:
+                    init_kwargs = h.init_kwargs.to_dict()
+                    mmcv.mkdir_or_exist(f'wandb/{os.path.basename(weight_path)}')
+                    full_config_dict = cfg.to_dict()
+                    full_config_dict.update(vars(args))
+                    init_kwargs.update(
+                        dict(
+                            name=os.path.basename(weight_path),
+                            resume=False,
+                            dir=f'wandb/{os.path.basename(weight_path)}',
+                            tags=[*h.init_kwargs.tags, f'linear_{args.num_classes}'],
+                            config=full_config_dict))
+                    wandb.init(**init_kwargs)
+        dist.barrier()
+        load_checkpoint(model, weight_path, map_location='cpu')
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -286,7 +349,7 @@ def main_worker(gpu, ngpus_per_node, args):
         train(train_loader, model, criterion, optimizer, epoch, args)
 
         # evaluate on validation set
-        acc1 = validate(val_loader, model, criterion, args)
+        acc1 = validate(val_loader, model, criterion, args, steps=(epoch+1) * len(train_loader))
 
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
@@ -302,7 +365,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
             if epoch == args.start_epoch:
-                sanity_check(model.state_dict(), args.pretrained)
+                if args.mmaction_pretrained is not None:
+                    sanity_check(model.state_dict(), weight_path, convert=False)
+                else:
+                    sanity_check(model.state_dict(), args.pretrained)
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -355,9 +421,15 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+            total_steps = epoch * len(train_loader) + i
+            if is_master_worker(args) and args.wandb:
+                metrics = dict()
+                for meter in progress.meters:
+                    metrics[meter.name] = meter.val
+                wandb.log(metrics, step=total_steps)
 
 
-def validate(val_loader, model, criterion, args):
+def validate(val_loader, model, criterion, args, steps=None):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -397,6 +469,9 @@ def validate(val_loader, model, criterion, args):
         # TODO: this should also be done with the ProgressMeter
         print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
+        if is_master_worker(args) and args.wandb and steps is not None:
+            metrics = dict(top1=top1.avg, top5=top5.avg)
+            wandb.log(metrics, step=steps)
 
     return top1.avg
 
@@ -407,7 +482,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-def sanity_check(state_dict, pretrained_weights):
+def sanity_check(state_dict, pretrained_weights, convert=True):
     """
     Linear classifier should not change any weights other than the linear layer.
     This sanity check asserts nothing wrong happens (e.g., BN stats updated).
@@ -421,9 +496,12 @@ def sanity_check(state_dict, pretrained_weights):
         if 'fc.weight' in k or 'fc.bias' in k:
             continue
 
-        # name in pretrained model
-        k_pre = 'module.encoder_q.' + k[len('module.'):] \
-            if k.startswith('module.') else 'module.encoder_q.' + k
+        if convert:
+            # name in pretrained model
+            k_pre = 'module.encoder_q.' + k[len('module.'):] \
+                if k.startswith('module.') else 'module.encoder_q.' + k
+        else:
+            k_pre = k[len('module.'):] if k.startswith('module.') else k
 
         assert ((state_dict[k].cpu() == state_dict_pre[k_pre]).all()), \
             '{} is changed in linear classifier training.'.format(k)

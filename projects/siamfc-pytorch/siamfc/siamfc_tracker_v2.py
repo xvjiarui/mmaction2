@@ -10,7 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from got10k.trackers import Tracker
-from mmcv.runner import load_checkpoint
+from mmcv.parallel import is_module_wrapper
+from mmcv.runner import load_checkpoint, save_checkpoint
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -253,6 +254,8 @@ class TrackerSiamFC(Tracker):
         return box
 
     def track(self, img_files, box, visualize=False):
+        if is_module_wrapper(self.net):
+            self.net = self.net.module
         frame_num = len(img_files)
         boxes = np.zeros((frame_num, 4))
         boxes[0] = box
@@ -381,10 +384,8 @@ class TrackerSiamFC(Tracker):
 
             if epoch == self.cfg.epoch_num - 1:
                 save_dir = osp.join(self.cfg.work_dir, self.cfg.suffix)
-                # save checkpoint
-                mmcv.mkdir_or_exist(save_dir)
                 net_path = osp.join(save_dir, f'epoch_{epoch + 1}.pth')
-                torch.save(self.net.state_dict(), net_path)
+                save_checkpoint(self.net, net_path, self.optimizer)
                 self.logger.info(f'{net_path} saved')
                 dst_file = osp.join(save_dir, 'latest.pth')
                 mmcv.symlink(osp.basename(net_path), dst_file)
