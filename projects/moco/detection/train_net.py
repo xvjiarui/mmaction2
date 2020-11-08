@@ -90,7 +90,7 @@ if __name__ == "__main__":
                         name=os.path.basename(weight_path),
                         resume=False,
                         dir=f'wandb/{os.path.basename(weight_path)}',
-                        tags=[wandb_cfg['tags'], 'detectron2']))
+                        tags=[*wandb_cfg['tags'], 'detectron2']))
                 wandb.init(**wandb_cfg)
     print("Command Line Args:", args)
     launch(
