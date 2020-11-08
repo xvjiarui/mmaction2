@@ -16,12 +16,12 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "RM -RF MMACTION2; GIT CLONE -B {{BRANCH}} HTTPS://GITHUB.COM/XVJIARUI/MMACTION2.GIT; CD MMACTION2; PYTHON SETUP.PY DEVELOP;
-        LN -S /DATA; MKDIR -P /EXPS/MMACTION2/WORK_DIRS; {{LINK}} {{WANDB}}
-        PYTHON PROJECTS/MOCO/MAIN_LINCLS.PY {{DATA}}
-        -A {{ARCH}} --MMACTION-PRETRAINED {{PRETRAINED_CKPT}} --NUM-CLASSES {{NUM_CLASSES}} --CONFIG {{CONFIG}}
-        --DIST-URL 'TCP://LOCALHOST:10001' --MULTIPROCESSING-DISTRIBUTED --WORLD-SIZE 1 --RANK 0
-        {{PY_ARGS}}"]
+        args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
+        ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
+        python projects/moco/main_lincls.py {{data}}
+        -a {{arch}} --mmaction-pretrained {{pretrained_ckpt}} --num-classes {{num_classes}} --config {{config}}
+        --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size 1 --rank 0
+        {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
             memory: "32Gi"
