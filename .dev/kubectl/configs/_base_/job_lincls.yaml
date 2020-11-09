@@ -24,12 +24,12 @@ spec:
         {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
-            memory: "32Gi"
+            memory: "{{mem}}"
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
           limits: # Maximum resources can be used for the job
-            memory: "128Gi"
-            cpu: "32"
+            memory: "{{max_mem}}"
+            cpu: "{{max_cpus}}"
             nvidia.com/gpu: "{{ gpus }}"
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container

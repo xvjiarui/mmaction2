@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument(
         '--cpus', type=int, default=8, help='number of cpus to use')
     parser.add_argument(
-        '--mem', type=int, default=16, help='amount of memory to use')
+        '--mem', type=int, default=12, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
