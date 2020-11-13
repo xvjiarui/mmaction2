@@ -7,8 +7,9 @@ from .tsm_head import TSMHead
 from .tsn_head import TSNHead
 from .uvc_head import UVCHead
 from .walker_head import WalkerHead
+from .walker_head_v2 import WalkerHeadV2
 
 __all__ = [
     'TSNHead', 'I3DHead', 'BaseHead', 'TSMHead', 'SlowFastHead', 'SSNHead',
-    'WalkerHead', 'UVCHead', 'MoCoHead'
+    'WalkerHead', 'UVCHead', 'MoCoHead', 'WalkerHeadV2'
 ]
