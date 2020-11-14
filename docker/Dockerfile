@@ -69,7 +69,7 @@ RUN conda install -c conda-forge moviepy
 # Install decord
 #RUN git clone --recursive https://github.com/dmlc/decord
 #RUN cd decord && mkdir build && cd build && cmake .. -DUSE_CUDA=0 && make && cd ../python && python setup.py install
-RUN pip install decord
+RUN pip install decord==0.4.2
 
 # Install FAIR suit
 ENV FORCE_CUDA="1"

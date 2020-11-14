@@ -18,6 +18,9 @@ def resize_videos(vid_item):
     """
     full_path, vid_path = vid_item
     out_full_path = osp.join(args.out_dir, vid_path)
+    if osp.exists(out_full_path):
+        print(f'{vid_path} exists')
+        return True
     dir_name = osp.dirname(vid_path)
     out_dir = osp.join(args.out_dir, dir_name)
     if not osp.exists(out_dir):
@@ -25,7 +28,11 @@ def resize_videos(vid_item):
     result = os.popen(
         f'ffprobe -hide_banner -loglevel error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 {full_path}'  # noqa:E501
     )
-    w, h = [int(d) for d in result.readline().rstrip().split(',')]
+    try:
+        w, h = [int(d) for d in result.readline().rstrip().split(',')]
+    except ValueError:
+        print(f'{vid_path} skipping')
+        return True
     if w > h:
         cmd = (f'ffmpeg -hide_banner -loglevel error -i {full_path} '
                f'-vf {"mpdecimate," if args.remove_dup else ""}'
@@ -106,5 +113,9 @@ if __name__ == '__main__':
                 fullpath_list))
     elif args.level == 1:
         vid_list = list(map(lambda p: osp.basename(p), fullpath_list))
-    pool = Pool(args.num_worker)
-    pool.map(resize_videos, zip(fullpath_list, vid_list))
+    if args.num_worker == 1:
+        for item in zip(fullpath_list, vid_list):
+            resize_videos(item)
+    else:
+        pool = Pool(args.num_worker)
+        pool.map(resize_videos, zip(fullpath_list, vid_list))
