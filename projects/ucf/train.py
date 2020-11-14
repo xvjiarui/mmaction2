@@ -65,6 +65,8 @@ def parse_args():
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument(
+        '--disable-wandb', action='store_true', help='disable wandb')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -106,7 +108,7 @@ def main():
         assert osp.exists(weight_path)
         cfg.model.backbone.pretrained = weight_path
         for i, h in enumerate(old_cfg.log_config.hooks):
-            if h.type == 'WandbLoggerHook':
+            if h.type == 'WandbLoggerHook' and not args.disable_wandb:
                 mmcv.mkdir_or_exist(f'wandb/{os.path.basename(weight_path)}')
                 h.init_kwargs.name = os.path.basename(weight_path)
                 h.init_kwargs.resume = False
@@ -185,12 +187,13 @@ def main():
             mmaction_version=__version__, config=cfg.text)
 
     # for #param
-    model.train()
     num_trainable_params = len(
         [p for p in model.parameters() if p.requires_grad])
     num_params = len([p for p in model.parameters()])
     logger.info(f'Number of trainable parameters: {num_trainable_params}')
     logger.info(f'Number of total parameters: {num_params}')
+    for name, param in model.named_parameters():
+        logger.info(f'{name}, grad: {param.requires_grad}')
 
     train_model(
         model,
