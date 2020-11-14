@@ -16,9 +16,9 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "rm -rf mmaction2;; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
+        args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
         ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
-        ./projects/ucf/dist_train.sh {{config}} {{gpus}}--pretrained {{pretrained_ckpt}} {{py_args}}"]
+        ./projects/ucf/dist_train.sh {{config}} {{gpus}} --pretrained {{pretrained_ckpt}} {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
             memory: "{{mem}}"

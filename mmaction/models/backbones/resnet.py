@@ -580,10 +580,13 @@ class ResNet(nn.Module):
         """Prevent all the parameters from being optimized before
         ``self.frozen_stages``."""
         if self.frozen_stages >= 0:
-            self.conv1.bn.eval()
-            for m in self.conv1.modules():
-                for param in m.parameters():
-                    param.requires_grad = False
+            # self.conv1.bn.eval()
+            # for m in self.conv1.modules():
+            #     for param in m.parameters():
+            #         param.requires_grad = False
+            self.conv1.eval()
+            for param in self.conv1.parameters():
+                param.requires_grad = False
 
         for i in range(1, self.frozen_stages + 1):
             m = getattr(self, f'layer{i}')

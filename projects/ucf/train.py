@@ -105,22 +105,15 @@ def main():
                       f'{args.pretrained} {weight_path}')
         assert osp.exists(weight_path)
         cfg.model.backbone.pretrained = weight_path
-        for h in old_cfg.log_config.hooks:
+        for i, h in enumerate(old_cfg.log_config.hooks):
             if h.type == 'WandbLoggerHook':
-                import wandb
-                init_kwargs = h.init_kwargs.to_dict()
                 mmcv.mkdir_or_exist(f'wandb/{os.path.basename(weight_path)}')
-                init_kwargs.update(
-                    dict(
-                        name=os.path.basename(weight_path),
-                        resume=False,
-                        dir=f'wandb/{os.path.basename(weight_path)}',
-                        tags=[*h.init_kwargs.tags, 'ucf', args.ucf_cfg],
-                        config=cfg.to_dict()))
-                wandb.init(**init_kwargs)
-                mmcv.mkdir_or_exist(
-                    osp.join('./wandb',
-                             osp.splitext(osp.basename(args.config))[0]))
+                h.init_kwargs.name = os.path.basename(weight_path)
+                h.init_kwargs.resume = False
+                h.init_kwargs.dir = f'wandb/{os.path.basename(weight_path)}'
+                h.init_kwargs.tags = [*h.init_kwargs.tags, 'ucf', args.ucf_cfg]
+                h.init_kwargs.config = cfg.to_dict()
+                cfg.log_config.hooks.append(h)
     if args.load_from is not None:
         cfg.load_from = args.load_from
     if args.resume_from is not None:
@@ -190,6 +183,14 @@ def main():
         # checkpoints as meta data
         cfg.checkpoint_config.meta = dict(
             mmaction_version=__version__, config=cfg.text)
+
+    # for #param
+    model.train()
+    num_trainable_params = len(
+        [p for p in model.parameters() if p.requires_grad])
+    num_params = len([p for p in model.parameters()])
+    logger.info(f'Number of trainable parameters: {num_trainable_params}')
+    logger.info(f'Number of total parameters: {num_params}')
 
     train_model(
         model,

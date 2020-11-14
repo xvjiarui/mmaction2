@@ -30,12 +30,17 @@ class TSNHead(BaseHead):
                  consensus=dict(type='AvgConsensus', dim=1),
                  dropout_ratio=0.4,
                  init_std=0.01,
+                 with_norm=False,
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls=loss_cls, **kwargs)
 
         self.spatial_type = spatial_type
         self.dropout_ratio = dropout_ratio
         self.init_std = init_std
+        if with_norm:
+            self.norm = nn.BatchNorm2d(in_channels)
+        else:
+            self.norm = nn.Identity()
 
         consensus_ = consensus.copy()
 
@@ -72,6 +77,7 @@ class TSNHead(BaseHead):
             torch.Tensor: The classification scores for input samples.
         """
         # [N * num_segs, in_channels, 7, 7]
+        x = self.norm(x)
         x = self.avg_pool(x)
         # [N * num_segs, in_channels, 1, 1]
         x = x.reshape((-1, num_segs) + x.shape[1:])

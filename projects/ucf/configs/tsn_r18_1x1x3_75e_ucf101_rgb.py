@@ -13,6 +13,7 @@ model = dict(
         spatial_type='avg',
         consensus=dict(type='AvgConsensus', dim=1),
         dropout_ratio=0.4,
+        with_norm=True,
         init_std=0.001))
 # model training and testing settings
 train_cfg = None
@@ -120,4 +121,4 @@ log_level = 'INFO'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-find_unused_parameters = True
+find_unused_parameters = False
