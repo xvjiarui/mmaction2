@@ -1,4 +1,4 @@
-exclude: ^projects/moco/
+exclude: ^projects/
 repos:
   - repo: https://gitlab.com/pycqa/flake8
     rev: 3.8.3

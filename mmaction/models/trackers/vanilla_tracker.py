@@ -139,16 +139,25 @@ class VanillaTracker(BaseTracker):
                     seg_logit /= 1 + len(idx_bank)
                 else:
                     if self.test_cfg.get('with_first', True):
+                        # seg_logit = propagate_temporal(
+                        #     torch.stack([resized_seg_map] + seg_bank, dim=2),
+                        #     torch.stack(
+                        #         [first_affinity] + affinity_bank, dim=1),
+                        #     topk=self.test_cfg.topk * (len(seg_bank) + 1))
                         seg_logit = propagate_temporal(
                             torch.stack([resized_seg_map] + seg_bank, dim=2),
                             torch.stack(
                                 [first_affinity] + affinity_bank, dim=1),
-                            topk=self.test_cfg.topk * (len(seg_bank) + 1))
+                            topk=self.test_cfg.topk)
                     else:
+                        # seg_logit = propagate_temporal(
+                        #     torch.stack(seg_bank, dim=2),
+                        #     torch.stack(affinity_bank, dim=1),
+                        #     topk=self.test_cfg.topk * len(seg_bank))
                         seg_logit = propagate_temporal(
                             torch.stack(seg_bank, dim=2),
                             torch.stack(affinity_bank, dim=1),
-                            topk=self.test_cfg.topk * len(seg_bank))
+                            topk=self.test_cfg.topk)
 
                 idx_bank.append(frame_idx)
                 seg_bank.append(seg_logit)
