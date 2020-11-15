@@ -99,12 +99,12 @@ data = dict(
 # optimizer
 optimizer = dict(
     type='SGD', lr=0.00096, momentum=0.9,
-    weight_decay=0.0005)  # this lr is used for 4x32 gpus
+    weight_decay=0.0005)  # this lr is used for 4x32 bs
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(policy='step', step=[])
 total_epochs = 75
-checkpoint_config = dict(interval=total_epochs, max_keep_ckpts=1)
+checkpoint_config = dict(interval=15, max_keep_ckpts=1)
 evaluation = dict(
     interval=15,
     metrics=['top_k_accuracy', 'mean_class_accuracy'],
