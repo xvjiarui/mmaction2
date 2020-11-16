@@ -260,7 +260,7 @@ class TrackerSiamFC(Tracker):
         boxes = np.zeros((frame_num, 4))
         boxes[0] = box
         times = np.zeros(frame_num)
-        prog_bar = mmcv.ProgressBar(len(img_files))
+        # prog_bar = mmcv.ProgressBar(len(img_files))
 
         for f, img_file in enumerate(img_files):
             img = ops.read_image(img_file)
@@ -274,7 +274,7 @@ class TrackerSiamFC(Tracker):
 
             if visualize:
                 ops.show_image(img, boxes[f, :])
-            prog_bar.update()
+            # prog_bar.update()
 
         return boxes, times
 

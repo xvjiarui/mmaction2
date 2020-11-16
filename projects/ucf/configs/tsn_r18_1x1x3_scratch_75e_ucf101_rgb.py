@@ -3,7 +3,7 @@ model = dict(
     type='Recognizer2D',
     backbone=dict(
         type='ResNet',
-        pretrained='torchvision://resnet18',
+        pretrained=None,
         depth=18,
         norm_eval=False),
     cls_head=dict(
@@ -104,9 +104,9 @@ optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(policy='step', step=[])
 total_epochs = 75
-checkpoint_config = dict(interval=total_epochs, max_keep_ckpts=1)
+checkpoint_config = dict(interval=15, max_keep_ckpts=1)
 evaluation = dict(
-    interval=total_epochs,
+    interval=15,
     metrics=['top_k_accuracy', 'mean_class_accuracy'],
     topk=(1, 5))
 log_config = dict(
