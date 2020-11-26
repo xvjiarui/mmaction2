@@ -26,7 +26,7 @@ class SimSiamTracker(VanillaTracker):
             self.img_head = builder.build_head(img_head)
         self.init_extra_weights()
         self.intra_video = self.train_cfg.get('intra_video', False)
-        self.patch_size = _pair(self.train_cfg.patch_size)
+        self.patch_size = _pair(self.train_cfg.get('patch_size', 96))
         self.patch_from_img = self.train_cfg.get('patch_from_img', False)
 
     @property
