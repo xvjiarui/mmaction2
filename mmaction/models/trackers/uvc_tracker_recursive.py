@@ -24,7 +24,7 @@ class UVCTrackerRecursive(VanillaTracker):
                 same_on_batch = self.train_cfg.get('same_on_batch', False)
                 self.aug = nn.Sequential(
                     K.RandomRotation(degrees=10, same_on_batch=same_on_batch),
-                    # K.RandomResizedCrop(size=self.patch_img_size,
+                    # K.RandomResizedCrop(size=self.patch_size,
                     #                     scale=(0.7, 0.9),
                     #                     ratio=(0.7, 1.3)),
                     K.ColorJitter(

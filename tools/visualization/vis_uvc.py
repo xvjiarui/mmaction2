@@ -102,7 +102,7 @@ def uvc_hook(name):
         #     border=self.border//self.stride)
         # is_center_crop = False
         # ref_bboxes = get_top_diff_crop_bbox(imgs[:, :, 0], imgs[:, :, -1],
-        #                                     self.patch_img_size,
+        #                                     self.patch_size,
         #                                     self.grid_size,
         #                                     device=x.device)/self.stride
         ref_bboxes, is_center_crop = self.get_ref_crop_bbox(batches, imgs)

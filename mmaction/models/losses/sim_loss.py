@@ -29,22 +29,18 @@ class CosineSimLoss(BaseWeightedLoss):
     It will calculate Cosine Similarity loss given cls_score and label.
     """
 
-    def __init__(self, temperature=1., with_norm=True, **kwargs):
+    def __init__(self, with_norm=True, negative=False, **kwargs):
         super().__init__(**kwargs)
-        self.temperature = temperature
         self.with_norm = with_norm
+        self.negative = negative
 
     def _forward(self, cls_score, label, **kwargs):
-        # prod_ = compute_affinity(
-        #     cls_score,
-        #     label,
-        #     normalize=self.with_norm,
-        #     temperature=self.temperature)
-        # prod_ = prod_.diagonal(dim1=-2, dim2=-1)
         if self.with_norm:
             cls_score = F.normalize(cls_score, p=2, dim=1)
             label = F.normalize(label, p=2, dim=1)
         prod = torch.sum(cls_score * label, dim=1).view(cls_score.size(0), -1)
-        # assert torch.allclose(prod_, prod)
-        loss = 2 - 2 * prod.mean(dim=-1)
+        if self.negative:
+            loss = -prod.mean(dim=-1)
+        else:
+            loss = 2 - 2 * prod.mean(dim=-1)
         return loss

@@ -267,8 +267,9 @@ def masked_attention_efficient(query,
     assert value.ndim == key.ndim == 5
     clip_len = key.size(2)
     assert 0 <= non_mask_len < clip_len
-    assert query.shape[2:] == key.shape[3:]
-    att_channels, height, width = query.shape[1:]
+    # assert query.shape[2:] == key.shape[3:]
+    att_channels, query_height, query_width = query.shape[1:]
+    key_height, key_width = key.shape[3:]
     output_channels = value.size(1)
     if normalize:
         query = F.normalize(query, p=2, dim=1)
@@ -276,23 +277,28 @@ def masked_attention_efficient(query,
     query_vec = query.view(batches, att_channels, query.shape[2:].numel())
     key_vec = key.view(batches, att_channels, key.shape[2:].numel())
     value_vec = value.view(batches, output_channels, value.shape[2:].numel())
-    output = torch.zeros(batches, output_channels, height * width).to(query)
-    for ptr in range(0, height * width, step):
+    output = torch.zeros(batches, output_channels,
+                         query_height * query_width).to(query)
+    for ptr in range(0, query_height * query_width, step):
         # [N, TxHxW, step]
         cur_affinity = torch.einsum('bci,bcj->bij', key_vec,
                                     query_vec[...,
                                               ptr:ptr + step]) / temperature
-        cur_mask = mask.view(1, height * width,
-                             height * width)[..., ptr:ptr + step].expand(
-                                 clip_len - non_mask_len, -1,
-                                 -1).reshape(batches, -1, cur_affinity.size(2))
-        if non_mask_len > 0:
-            cur_mask = cat([
-                torch.ones(batches, non_mask_len * height * width,
-                           cur_affinity.size(2)).to(cur_mask), cur_mask
-            ],
-                           dim=1)
-        cur_affinity.masked_fill_(~cur_mask.bool(), float('-inf'))
+        if mask is not None:
+            assert mask.shape == (key_height * key_width,
+                                  query_height * query_width)
+            cur_mask = mask.view(1, 1, key_height * key_width, query_height *
+                                 query_width)[..., ptr:ptr + step].expand(
+                                     batches, clip_len - non_mask_len, -1,
+                                     -1).reshape(batches, -1,
+                                                 cur_affinity.size(2))
+            if non_mask_len > 0:
+                cur_mask = cat([
+                    torch.ones(batches, non_mask_len * key_height * key_width,
+                               cur_affinity.size(2)).to(cur_mask), cur_mask
+                ],
+                               dim=1)
+            cur_affinity.masked_fill_(~cur_mask.bool(), float('-inf'))
         if topk is not None:
             # [N, topk, step]
             topk_affinity, topk_indices = cur_affinity.topk(k=topk, dim=1)
@@ -313,6 +319,7 @@ def masked_attention_efficient(query,
                                       cur_affinity.softmax(dim=1))
         output[..., ptr:ptr + step] = cur_output
 
-    output = output.reshape(batches, output_channels, height, width)
+    output = output.reshape(batches, output_channels, query_height,
+                            query_width)
 
     return output

@@ -21,7 +21,7 @@ class UVCTracker(VanillaTracker):
             if self.train_cfg.get('strong_aug', False):
                 self.aug = nn.Sequential(
                     K.RandomRotation(degrees=10),
-                    # K.RandomResizedCrop(size=self.patch_img_size,
+                    # K.RandomResizedCrop(size=self.patch_size,
                     #                     scale=(0.7, 0.9),
                     #                     ratio=(0.7, 1.3)),
                     K.ColorJitter(

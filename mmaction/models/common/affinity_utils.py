@@ -154,3 +154,11 @@ def spatial_neighbor(batches,
         mask = mask.view(height * width, height * width)
         mask = mask.to(device=device, dtype=dtype)
     return mask.bool()
+
+
+def resize_spatial_mask(mask, output_size):
+    height, width = mask.shape[:2]
+    mask = mask.view(1, height * width, height, width).byte()
+    new_mask = F.interpolate(mask, size=output_size)
+    new_mask = new_mask.view(height, width, *output_size)
+    return new_mask

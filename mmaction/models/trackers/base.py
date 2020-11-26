@@ -27,13 +27,14 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
 
     def __init__(self,
                  backbone,
-                 cls_head,
+                 cls_head=None,
                  neck=None,
                  train_cfg=None,
                  test_cfg=None):
         super().__init__()
         self.backbone = builder.build_backbone(backbone)
-        self.cls_head = builder.build_head(cls_head)
+        if cls_head is not None:
+            self.cls_head = builder.build_head(cls_head)
         if neck is not None:
             self.neck = builder.build_neck(neck)
 
@@ -45,6 +46,11 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
         self.register_buffer('iteration', torch.tensor(0, dtype=torch.float))
 
     @property
+    def with_cls_head(self):
+        """bool: whether the detector has a cls_head"""
+        return hasattr(self, 'cls_head') and self.cls_head is not None
+
+    @property
     def with_neck(self):
         """bool: whether the detector has a neck"""
         return hasattr(self, 'neck') and self.neck is not None
@@ -52,7 +58,8 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
     def init_weights(self):
         """Initialize the model network weights."""
         self.backbone.init_weights()
-        self.cls_head.init_weights()
+        if self.with_cls_head:
+            self.cls_head.init_weights()
         if self.with_neck:
             self.neck.init_weights()
 

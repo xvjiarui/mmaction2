@@ -1,5 +1,5 @@
 from .affinity_utils import (compute_affinity, propagate, propagate_temporal,
-                             spatial_neighbor)
+                             resize_spatial_mask, spatial_neighbor)
 from .bbox import (bbox2mask, bbox_overlaps, center2bbox, coord2bbox,
                    crop_and_resize, get_crop_grid, get_non_overlap_crop_bbox,
                    get_random_crop_bbox, get_top_diff_crop_bbox, scale_bboxes,
@@ -17,5 +17,5 @@ __all__ = [
     'concat_all_gather', 'get_top_diff_crop_bbox', 'spatial_neighbor',
     'bbox2mask', 'bbox_overlaps', 'StrideContext', 'propagate_temporal',
     'unmap', 'get_non_overlap_crop_bbox', 'scale_bboxes', 'vis_imgs', 'Clamp',
-    'cat', 'masked_attention_efficient'
+    'cat', 'masked_attention_efficient', 'resize_spatial_mask'
 ]

@@ -1,24 +1,35 @@
 # model settings
+temperature = 0.2
+with_norm = True
+query_dim = 128
 model = dict(
-    type='VanillaTracker',
+    type='SimSiamTracker',
     backbone=dict(
         type='ResNet',
-        pretrained='torchvision://resnet18',
+        pretrained=None,
         depth=18,
         out_indices=(3, ),
+        # strides=(1, 2, 1, 1),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
-    cls_head=dict(
-        type='WalkerHead',
-        num_classes=400,
+    cls_head=None,
+    patch_head=None,
+    img_head=dict(
+        type='SimSiamHead',
         in_channels=512,
-        channels=128,
-        spatial_type='avg',
-        temperature=0.07,
-        walk_len=7,
-        init_std=0.01))
+        norm_cfg=dict(type='SyncBN'),
+        num_projection_fcs=3,
+        projection_mid_channels=512,
+        projection_out_channels=512,
+        num_predictor_fcs=2,
+        predictor_mid_channels=128,
+        predictor_out_channels=512,
+        with_norm=True,
+        loss_feat=dict(type='CosineSimLoss', negative=False),
+        spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(patch_size=64, patch_stride=32)
+train_cfg = dict(intra_video=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -42,12 +53,39 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=8, frame_interval=2, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=2),
+    # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
-    # dict(type='Resize', scale=(-1, 256)),
-    # dict(type='RandomResizedCrop'),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    dict(type='Flip', flip_ratio=0.5),
+    dict(
+        type='RandomResizedCrop',
+        area_range=(0.2, 1.),
+        same_across_clip=False,
+        same_on_clip=False),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
+    dict(
+        type='Flip',
+        flip_ratio=0.5,
+        same_across_clip=False,
+        same_on_clip=False),
+    dict(
+        type='ColorJitter',
+        brightness=0.4,
+        contrast=0.4,
+        saturation=0.4,
+        hue=0.1,
+        p=0.8,
+        same_across_clip=False,
+        same_on_clip=False),
+    dict(
+        type='RandomGrayScale',
+        p=0.2,
+        same_across_clip=False,
+        same_on_clip=False),
+    dict(
+        type='RandomGaussianBlur',
+        p=0.5,
+        same_across_clip=False,
+        same_on_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -67,8 +105,9 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=8,
-    workers_per_gpu=4,
+    videos_per_gpu=64,
+    workers_per_gpu=16,
+    val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,
@@ -91,20 +130,43 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
-optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0001)
+# optimizer = dict(type='Adam', lr=1e-4)
+optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-# lr_config = dict(policy='CosineAnnealing', min_lr=0)
-lr_config = dict(policy='Fixed')
-total_epochs = 50
+lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+# lr_config = dict(policy='Fixed')
+# lr_config = dict(
+#     policy='step',
+#     warmup='linear',
+#     warmup_iters=100,
+#     warmup_ratio=0.001,
+#     step=[1, 2])
+total_epochs = 200
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=1,
+    metrics='davis',
+    key_indicator='feat_1.J&F-Mean',
+    rule='greater')
 log_config = dict(
-    interval=50,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
+        # dict(
+        #     type='WandbLoggerHook',
+        #     init_kwargs=dict(
+        #         project='mmaction2',
+        #         name='{{fileBasenameNoExtension}}',
+        #         resume=True,
+        #         tags=['moco2'],
+        #         dir='wandb/{{fileBasenameNoExtension}}',
+        #         config=dict(
+        #             model=model,
+        #             train_cfg=train_cfg,
+        #             test_cfg=test_cfg,
+        #             data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

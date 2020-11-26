@@ -70,3 +70,7 @@ def terminal_is_available():
         if key.startswith('KUBERNETES'):
             return False
     return True
+
+
+def tuple_divide(input_tuple, divisor):
+    return tuple(i // divisor for i in input_tuple)
