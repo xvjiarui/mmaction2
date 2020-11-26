@@ -40,7 +40,7 @@ class WalkerHeadV2(BaseHead):
                  walk_len=7,
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls, **kwargs)
-        assert loss_cls['type'] == 'NLLLoss'
+        # assert loss_cls['type'] == 'NLLLoss'
         self.channels = channels
         self.num_convs = num_convs
         self.conv_cfg = conv_cfg
@@ -105,9 +105,9 @@ class WalkerHeadV2(BaseHead):
         affinity_backward = affinity_forward.transpose(-1, -2)
 
         affinity_forward[
-            torch.rand_like(affinity_forward) < self.dropout_ratio] = -1e10
+            torch.rand_like(affinity_forward) < self.dropout_ratio] = -1e20
         affinity_backward[
-            torch.rand_like(affinity_backward) < self.dropout_ratio] = -1e10
+            torch.rand_like(affinity_backward) < self.dropout_ratio] = -1e20
 
         preds_list = []
         for step in range(1, min(clip_len, self.walk_len + 1)):
@@ -167,7 +167,9 @@ class WalkerHeadV2(BaseHead):
             preds = preds.reshape(-1, preds.size(-1))
             labels = labels.reshape(-1)
             losses.update(
-                add_suffix(super().loss(preds.log(), labels), suffix=str(idx)))
+                add_suffix(
+                    super().loss(torch.log(preds + 1e-20), labels),
+                    suffix=str(idx)))
             losses.update(add_suffix(loss_walk, suffix=str(idx)))
 
         return losses

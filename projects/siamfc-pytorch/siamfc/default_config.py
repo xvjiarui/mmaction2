@@ -13,7 +13,6 @@ default_cfg = {
     'window_influence': 0.176,
     'response_sz': 17,
     'response_up': 16,
-    'positive_label_width': 5,
     'total_stride': 8,
     # train parameters
     'epoch_num': 40,
@@ -24,6 +23,7 @@ default_cfg = {
     'initial_lr': 1e-2,
     'ultimate_lr': 1e-5,
     'weight_decay': 5e-4,
+    'positive_label_width': 5,
     'momentum': 0.9,
     'r_pos': 16,
     'r_neg': 0,

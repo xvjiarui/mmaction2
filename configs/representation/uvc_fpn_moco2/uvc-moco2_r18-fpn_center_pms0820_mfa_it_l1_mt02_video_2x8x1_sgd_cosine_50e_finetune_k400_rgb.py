@@ -8,7 +8,7 @@ model = dict(
     patch_queue_size=256 * 144 * 5,
     backbone=dict(
         type='ResNet',
-        pretrained=None,
+        pretrained='pretrained/moco_k400_50e.pth',
         depth=18,
         out_indices=(0, 1, 2, 3),
         # strides=(1, 2, 1, 1),
@@ -154,7 +154,7 @@ data = dict(
         test_mode=True))
 # optimizer
 # optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=1e-1, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=1e-2, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)

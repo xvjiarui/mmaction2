@@ -9,7 +9,7 @@ from davis2017.evaluation import DAVISEvaluation
 from mmcv.utils import print_log
 from PIL import Image
 
-from mmaction.utils import add_prefix
+from mmaction.utils import add_prefix, terminal_is_available
 from .rawframe_dataset import RawframeDataset
 from .registry import DATASETS
 
@@ -81,7 +81,8 @@ class DavisDataset(RawframeDataset):
                 tmp_dir = None
                 mmcv.mkdir_or_exist(output_dir)
 
-            prog_bar = mmcv.ProgressBar(len(self))
+            if terminal_is_available():
+                prog_bar = mmcv.ProgressBar(len(self))
             for vid_idx in range(len(results)):
                 for img_idx in range(
                         self.video_infos[vid_idx]['total_frames']):
@@ -96,7 +97,8 @@ class DavisDataset(RawframeDataset):
                             'jpg', 'png'))
                     mmcv.mkdir_or_exist(osp.dirname(save_path))
                     img.save(save_path)
-                prog_bar.update()
+                if terminal_is_available():
+                    prog_bar.update()
             metrics_res = dataset_eval.evaluate(output_dir)
             if tmp_dir is not None:
                 tmp_dir.cleanup()

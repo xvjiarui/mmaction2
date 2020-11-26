@@ -1,4 +1,5 @@
 import ctypes
+import os
 import random
 import string
 
@@ -62,3 +63,10 @@ def add_suffix(inputs, suffix):
         outputs[f'{name}.{suffix}'] = value
 
     return outputs
+
+
+def terminal_is_available():
+    for key in os.environ:
+        if key.startswith('KUBERNETES'):
+            return False
+    return True

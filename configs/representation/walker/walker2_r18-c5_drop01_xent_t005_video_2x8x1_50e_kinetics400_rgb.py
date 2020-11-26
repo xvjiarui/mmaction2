@@ -1,32 +1,32 @@
 # model settings
 model = dict(
-    type='VanillaTracker',
+    type='SpaceTimeWalker',
     backbone=dict(
         type='ResNet',
-        pretrained='torchvision://resnet18',
+        pretrained=None,
         depth=18,
+        strides=(1, 2, 1, 1),
         out_indices=(3, ),
         norm_eval=False,
         zero_init_residual=True),
     cls_head=dict(
-        type='WalkerHead',
+        type='WalkerHeadV2',
         num_classes=400,
         in_channels=512,
         channels=128,
-        spatial_type='avg',
-        temperature=0.07,
+        temperature=0.05,
+        loss_cls=dict(type='CrossEntropyLoss'),
         walk_len=7,
-        init_std=0.01))
+        dropout_ratio=0.1))
 # model training and testing settings
 train_cfg = dict(patch_size=64, patch_stride=32)
 test_cfg = dict(
-    precede_frames=7,
-    topk=5,
-    temperature=0.1,
+    precede_frames=20,
+    topk=10,
+    temperature=0.2,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
     neighbor_range=24,
-    framewise=False,
     with_first=True,
     with_first_neighbor=True,
     output_dir='eval_results')
@@ -43,7 +43,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=8, frame_interval=2, num_clips=1),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop'),
@@ -68,8 +68,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=8,
-    workers_per_gpu=4,
+    videos_per_gpu=24,
+    workers_per_gpu=16,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,
@@ -92,7 +92,7 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
-optimizer = dict(type='Adam', lr=0.0001, weight_decay=0.0001)
+optimizer = dict(type='Adam', lr=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 # lr_config = dict(policy='CosineAnnealing', min_lr=0)
@@ -100,12 +100,25 @@ lr_config = dict(policy='Fixed')
 total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
-    interval=1, metrics='davis', key_indicator='J&F-Mean', rule='greater')
+    interval=1, metrics='davis', save_best=False, key_indicator=None)
 log_config = dict(
     interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['walker2'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

@@ -122,20 +122,35 @@ def spatial_neighbor(batches,
                      neighbor_range,
                      device,
                      dtype,
-                     dim=1):
+                     dim=1,
+                     mode='circle'):
     assert dim in [1, 2]
-    neighbor_range = _pair(neighbor_range)
-    mask = torch.zeros(
-        batches, height, width, height, width, device=device, dtype=dtype)
-    for i in range(height):
-        for j in range(width):
-            top = max(0, i - neighbor_range[0] // 2)
-            left = max(0, j - neighbor_range[1] // 2)
-            bottom = min(height, i + neighbor_range[0] // 2 + 1)
-            right = min(width, j + neighbor_range[1] // 2 + 1)
-            mask[:, top:bottom, left:right, i, j] = 1
+    assert mode in ['circle', 'square']
+    if mode == 'square':
+        neighbor_range = _pair(neighbor_range)
+        mask = torch.zeros(
+            batches, height, width, height, width, device=device, dtype=dtype)
+        for i in range(height):
+            for j in range(width):
+                top = max(0, i - neighbor_range[0] // 2)
+                left = max(0, j - neighbor_range[1] // 2)
+                bottom = min(height, i + neighbor_range[0] // 2 + 1)
+                right = min(width, j + neighbor_range[1] // 2 + 1)
+                mask[:, top:bottom, left:right, i, j] = 1
 
-    mask = mask.view(batches, height * width, height * width)
-    if dim == 2:
-        mask = mask.transpose(1, 2).contiguous()
-    return mask
+        mask = mask.view(batches, height * width, height * width)
+        if dim == 2:
+            mask = mask.transpose(1, 2).contiguous()
+    else:
+        radius = neighbor_range // 2
+        grid_x, grid_y = torch.meshgrid(
+            torch.arange(height, device=device, dtype=dtype),
+            torch.arange(width, device=device, dtype=dtype))
+        dist_mat = ((grid_x.view(height, width, 1, 1) -
+                     grid_x.view(1, 1, height, width))**2 +
+                    (grid_y.view(height, width, 1, 1) -
+                     grid_y.view(1, 1, height, width))**2)**0.5
+        mask = dist_mat < radius
+        mask = mask.view(height * width, height * width)
+        mask = mask.to(device=device, dtype=dtype)
+    return mask.bool()

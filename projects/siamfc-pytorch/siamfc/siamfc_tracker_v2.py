@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from mmaction.models import build_backbone
+from mmaction.utils import terminal_is_available
 from . import ops
 from .heads import SiamConvFC, SiamFC
 from .losses import BalancedLoss, FocalLoss
@@ -260,7 +261,9 @@ class TrackerSiamFC(Tracker):
         boxes = np.zeros((frame_num, 4))
         boxes[0] = box
         times = np.zeros(frame_num)
-        # prog_bar = mmcv.ProgressBar(len(img_files))
+
+        if terminal_is_available():
+            prog_bar = mmcv.ProgressBar(len(img_files))
 
         for f, img_file in enumerate(img_files):
             img = ops.read_image(img_file)
@@ -274,7 +277,8 @@ class TrackerSiamFC(Tracker):
 
             if visualize:
                 ops.show_image(img, boxes[f, :])
-            # prog_bar.update()
+            if terminal_is_available():
+                prog_bar.update()
 
         return boxes, times
 

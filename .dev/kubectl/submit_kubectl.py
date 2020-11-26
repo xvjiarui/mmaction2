@@ -25,9 +25,9 @@ def parse_args():
     parser.add_argument(
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
-        '--cpus', type=int, default=6, help='number of cpus to use')
+        '--cpus', type=int, default=10, help='number of cpus to use')
     parser.add_argument(
-        '--mem', type=int, default=20, help='amount of memory to use')
+        '--mem', type=int, default=24, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
@@ -54,7 +54,8 @@ def submit(config, args, rest):
         # max_mem='32Gi',
         config=config,
         py_args=' '.join(rest),
-        link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
+        link='ln -s /exps/mmaction2/work_dirs; '
+        'ln -s /exps/mmaction2/pretrained;' if args.ln_exp else '',
         wandb='mkdir -p /exps/mmaction2/wandb; '
         'ln -s /exps/mmaction2/wandb; '
         'pip install --upgrade wandb && wandb login '

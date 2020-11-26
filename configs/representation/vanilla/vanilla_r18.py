@@ -20,11 +20,14 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(patch_size=64, patch_stride=32)
 test_cfg = dict(
-    precede_frames=7,
-    topk=5,
-    temperature=1. / 23,
+    precede_frames=40,
+    topk=10,
+    temperature=0.2,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
+    neighbor_range=24,
+    with_first=True,
+    with_first_neighbor=True,
     output_dir='eval_results')
 # dataset settings
 dataset_type = 'VideoDataset'

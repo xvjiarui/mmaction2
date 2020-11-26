@@ -13,5 +13,6 @@ from .vanilla_tracker import VanillaTracker
 __all__ = [
     'BaseTracker', 'SpaceTimeWalker', 'UVCTracker', 'VanillaTracker',
     'UVCTrackerV2', 'UVCTrackerRecursive', 'UVCMoCoTracker', 'RNDMoCoTracker',
-    'UVCTrackerV3', 'UVCNeckMoCoTracker', 'UVCNeckMoCoTrackerV2'
+    'UVCTrackerV3', 'UVCNeckMoCoTracker', 'UVCNeckMoCoTrackerV2',
+    'VanillaTracker'
 ]

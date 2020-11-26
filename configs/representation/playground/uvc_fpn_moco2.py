@@ -13,7 +13,8 @@ model = dict(
         # depth=50,
         out_indices=(0, 1, 2, 3),
         # strides=(1, 2, 1, 1),
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        # norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
     neck=dict(
@@ -82,7 +83,7 @@ train_cfg = dict(
     diff_crop=True,
     skip_cycle=True,
     center_ratio=0.,
-    shuffle_bn=True)
+    shuffle_bn=False)
 test_cfg = dict(
     precede_frames=7,
     topk=5,
@@ -121,13 +122,14 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
+    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     # dict(type='Resize', scale=(-1, 256)),
     # dict(type='RandomResizedCrop', area_range=(0.2, 1.)),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    dict(type='Flip', flip_ratio=0.5),
+    dict(type='Resize', scale=(-1, 256)),
+    dict(type='CenterCrop', crop_size=256),
+    # dict(type='Flip', flip_ratio=0.5),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,

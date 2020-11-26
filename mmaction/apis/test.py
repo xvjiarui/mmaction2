@@ -8,6 +8,8 @@ import torch
 import torch.distributed as dist
 from mmcv.runner import get_dist_info
 
+from ..utils import terminal_is_available
+
 
 def single_gpu_test(model, data_loader):
     """Test model with a single gpu.
@@ -23,8 +25,9 @@ def single_gpu_test(model, data_loader):
     """
     model.eval()
     results = []
-    # dataset = data_loader.dataset
-    # prog_bar = mmcv.ProgressBar(len(dataset))
+    dataset = data_loader.dataset
+    if terminal_is_available():
+        prog_bar = mmcv.ProgressBar(len(dataset))
     for data in data_loader:
         with torch.no_grad():
             result = model(return_loss=False, **data)
@@ -33,10 +36,11 @@ def single_gpu_test(model, data_loader):
         else:
             results.append(result)
 
-        # # use the first key as main key to calculate the batch size
-        # batch_size = len(next(iter(data.values())))
-        # for _ in range(batch_size):
-        #     prog_bar.update()
+        if terminal_is_available():
+            # use the first key as main key to calculate the batch size
+            batch_size = len(next(iter(data.values())))
+            for _ in range(batch_size):
+                prog_bar.update()
     return results
 
 
@@ -63,9 +67,9 @@ def multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=True):
     model.eval()
     results = []
     dataset = data_loader.dataset
-    # rank, world_size = get_dist_info()
-    # if rank == 0:
-    #     prog_bar = mmcv.ProgressBar(len(dataset))
+    rank, world_size = get_dist_info()
+    if rank == 0 and terminal_is_available():
+        prog_bar = mmcv.ProgressBar(len(dataset))
     for data in data_loader:
         with torch.no_grad():
             result = model(return_loss=False, **data)
@@ -75,11 +79,11 @@ def multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=True):
         #     results.append(result)
         results.extend(result)
 
-        # if rank == 0:
-        #     # use the first key as main key to calculate the batch size
-        #     batch_size = len(next(iter(data.values())))
-        #     for _ in range(batch_size * world_size):
-        #         prog_bar.update()
+        if rank == 0 and terminal_is_available():
+            # use the first key as main key to calculate the batch size
+            batch_size = len(next(iter(data.values())))
+            for _ in range(batch_size * world_size):
+                prog_bar.update()
 
     # collect results from all ranks
     if gpu_collect:
