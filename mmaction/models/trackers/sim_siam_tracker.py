@@ -123,7 +123,7 @@ class SimSiamTracker(VanillaTracker):
                         prefix=f'{i}'))
         return losses
 
-    def forward(self, imgs, label=None):
+    def forward_train(self, imgs, labels=None):
         # [B, N, C, T, H, W]
         assert imgs.size(1) == 2
         clip_len = imgs.size(3)
