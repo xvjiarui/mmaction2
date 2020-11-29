@@ -102,16 +102,14 @@ class SimSiamTracker(VanillaTracker):
                 x1.size(2), x1.size(3), x1.size(2), x1.size(3))
         mask = resize_spatial_mask(mask, patch_x1.shape[2:]).view(
             x1.shape[2:].numel(), patch_x1.shape[2:].numel())
-        patch_x12 = masked_attention_efficient(
-            patch_x1, x2, x2, mask, topk=10).contiguous()
-        patch_x21 = masked_attention_efficient(
-            patch_x2, x1, x1, mask, topk=10).contiguous()
+        patch_x12 = masked_attention_efficient(patch_x1, x2, x2,
+                                               mask).contiguous()
 
         losses = dict()
-        z1, p1 = self.patch_head(patch_x21)
+        z1, p1 = self.patch_head(patch_x1)
         z2, p2 = self.patch_head(patch_x12)
         losses.update(
-            add_prefix(self.patch_head.loss(p1, z1, p2, z2), prefix='0'))
+            add_prefix(self.patch_head.loss(p1, z1, p2, z2), prefix='0.0'))
         if self.intra_video:
             z2_v, p2_v = images2video(z2, clip_len), images2video(p2, clip_len)
             for i in range(1, clip_len):
@@ -120,7 +118,23 @@ class SimSiamTracker(VanillaTracker):
                         self.patch_head.loss(
                             p1, z1, video2images(p2_v.roll(i, dims=2)),
                             video2images(z2_v.roll(i, dims=2))),
-                        prefix=f'{i}'))
+                        prefix=f'0.{i}'))
+        patch_x21 = masked_attention_efficient(patch_x2, x1, x1,
+                                               mask).contiguous()
+        z1, p1 = self.patch_head(patch_x21)
+        z2, p2 = self.patch_head(patch_x2)
+        losses.update(
+            add_prefix(self.patch_head.loss(p1, z1, p2, z2), prefix='1.0'))
+        if self.intra_video:
+            z2_v, p2_v = images2video(z2, clip_len), images2video(p2, clip_len)
+            for i in range(1, clip_len):
+                losses.update(
+                    add_prefix(
+                        self.patch_head.loss(
+                            p1, z1, video2images(p2_v.roll(i, dims=2)),
+                            video2images(z2_v.roll(i, dims=2))),
+                        prefix=f'1.{i}'))
+
         return losses
 
     def forward_train(self, imgs, labels=None):

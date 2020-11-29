@@ -242,7 +242,8 @@ def masked_attention_efficient(query,
                                topk=None,
                                normalize=True,
                                step=32,
-                               non_mask_len=0):
+                               non_mask_len=0,
+                               mode='softmax'):
     """
 
     Args:
@@ -254,10 +255,12 @@ def masked_attention_efficient(query,
         normalize (bool): Whether normalize feature
         step (int): Step for computing affinity
         non_mask_len (int): Length of video that do not apply mask
+        mode (str): Affinity mode
 
     Returns:
 
     """
+    assert mode in ['softmax', 'cosine']
     batches = query.size(0)
     assert query.size(0) == key.size(0) == value.size(0)
     assert value.shape[2:] == key.shape[2:], f'{value.shape} {key.shape}'
@@ -312,11 +315,23 @@ def masked_attention_efficient(query,
             topk_value = topk_value.reshape(output_channels,
                                             *topk_indices.shape).transpose(
                                                 0, 1)
-            cur_output = torch.einsum('bcks,bks->bcs', topk_value,
-                                      topk_affinity.softmax(dim=1))
+            select_value = topk_value
+            select_affinity = topk_affinity
+            # cur_output = torch.einsum('bcks,bks->bcs', topk_value,
+            #                           topk_affinity)
         else:
-            cur_output = torch.einsum('bck,bks->bcs', value_vec,
-                                      cur_affinity.softmax(dim=1))
+            select_value = value_vec
+            select_affinity = cur_affinity
+            # cur_output = torch.einsum('bck,bks->bcs', value_vec,
+            #                           cur_affinity.softmax(dim=1))
+        if mode == 'softmax':
+            select_affinity = select_affinity.softmax(dim=1)
+        elif mode == 'cosine':
+            select_affinity = select_affinity.clamp(min=0)**2
+        else:
+            raise ValueError
+        cur_output = torch.einsum('bcks,bks->bcs', select_value,
+                                  select_affinity)
         output[..., ptr:ptr + step] = cur_output
 
     output = output.reshape(batches, output_channels, query_height,

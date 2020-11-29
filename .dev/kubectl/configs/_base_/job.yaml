@@ -17,7 +17,7 @@ spec:
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
         args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2;
-        python setup.py develop; ln -s /data; ln -s /data_zip; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
+        python setup.py develop; ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
         ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
@@ -31,8 +31,8 @@ spec:
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
             name: data
-          - mountPath: /data_zip # the directory you can access your persistent storage in container
-            name: data-zip
+#          - mountPath: /data_zip # the directory you can access your persistent storage in container
+#            name: data-zip
           - mountPath: /exps # the directory you can access your persistent storage in container
             name: exps
           - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
@@ -57,9 +57,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: data
-        - name: data-zip
-          persistentVolumeClaim:
-            claimName: data-zip
+#        - name: data-zip
+#          persistentVolumeClaim:
+#            claimName: data-zip
         - name: exps
           persistentVolumeClaim:
             claimName: exps
