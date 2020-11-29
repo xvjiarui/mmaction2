@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: data-backup
-  namespace: 'image-model'
+  name: data-zip
+  namespace: 'self-supervised-video'
 spec:
   storageClassName: rook-cephfs
   accessModes:
   - ReadWriteMany
   resources:
     requests:
-      storage: 1024Gi
+      storage: 500Gi

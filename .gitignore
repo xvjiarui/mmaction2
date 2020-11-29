@@ -107,6 +107,7 @@ venv.bak/
 # custom
 mmaction/version.py
 /data
+/data_zip
 .vscode
 .idea
 *.pkl

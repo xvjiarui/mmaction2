@@ -36,6 +36,8 @@ spec:
             name: dshm
           - mountPath: /exps # the directory you can access your persistent storage in container
             name: exps
+          - mountPath: /data_zip # the directory you can access your persistent storage in container
+            name: data-zip
           - mountPath: /data_backup # the directory you can access your persistent storage in container
             name: data-backup
           - mountPath: /exps_backup # the directory you can access your persistent storage in container
@@ -47,6 +49,9 @@ spec:
         - name: exps
           persistentVolumeClaim:
             claimName: exps
+        - name: data-zip
+          persistentVolumeClaim:
+            claimName: data-zip
         - name: data-backup
           persistentVolumeClaim:
             claimName: data-backup
