@@ -315,23 +315,23 @@ def masked_attention_efficient(query,
             topk_value = topk_value.reshape(output_channels,
                                             *topk_indices.shape).transpose(
                                                 0, 1)
-            select_value = topk_value
-            select_affinity = topk_affinity
-            # cur_output = torch.einsum('bcks,bks->bcs', topk_value,
-            #                           topk_affinity)
+            if mode == 'softmax':
+                topk_affinity = topk_affinity.softmax(dim=1)
+            elif mode == 'cosine':
+                topk_affinity = topk_affinity.clamp(min=0)**2
+            else:
+                raise ValueError
+            cur_output = torch.einsum('bcks,bks->bcs', topk_value,
+                                      topk_affinity)
         else:
-            select_value = value_vec
-            select_affinity = cur_affinity
-            # cur_output = torch.einsum('bck,bks->bcs', value_vec,
-            #                           cur_affinity.softmax(dim=1))
-        if mode == 'softmax':
-            select_affinity = select_affinity.softmax(dim=1)
-        elif mode == 'cosine':
-            select_affinity = select_affinity.clamp(min=0)**2
-        else:
-            raise ValueError
-        cur_output = torch.einsum('bcks,bks->bcs', select_value,
-                                  select_affinity)
+            if mode == 'softmax':
+                cur_affinity = cur_affinity.softmax(dim=1)
+            elif mode == 'cosine':
+                cur_affinity = cur_affinity.clamp(min=0)**2
+            else:
+                raise ValueError
+            cur_output = torch.einsum('bck,bks->bcs', value_vec,
+                                      cur_affinity.softmax(dim=1))
         output[..., ptr:ptr + step] = cur_output
 
     output = output.reshape(batches, output_channels, query_height,
