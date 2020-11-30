@@ -28,6 +28,7 @@ class SimSiamTracker(VanillaTracker):
         self.intra_video = self.train_cfg.get('intra_video', False)
         self.patch_size = _pair(self.train_cfg.get('patch_size', 96))
         self.patch_from_img = self.train_cfg.get('patch_from_img', False)
+        self.patch_mask_radius = self.train_cfg.get('patch_mask_radius', None)
 
     @property
     def with_patch_head(self):
@@ -92,16 +93,19 @@ class SimSiamTracker(VanillaTracker):
                                        tuple_divide(self.patch_size, stride))
             patch_x2 = crop_and_resize(x2, patch_bboxes2 / stride,
                                        tuple_divide(self.patch_size, stride))
-        mask = spatial_neighbor(
-            x1.size(0),
-            x1.size(2),
-            x2.size(3),
-            neighbor_range=14,
-            device=x1.device,
-            dtype=x1.dtype).view(
-                x1.size(2), x1.size(3), x1.size(2), x1.size(3))
-        mask = resize_spatial_mask(mask, patch_x1.shape[2:]).view(
-            x1.shape[2:].numel(), patch_x1.shape[2:].numel())
+        if self.patch_mask_radius is not None:
+            mask = spatial_neighbor(
+                x1.size(0),
+                x1.size(2),
+                x2.size(3),
+                neighbor_range=self.patch_mask_radius,
+                device=x1.device,
+                dtype=x1.dtype).view(
+                    x1.size(2), x1.size(3), x1.size(2), x1.size(3))
+            mask = resize_spatial_mask(mask, patch_x1.shape[2:]).view(
+                x1.shape[2:].numel(), patch_x1.shape[2:].numel())
+        else:
+            mask = None
         patch_x12 = masked_attention_efficient(patch_x1, x2, x2,
                                                mask).contiguous()
 
