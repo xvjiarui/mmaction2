@@ -22,7 +22,21 @@ model = dict(
         extra_fpn_out_act=False,
         num_outs=4,
         out_index=1),
-    cls_head=None,
+    cls_head=dict(
+        type='DenseSimSiamHead',
+        in_channels=256,
+        kernel_size=1,
+        conv_cfg=dict(type='Conv2d'),
+        norm_cfg=dict(type='SyncBN'),
+        act_cfg=dict(type='ReLU'),
+        num_projection_convs=3,
+        projection_mid_channels=256,
+        projection_out_channels=256,
+        num_predictor_convs=2,
+        predictor_mid_channels=64,
+        predictor_out_channels=256,
+        loss_feat=dict(type='CosineSimLoss', negative=False)),
+    # cls_head=None,
     patch_head=dict(
         type='SimSiamHead',
         in_channels=256,
@@ -50,7 +64,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=True, patch_size=96)
+train_cfg = dict(intra_video=True, patch_size=96, patch_att_mode='cosine')
 test_cfg = dict(
     precede_frames=20,
     topk=10,

@@ -36,8 +36,7 @@ class SimSiamHead(nn.Module):
                  predictor_out_channels=2048,
                  with_norm=True,
                  loss_feat=dict(type='CosineSimLoss', negative=False),
-                 spatial_type='avg',
-                 **kwargs):
+                 spatial_type='avg'):
         super().__init__()
         self.in_channels = in_channels
         self.num_convs = num_convs
@@ -129,6 +128,111 @@ class SimSiamHead(nn.Module):
         x = x.flatten(1)
         z = self.projection_fcs(x)
         p = self.predictor_fcs(z)
+
+        return z, p
+
+    def loss(self, p1, z1, p2, z2, weight=1.):
+
+        losses = dict()
+
+        loss_feat = self.loss_feat(p1, z2.detach()) * 0.5 + self.loss_feat(
+            p2, z1.detach()) * 0.5
+        losses['loss_feat'] = loss_feat * weight
+        return losses
+
+
+@HEADS.register_module()
+class DenseSimSiamHead(nn.Module):
+    """Classification head for I3D.
+
+    Args:
+        num_classes (int): Number of classes to be classified.
+        in_channels (int): Number of channels in input feature.
+        loss_feat (dict): Config for building loss.
+            Default: dict(type='CrossEntropyLoss')
+        spatial_type (str): Pooling type in spatial dimension. Default: 'avg'.
+        kwargs (dict, optional): Any keyword argument to be used to initialize
+            the head.
+    """
+
+    def __init__(self,
+                 in_channels,
+                 kernel_size=1,
+                 conv_cfg=dict(type='Conv2d'),
+                 norm_cfg=dict(type='BN'),
+                 act_cfg=dict(type='ReLU'),
+                 num_projection_convs=3,
+                 projection_mid_channels=2048,
+                 projection_out_channels=2048,
+                 num_predictor_convs=2,
+                 predictor_mid_channels=512,
+                 predictor_out_channels=2048,
+                 loss_feat=dict(type='CosineSimLoss', negative=False)):
+        super().__init__()
+        self.in_channels = in_channels
+        self.conv_cfg = conv_cfg
+        self.norm_cfg = norm_cfg
+        self.act_cfg = act_cfg
+        self.loss_feat = build_loss(loss_feat)
+        projection_convs = []
+        last_channels = in_channels
+        for i in range(num_projection_convs):
+            is_last = i == num_projection_convs - 1
+            out_channels = projection_out_channels if is_last else \
+                projection_mid_channels
+            projection_convs.append(
+                ConvModule(
+                    last_channels,
+                    out_channels,
+                    kernel_size=kernel_size,
+                    padding=kernel_size // 2,
+                    conv_cfg=self.conv_cfg,
+                    norm_cfg=self.norm_cfg,
+                    # no relu on output
+                    act_cfg=self.act_cfg if not is_last else None))
+            last_channels = out_channels
+        if len(projection_convs) > 0:
+            self.projection_convs = nn.Sequential(*projection_convs)
+        else:
+            self.projection_convs = nn.Identity()
+
+        predictor_convs = []
+        for i in range(num_predictor_convs):
+            is_last = i == num_predictor_convs - 1
+            out_channels = predictor_out_channels if is_last else \
+                predictor_mid_channels
+            predictor_convs.append(
+                ConvModule(
+                    last_channels,
+                    out_channels,
+                    kernel_size=kernel_size,
+                    padding=kernel_size // 2,
+                    conv_cfg=self.conv_cfg,
+                    # no bn/relu on output
+                    norm_cfg=self.norm_cfg if not is_last else None,
+                    act_cfg=self.act_cfg if not is_last else None))
+            last_channels = out_channels
+        if len(projection_convs) > 0:
+            self.predictor_convs = nn.Sequential(*predictor_convs)
+        else:
+            self.predictor_convs = nn.Identity()
+
+    def init_weights(self):
+        """Initiate the parameters from scratch."""
+        pass
+
+    def forward(self, x):
+        """Defines the computation performed at every call.
+
+        Args:
+            x (torch.Tensor): The input data.
+
+        Returns:
+            torch.Tensor: The classification scores for input samples.
+        """
+        # [N, in_channels, 4, 7, 7]
+        z = self.projection_convs(x)
+        p = self.predictor_convs(z)
 
         return z, p
 

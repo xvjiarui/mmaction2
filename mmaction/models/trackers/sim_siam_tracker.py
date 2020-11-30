@@ -29,6 +29,7 @@ class SimSiamTracker(VanillaTracker):
         self.patch_size = _pair(self.train_cfg.get('patch_size', 96))
         self.patch_from_img = self.train_cfg.get('patch_from_img', False)
         self.patch_mask_radius = self.train_cfg.get('patch_mask_radius', None)
+        self.patch_att_mode = self.train_cfg.get('patch_att_mode', 'softmax')
 
     @property
     def with_patch_head(self):
@@ -54,16 +55,45 @@ class SimSiamTracker(VanillaTracker):
         losses = dict()
         z1, p1 = self.img_head(x1)
         z2, p2 = self.img_head(x2)
+        loss_weight = 1. / clip_len if self.intra_video else 1.
         losses.update(
-            add_prefix(self.img_head.loss(p1, z1, p2, z2), prefix='0'))
+            add_prefix(
+                self.img_head.loss(p1, z1, p2, z2, weight=loss_weight),
+                prefix='0'))
         if self.intra_video:
             z2_v, p2_v = images2video(z2, clip_len), images2video(p2, clip_len)
             for i in range(1, clip_len):
                 losses.update(
                     add_prefix(
-                        self.img_head.loss(p1, z1,
-                                           video2images(p2_v.roll(i, dims=2)),
-                                           video2images(z2_v.roll(i, dims=2))),
+                        self.img_head.loss(
+                            p1,
+                            z1,
+                            video2images(p2_v.roll(i, dims=2)),
+                            video2images(z2_v.roll(i, dims=2)),
+                            weight=loss_weight),
+                        prefix=f'{i}'))
+        return losses
+
+    def forward_cls_head(self, x1, x2, clip_len):
+        losses = dict()
+        z1, p1 = self.cls_head(x1)
+        z2, p2 = self.cls_head(x2)
+        loss_weight = 1. / clip_len if self.intra_video else 1.
+        losses.update(
+            add_prefix(
+                self.cls_head.loss(p1, z1, p2, z2, weight=loss_weight),
+                prefix='0'))
+        if self.intra_video:
+            z2_v, p2_v = images2video(z2, clip_len), images2video(p2, clip_len)
+            for i in range(1, clip_len):
+                losses.update(
+                    add_prefix(
+                        self.cls_head.loss(
+                            p1,
+                            z1,
+                            video2images(p2_v.roll(i, dims=2)),
+                            video2images(z2_v.roll(i, dims=2)),
+                            weight=loss_weight),
                         prefix=f'{i}'))
         return losses
 
@@ -106,38 +136,59 @@ class SimSiamTracker(VanillaTracker):
                 x1.shape[2:].numel(), patch_x1.shape[2:].numel())
         else:
             mask = None
-        patch_x12 = masked_attention_efficient(patch_x1, x2, x2,
-                                               mask).contiguous()
+        patch_x12 = masked_attention_efficient(
+            patch_x1, x2, x2, mask, mode=self.patch_att_mode).contiguous()
 
+        loss_weight = 1. / clip_len if self.intra_video else 1.
         losses = dict()
         z1, p1 = self.patch_head(patch_x1)
         z2, p2 = self.patch_head(patch_x12)
         losses.update(
-            add_prefix(self.patch_head.loss(p1, z1, p2, z2), prefix='0.0'))
+            add_prefix(
+                self.patch_head.loss(p1, z1, p2, z2, weight=loss_weight),
+                prefix='0.0'))
         if self.intra_video:
             z2_v, p2_v = images2video(z2, clip_len), images2video(p2, clip_len)
             for i in range(1, clip_len):
                 losses.update(
                     add_prefix(
                         self.patch_head.loss(
-                            p1, z1, video2images(p2_v.roll(i, dims=2)),
-                            video2images(z2_v.roll(i, dims=2))),
+                            p1,
+                            z1,
+                            video2images(p2_v.roll(i, dims=2)),
+                            video2images(z2_v.roll(i, dims=2)),
+                            weight=loss_weight),
                         prefix=f'0.{i}'))
-        patch_x21 = masked_attention_efficient(patch_x2, x1, x1,
-                                               mask).contiguous()
+        patch_x21 = masked_attention_efficient(
+            patch_x2, x1, x1, mask, mode=self.patch_att_mode).contiguous()
         z1, p1 = self.patch_head(patch_x21)
         z2, p2 = self.patch_head(patch_x2)
         losses.update(
-            add_prefix(self.patch_head.loss(p1, z1, p2, z2), prefix='1.0'))
+            add_prefix(
+                self.patch_head.loss(p1, z1, p2, z2, weight=loss_weight),
+                prefix='1.0'))
         if self.intra_video:
             z2_v, p2_v = images2video(z2, clip_len), images2video(p2, clip_len)
             for i in range(1, clip_len):
                 losses.update(
                     add_prefix(
                         self.patch_head.loss(
-                            p1, z1, video2images(p2_v.roll(i, dims=2)),
-                            video2images(z2_v.roll(i, dims=2))),
+                            p1,
+                            z1,
+                            video2images(p2_v.roll(i, dims=2)),
+                            video2images(z2_v.roll(i, dims=2)),
+                            weight=loss_weight),
                         prefix=f'1.{i}'))
+        if self.with_cls_head:
+            losses.update(
+                add_prefix(
+                    self.forward_cls_head(patch_x1, patch_x12, clip_len),
+                    prefix='cls.0'))
+        if self.with_cls_head:
+            losses.update(
+                add_prefix(
+                    self.forward_cls_head(patch_x21, patch_x2, clip_len),
+                    prefix='cls.1'))
 
         return losses
 

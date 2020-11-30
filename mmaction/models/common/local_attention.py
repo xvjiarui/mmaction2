@@ -282,6 +282,8 @@ def masked_attention_efficient(query,
     value_vec = value.view(batches, output_channels, value.shape[2:].numel())
     output = torch.zeros(batches, output_channels,
                          query_height * query_width).to(query)
+    if step is None:
+        step = query_height * query_width
     for ptr in range(0, query_height * query_width, step):
         # [N, TxHxW, step]
         cur_affinity = torch.einsum('bci,bcj->bij', key_vec,
