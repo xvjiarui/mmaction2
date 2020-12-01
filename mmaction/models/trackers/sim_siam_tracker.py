@@ -25,11 +25,14 @@ class SimSiamTracker(VanillaTracker):
         if img_head is not None:
             self.img_head = builder.build_head(img_head)
         self.init_extra_weights()
-        self.intra_video = self.train_cfg.get('intra_video', False)
-        self.patch_size = _pair(self.train_cfg.get('patch_size', 96))
-        self.patch_from_img = self.train_cfg.get('patch_from_img', False)
-        self.patch_mask_radius = self.train_cfg.get('patch_mask_radius', None)
-        self.patch_att_mode = self.train_cfg.get('patch_att_mode', 'softmax')
+        if self.train_cfg is not None:
+            self.intra_video = self.train_cfg.get('intra_video', False)
+            self.patch_size = _pair(self.train_cfg.get('patch_size', 96))
+            self.patch_from_img = self.train_cfg.get('patch_from_img', False)
+            self.patch_mask_radius = self.train_cfg.get(
+                'patch_mask_radius', None)
+            self.patch_att_mode = self.train_cfg.get('patch_att_mode',
+                                                     'cosine')
 
     @property
     def with_patch_head(self):

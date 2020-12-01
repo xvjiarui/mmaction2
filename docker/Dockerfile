@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     tmux \
     htop \
     git \
+    zip \
     unzip \
     ca-certificates \
     libosmesa6-dev \
@@ -39,7 +40,11 @@ RUN apt-get update && apt-get install -y \
     libavutil-dev \
     libavfilter-dev \
     libavdevice-dev \
-    libswresample-dev && \
+    libswresample-dev \
+    less \
+    groff \
+    memcached \
+    s3cmd && \
     ln -s /usr/lib/x86_64-linux-gnu/libGL.so.1 /usr/lib/x86_64-linux-gnu/libGL.so
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -95,3 +100,6 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 
 # Set a fixed model cache directory.
 ENV FVCORE_CACHE="/tmp"
+
+RUN git clone https://xvjiarui:caa3cb2892527eba047b316a1cde2a1b15194216@github.com/xvjiarui/petrel-oss-python-sdk.git
+RUN cd petrel-oss-python-sdk && python setup.py sdist && pip install dist/*

@@ -60,6 +60,8 @@ def parse_args():
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument(
         '--zip', action='store_true', help='reading from zip file')
+    parser.add_argument(
+        '--s3', action='store_true', help='reading from ceph s3 file')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -116,6 +118,20 @@ def main():
                     'kinetics400/videos_train':
                     'kinetics400.zip@/kinetics400/train',
                     'kinetics400/train': 'kinetics400.zip@/kinetics400/train'
+                }
+    if args.s3:
+        os.system('cp .dev/ceph_s3/petreloss.conf $HOME/')
+        os.system('cp .dev/ceph_s3/.s3cfg $HOME/')
+        for i, trans in enumerate(cfg.data.train.pipeline):
+            io_trans = [
+                'RawImageDecode', 'DecordInit', 'OpenCVInit', 'RawFrameDecode',
+                'PyAVInit'
+            ]
+            if trans.type in io_trans:
+                cfg.data.train.pipeline[i].io_backend = 'petrel'
+                cfg.data.train.pipeline[i].path_mapping = {
+                    'data/': 's3://data/',
+                    'kinetics400/videos_train': 'kinetics400/train',
                 }
 
     # init distributed env first, since logger depends on the dist info.
