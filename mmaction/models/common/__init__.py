@@ -1,9 +1,9 @@
 from .affinity_utils import (compute_affinity, propagate, propagate_temporal,
                              resize_spatial_mask, spatial_neighbor)
-from .bbox import (bbox2mask, bbox_overlaps, center2bbox, coord2bbox,
+from .bbox import (bbox2mask, bbox2roi, bbox_overlaps, center2bbox, coord2bbox,
                    crop_and_resize, get_crop_grid, get_non_overlap_crop_bbox,
-                   get_random_crop_bbox, get_top_diff_crop_bbox, scale_bboxes,
-                   vis_imgs)
+                   get_random_crop_bbox, get_top_diff_crop_bbox, roi2bbox,
+                   scale_bboxes, vis_imgs)
 from .conv2plus1d import Conv2plus1d
 from .local_attention import masked_attention_efficient
 from .utils import (Clamp, StrideContext, cat, change_stride,
@@ -17,5 +17,6 @@ __all__ = [
     'concat_all_gather', 'get_top_diff_crop_bbox', 'spatial_neighbor',
     'bbox2mask', 'bbox_overlaps', 'StrideContext', 'propagate_temporal',
     'unmap', 'get_non_overlap_crop_bbox', 'scale_bboxes', 'vis_imgs', 'Clamp',
-    'cat', 'masked_attention_efficient', 'resize_spatial_mask'
+    'cat', 'masked_attention_efficient', 'resize_spatial_mask', 'bbox2roi',
+    'roi2bbox'
 ]

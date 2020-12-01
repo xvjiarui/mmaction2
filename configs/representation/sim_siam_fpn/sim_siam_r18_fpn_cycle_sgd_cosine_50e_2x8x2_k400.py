@@ -64,22 +64,16 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(
-    intra_video=True,
-    patch_size=224,
-    patch_att_mode='cosine',
-    patch_num=1,
-    patch_from_img=False,
-    patch_cycle_tracking=True)
+train_cfg = dict(intra_video=True, patch_size=96, patch_cycle_tracking=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
     temperature=0.2,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
-    neighbor_range=24,
     use_fpn=True,
     use_backbone=True,
+    neighbor_range=24,
     with_first=True,
     with_first_neighbor=True,
     output_dir='eval_results')
@@ -185,7 +179,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 200
+total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -193,23 +187,23 @@ evaluation = dict(
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['sim_siam'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

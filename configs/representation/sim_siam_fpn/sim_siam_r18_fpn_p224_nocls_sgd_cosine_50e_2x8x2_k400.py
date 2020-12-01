@@ -22,7 +22,7 @@ model = dict(
         extra_fpn_out_act=False,
         num_outs=4,
         out_index=1),
-    cls_head=dict(
+    patch_head=dict(
         type='DenseSimSiamHead',
         in_channels=256,
         kernel_size=1,
@@ -36,20 +36,20 @@ model = dict(
         predictor_mid_channels=64,
         predictor_out_channels=256,
         loss_feat=dict(type='CosineSimLoss', negative=False)),
-    # cls_head=None,
-    patch_head=dict(
-        type='SimSiamHead',
-        in_channels=256,
-        norm_cfg=dict(type='SyncBN'),
-        num_projection_fcs=3,
-        projection_mid_channels=256,
-        projection_out_channels=256,
-        num_predictor_fcs=2,
-        predictor_mid_channels=64,
-        predictor_out_channels=256,
-        with_norm=True,
-        loss_feat=dict(type='CosineSimLoss', negative=False),
-        spatial_type='avg'),
+    cls_head=None,
+    # patch_head=dict(
+    #     type='SimSiamHead',
+    #     in_channels=256,
+    #     norm_cfg=dict(type='SyncBN'),
+    #     num_projection_fcs=3,
+    #     projection_mid_channels=256,
+    #     projection_out_channels=256,
+    #     num_predictor_fcs=2,
+    #     predictor_mid_channels=64,
+    #     predictor_out_channels=256,
+    #     with_norm=True,
+    #     loss_feat=dict(type='CosineSimLoss', negative=False),
+    #     spatial_type='avg'),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -64,7 +64,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False, patch_size=96)
+train_cfg = dict(intra_video=True, patch_size=224, patch_from_img=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -90,7 +90,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=8, frame_interval=8, num_clips=2),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=2),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(
@@ -142,7 +142,7 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=64,
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
