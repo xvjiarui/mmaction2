@@ -332,8 +332,7 @@ def masked_attention_efficient(query,
                 cur_affinity = cur_affinity.clamp(min=0)**2
             else:
                 raise ValueError
-            cur_output = torch.einsum('bck,bks->bcs', value_vec,
-                                      cur_affinity.softmax(dim=1))
+            cur_output = torch.einsum('bck,bks->bcs', value_vec, cur_affinity)
         output[..., ptr:ptr + step] = cur_output
 
     output = output.reshape(batches, output_channels, query_height,
