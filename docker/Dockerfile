@@ -101,5 +101,5 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Set a fixed model cache directory.
 ENV FVCORE_CACHE="/tmp"
 
-RUN git clone https://xvjiarui:ef53c32b296b41945601898063ac5df0fae3ad87@github.com/xvjiarui/petrel-oss-python-sdk.git
+RUN git clone https://gitlab.nautilus.optiputer.net/xvjiarui0826/petrel-oss-python-sdk.git
 RUN cd petrel-oss-python-sdk && python setup.py sdist && pip install dist/*
