@@ -53,6 +53,7 @@ spec:
                       - 1080Ti
                       - 2080Ti
                       - titan-xp
+                      - titan-x
       volumes:
         - name: data
           persistentVolumeClaim:
