@@ -18,3 +18,7 @@
 #sim_siam_r18_fpn_nocls_sgd_cosine_50e_imagenet.py
 #sim_siam_r18_fpn_nip_cycle_sgd_cosine_50e_2x8x2_k400.py
 #sim_siam_r18_fpn_nip_cycle_sgd_cosine_50e_imagenet.py
+#sim_siam_r18_fpn_noph_sgd_cosine_50e_2x8x2_k400.py
+#sim_siam_r18_fpn_noph_sgd_cosine_50e_imagenet.py
+#sim_siam_r18_fpn_nopt_sgd_cosine_50e_2x8x2_k400.py
+#sim_siam_r18_fpn_nopt_sgd_cosine_50e_imagenet.py

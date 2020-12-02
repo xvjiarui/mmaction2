@@ -66,7 +66,7 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     intra_video=True,
-    patch_size=224,
+    patch_size=96,
     patch_att_mode='cosine',
     patch_num=1,
     patch_from_img=False,

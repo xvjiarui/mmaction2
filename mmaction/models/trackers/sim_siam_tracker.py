@@ -37,7 +37,6 @@ class SimSiamTracker(VanillaTracker):
             self.patch_tracking = self.train_cfg.get('patch_tracking', True)
             self.patch_cycle_tracking = self.train_cfg.get(
                 'patch_cycle_tracking', False)
-            self.cls_on_patch = self.train_cfg.get('cls_on_patch', True)
             self.patch_num = self.train_cfg.get('patch_num', 1)
             if self.patch_from_img:
                 output_size = self.patch_size
@@ -230,12 +229,12 @@ class SimSiamTracker(VanillaTracker):
                                 video2images(z2_v.roll(i, dims=2)),
                                 weight=loss_weight),
                             prefix=f'1.{i}'))
-        if self.with_cls_head and self.cls_on_patch:
+        if self.with_cls_head:
             losses.update(
                 add_prefix(
                     self.forward_cls_head(patch_x1, patch_x12, clip_len),
                     prefix='cls.0'))
-        if self.with_cls_head and self.cls_on_patch and self.patch_tracking:
+        if self.with_cls_head and self.patch_tracking:
             losses.update(
                 add_prefix(
                     self.forward_cls_head(patch_x21, patch_x2, clip_len),
@@ -264,4 +263,9 @@ class SimSiamTracker(VanillaTracker):
                                                       self.neck(x1),
                                                       self.neck(x2), clip_len)
             losses.update(add_prefix(loss_patch_head, prefix='patch_head'))
+        elif self.with_cls_head:
+            loss_cls_head = self.forward_cls_head(
+                self.neck(x1), self.neck(x2), clip_len)
+            losses.update(add_prefix(loss_cls_head, prefix='cls_head'))
+
         return losses
