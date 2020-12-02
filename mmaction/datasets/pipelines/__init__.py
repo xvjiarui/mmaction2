@@ -1,4 +1,4 @@
-from .augmentations import (RGB2LAB, CenterCrop, ColorJitter, Flip, Fuse,
+from .augmentations import (RGB2LAB, CenterCrop, ColorJitter, Flip, Fuse, Grid,
                             MultiGroupCrop, MultiScaleCrop, Normalize,
                             PhotoMetricDistortion, RandomCrop,
                             RandomGaussianBlur, RandomGrayScale,
@@ -24,5 +24,6 @@ __all__ = [
     'DecordInit', 'OpenCVInit', 'PyAVInit', 'SampleProposalFrames',
     'UntrimmedSampleFrames', 'RawFrameDecode', 'SequentialSampleFrames',
     'PhotoMetricDistortion', 'RGB2LAB', 'RandomGaussianBlur',
-    'RandomGrayScale', 'DuplicateFrames', 'ColorJitter', 'RawImageDecode'
+    'RandomGrayScale', 'DuplicateFrames', 'ColorJitter', 'RawImageDecode',
+    'Grid'
 ]

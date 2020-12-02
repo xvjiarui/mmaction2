@@ -86,7 +86,7 @@ RUN pip install 'git+https://github.com/facebookresearch/fvcore'
 RUN pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu101/torch1.6/index.html
 
 # Install MMCV
-RUN pip install mmcv-full==1.1.5+torch1.6.0+cu101 -f https://openmmlab.oss-accelerate.aliyuncs.com/mmcv/dist/index.html
+RUN pip install mmcv-full==1.2.1+torch1.6.0+cu101 -f https://openmmlab.oss-accelerate.aliyuncs.com/mmcv/dist/index.html
 # Install Kornia
 #RUN pip install kornia
 RUN pip install git+https://github.com/kornia/kornia
@@ -101,5 +101,5 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Set a fixed model cache directory.
 ENV FVCORE_CACHE="/tmp"
 
-RUN git clone https://xvjiarui:caa3cb2892527eba047b316a1cde2a1b15194216@github.com/xvjiarui/petrel-oss-python-sdk.git
+RUN git clone https://xvjiarui:ef53c32b296b41945601898063ac5df0fae3ad87@github.com/xvjiarui/petrel-oss-python-sdk.git
 RUN cd petrel-oss-python-sdk && python setup.py sdist && pip install dist/*

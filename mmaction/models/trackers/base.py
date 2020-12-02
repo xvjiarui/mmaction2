@@ -125,12 +125,10 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
 
         return loss, log_vars
 
-    def forward(self, imgs, label=None, return_loss=True, **kwargs):
+    def forward(self, imgs, return_loss=True, **kwargs):
         """Define the computation performed at every call."""
         if return_loss:
-            if label is None:
-                raise ValueError('Label should not be None.')
-            return self.forward_train(imgs, label)
+            return self.forward_train(imgs, **kwargs)
         else:
             return self.forward_test(imgs, **kwargs)
 
@@ -160,11 +158,9 @@ class BaseTracker(nn.Module, metaclass=ABCMeta):
                 DDP, it means the batch size on each GPU), which is used for
                 averaging the logs.
         """
-        imgs = data_batch['imgs']
-        label = data_batch['label']
         self.iteration += 1
 
-        losses = self(imgs, label)
+        losses = self(**data_batch)
 
         loss, log_vars = self._parse_losses(losses)
 

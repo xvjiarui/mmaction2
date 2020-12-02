@@ -279,6 +279,9 @@ class RandomResizedCrop(object):
                     results['crop_bbox'] = np.array([left, top, right, bottom])
                     results['img_shape'] = (new_h, new_w)
                 results['imgs'][i] = img[top:bottom, left:right]
+                if 'grids' in results:
+                    grid = results['grids'][i]
+                    results['grids'][i] = grid[top:bottom, left:right]
         else:
             lazyop = results['lazy']
             if lazyop['flip']:
@@ -533,6 +536,13 @@ class Resize(object):
                     img, (new_w, new_h), interpolation=self.interpolation)
                 for img in results['imgs']
             ]
+            if 'grids' in results:
+                results['grids'] = [
+                    mmcv.imresize(
+                        grid, (new_w, new_h), interpolation=self.interpolation)
+                    for grid in results['grids']
+                ]
+
         else:
             lazyop = results['lazy']
             if lazyop['flip']:
@@ -616,6 +626,8 @@ class Flip(object):
                     flip = npr.rand() < self.flip_ratio
                 if flip:
                     mmcv.imflip_(img, self.direction)
+                    if 'grids' in results:
+                        mmcv.imflip_(results['grids'][i], self.direction)
             if flip:
                 lt = len(results['imgs'])
                 for i in range(0, lt, 2):
@@ -1250,5 +1262,25 @@ class ColorJitter(object):
             if apply:
                 img = np.array(trans(Image.fromarray(img)))
                 results['imgs'][i] = img
+
+        return results
+
+
+@PIPELINES.register_module()
+class Grid(object):
+
+    def __init__(self):
+        pass
+
+    def __call__(self, results):
+        h, w = results['original_shape']
+        y_grid, x_grid = np.meshgrid(
+            range(h), range(w), indexing='ij', sparse=False)
+        grids = [
+            np.stack((y_grid, x_grid), axis=-1).astype(np.float)
+            for _ in range(len(results['imgs']))
+        ]
+
+        results['grids'] = grids
 
         return results

@@ -256,9 +256,23 @@ class FormatShape(object):
             imgs = imgs.reshape((-1, ) + imgs.shape[2:])
             # M' x C x L x H x W
             # M' = N_crops x N_clips
+            if 'grids' in results:
+                grids = np.array(results['grids'])
+                grids = grids.reshape((-1, num_clips, clip_len) +
+                                      grids.shape[1:])
+                # N_crops x N_clips x L x H x W x C
+                grids = np.transpose(grids, (0, 1, 5, 2, 3, 4))
+                # N_crops x N_clips x C x L x H x W
+                grids = grids.reshape((-1, ) + grids.shape[2:])
+                # M' x C x L x H x W
+                # M' = N_crops x N_clips
         elif self.input_format == 'NCHW':
             imgs = np.transpose(imgs, (0, 3, 1, 2))
             # M x C x H x W
+            if 'grids' in results:
+                grids = np.array(results['grids'])
+                grids = np.transpose(grids, (0, 3, 1, 2))
+                # M x C x H x W
         elif self.input_format == 'NCHW_Flow':
             num_clips = results['num_clips']
             clip_len = results['clip_len']
@@ -284,6 +298,8 @@ class FormatShape(object):
 
         results['imgs'] = imgs
         results['input_shape'] = imgs.shape
+        if 'grids' in results:
+            results['grids'] = grids
         return results
 
     def __repr__(self):

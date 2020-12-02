@@ -162,3 +162,13 @@ def resize_spatial_mask(mask, output_size):
     new_mask = F.interpolate(mask, size=output_size)
     new_mask = new_mask.view(height, width, *output_size)
     return new_mask
+
+
+def grid_mask(grid1, grid2, radius, diag_norm=224):
+    dist = torch.pow(
+        grid1.view(*grid1.shape[:2], -1, 1) -
+        grid2.view(*grid2.shape[:2], 1, -1), 2).sum(dim=1)**0.5
+    dist *= (grid2.size(2)**2 + grid2.size(3)**2)**0.5 / (diag_norm * 2**0.5)
+    mask = dist < radius
+
+    return mask

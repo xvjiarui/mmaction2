@@ -1,11 +1,13 @@
+import torch.nn.functional as F
 from mmcv.ops import RoIAlign
 from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_prefix, tuple_divide
 from .. import builder
 from ..common import (bbox2roi, crop_and_resize, get_random_crop_bbox,
-                      images2video, masked_attention_efficient,
-                      resize_spatial_mask, spatial_neighbor, video2images)
+                      grid_mask, images2video, masked_attention_efficient,
+                      propagate_bbox, resize_spatial_mask, spatial_neighbor,
+                      video2images)
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -32,6 +34,7 @@ class SimSiamTracker(VanillaTracker):
             self.patch_from_img = self.train_cfg.get('patch_from_img', True)
             self.patch_mask_radius = self.train_cfg.get(
                 'patch_mask_radius', None)
+            self.patch_grid_radius = self.train_cfg.get('patch_grid_radius', 3)
             self.patch_att_mode = self.train_cfg.get('patch_att_mode',
                                                      'cosine')
             self.patch_tracking = self.train_cfg.get('patch_tracking', True)
@@ -114,7 +117,14 @@ class SimSiamTracker(VanillaTracker):
                         prefix=f'{i}'))
         return losses
 
-    def forward_patch_head(self, imgs1, imgs2, x1, x2, clip_len):
+    def forward_patch_head(self,
+                           imgs1,
+                           imgs2,
+                           x1,
+                           x2,
+                           clip_len,
+                           grids1=None,
+                           grids2=None):
         patch_bboxes1, _ = get_random_crop_bbox(
             imgs1.size(0) * self.patch_num,
             self.patch_size,
@@ -160,6 +170,15 @@ class SimSiamTracker(VanillaTracker):
                 patch_x2 = crop_and_resize(
                     x2, patch_bboxes2 / stride,
                     tuple_divide(self.patch_size, stride))
+        if grids1 is not None:
+            patch_grid1 = crop_and_resize(grids1, patch_bboxes1,
+                                          patch_x1.shape[2:])
+            x_grid1 = F.interpolate(
+                grids1, x1.shape[2:], mode='bilinear', align_corners=False)
+            patch_grid2 = crop_and_resize(grids2, patch_bboxes1,
+                                          patch_x2.shape[2:])
+            x_grid2 = F.interpolate(
+                grids2, x2.shape[2:], mode='bilinear', align_corners=False)
         if self.patch_tracking:
             if self.patch_mask_radius is not None:
                 mask = spatial_neighbor(
@@ -174,16 +193,32 @@ class SimSiamTracker(VanillaTracker):
                     x1.shape[2:].numel(), patch_x1.shape[2:].numel())
             else:
                 mask = None
+            if grids1 is not None and self.patch_grid_radius is not None:
+                mask = grid_mask(x_grid2, patch_grid1, self.patch_grid_radius)
             patch_x12 = masked_attention_efficient(
                 patch_x1, x2, x2, mask, mode=self.patch_att_mode)
             if self.patch_cycle_tracking:
+                if grids1 is not None and self.patch_grid_radius is not None:
+                    patch_grid12 = crop_and_resize(
+                        x_grid2, propagate_bbox(patch_x1, x2),
+                        patch_x1.shape[2:])
+                    mask = grid_mask(x_grid1, patch_grid12,
+                                     self.patch_grid_radius)
                 patch_x12 = masked_attention_efficient(
                     patch_x12, x1, x1, mask, mode=self.patch_att_mode)
+            if grids2 is not None and self.patch_grid_radius is not None:
+                mask = grid_mask(x_grid1, patch_grid2, self.patch_grid_radius)
             patch_x21 = masked_attention_efficient(
                 patch_x2, x1, x1, mask, mode=self.patch_att_mode)
             if self.patch_cycle_tracking:
+                if grids1 is not None and self.patch_grid_radius is not None:
+                    patch_grid21 = crop_and_resize(
+                        x_grid1, propagate_bbox(patch_x2, x1),
+                        patch_x2.shape[2:])
+                    mask = grid_mask(x_grid2, patch_grid21,
+                                     self.patch_grid_radius)
                 patch_x21 = masked_attention_efficient(
-                    patch_x12, x2, x2, mask, mode=self.patch_att_mode)
+                    patch_x21, x2, x2, mask, mode=self.patch_att_mode)
         else:
             # pseudo patch x12, x21
             patch_x12 = patch_x2
@@ -242,7 +277,7 @@ class SimSiamTracker(VanillaTracker):
 
         return losses
 
-    def forward_train(self, imgs, labels=None):
+    def forward_train(self, imgs, grids=None, label=None):
         # [B, N, C, T, H, W]
         assert imgs.size(1) == 2
         clip_len = imgs.size(3)
@@ -250,6 +285,14 @@ class SimSiamTracker(VanillaTracker):
                                   0].contiguous().reshape(-1, *imgs.shape[2:]))
         imgs2 = video2images(imgs[:,
                                   1].contiguous().reshape(-1, *imgs.shape[2:]))
+        if grids is not None:
+            grids1 = video2images(grids[:, 0].contiguous().reshape(
+                -1, *grids.shape[2:]))
+            grids2 = video2images(grids[:, 1].contiguous().reshape(
+                -1, *grids.shape[2:]))
+        else:
+            grids1 = None
+            grids2 = None
         x1 = self.backbone(imgs1)
         x2 = self.backbone(imgs2)
         # x_cat = self.backbone(cat([imgs1, imgs2]))
@@ -261,7 +304,8 @@ class SimSiamTracker(VanillaTracker):
         if self.with_patch_head:
             loss_patch_head = self.forward_patch_head(imgs1, imgs2,
                                                       self.neck(x1),
-                                                      self.neck(x2), clip_len)
+                                                      self.neck(x2), clip_len,
+                                                      grids1, grids2)
             losses.update(add_prefix(loss_patch_head, prefix='patch_head'))
         elif self.with_cls_head:
             loss_cls_head = self.forward_cls_head(

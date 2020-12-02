@@ -290,13 +290,20 @@ def masked_attention_efficient(query,
                                     query_vec[...,
                                               ptr:ptr + step]) / temperature
         if mask is not None:
-            assert mask.shape == (key_height * key_width,
-                                  query_height * query_width)
-            cur_mask = mask.view(1, 1, key_height * key_width, query_height *
-                                 query_width)[..., ptr:ptr + step].expand(
-                                     batches, clip_len - non_mask_len, -1,
-                                     -1).reshape(batches, -1,
-                                                 cur_affinity.size(2))
+            if mask.ndim == 2:
+                assert mask.shape == (key_height * key_width,
+                                      query_height * query_width)
+                cur_mask = mask.view(1, 1, key_height * key_width,
+                                     query_height *
+                                     query_width)[..., ptr:ptr + step].expand(
+                                         batches, clip_len - non_mask_len, -1,
+                                         -1).reshape(batches, -1,
+                                                     cur_affinity.size(2))
+            else:
+                assert clip_len == 1
+                assert non_mask_len == 0
+                cur_mask = mask[..., ptr:ptr + step]
+
             if non_mask_len > 0:
                 cur_mask = cat([
                     torch.ones(batches, non_mask_len * key_height * key_width,

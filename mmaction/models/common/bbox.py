@@ -5,7 +5,10 @@ import mmcv
 import numpy as np
 import torch
 import torch.nn.functional as F
+from mmcv.ops.point_sample import generate_grid
 from torch.nn.modules.utils import _pair
+
+from .affinity_utils import compute_affinity
 
 
 def center2bbox(center, patch_size, img_size):
@@ -506,3 +509,43 @@ def roi2bbox(rois):
         bbox = rois[inds, 1:]
         bbox_list.append(bbox)
     return bbox_list
+
+
+def propagate_bbox(ref_crop_x,
+                   tar_x,
+                   track_type='center',
+                   temperature=1.,
+                   with_norm=True):
+    assert track_type in ['center', 'coord']
+    assert tar_x.ndim in [4, 5]
+    if tar_x.ndim == 4:
+        tar_shape = tar_x.shape
+    else:
+        tar_shape = tar_x[:, :, 0].shape
+    # [N, tar_w*tar_h, 2]
+    tar_grid = generate_grid(
+        tar_shape[0], tar_shape[2:], device=ref_crop_x.device)
+    # TODO check
+    # [N, tar_w*tar_h, 2]
+    tar_coords = torch.stack(
+        [tar_grid[..., 0] * tar_shape[3], tar_grid[..., 1] * tar_shape[2]],
+        dim=2).contiguous()
+    # [N, ref_w*ref_h, tar_w*tar_h]
+    aff_ref_tar = compute_affinity(
+        ref_crop_x,
+        tar_x,
+        temperature=temperature,
+        normalize=with_norm,
+        softmax_dim=2).contiguous()
+
+    # [N, ref_w*ref_h, 2]
+    ref_coords = torch.bmm(aff_ref_tar, tar_coords)
+    if track_type == 'coord':
+        tar_bboxes = coord2bbox(ref_coords, tar_shape[2:])
+    else:
+        # [N, 2]
+        ref_center = torch.mean(ref_coords, dim=1)
+        tar_bboxes = center2bbox(ref_center, ref_crop_x.shape[2:],
+                                 tar_shape[2:])
+
+    return tar_bboxes
