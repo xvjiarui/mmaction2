@@ -1,13 +1,11 @@
 import torch.nn.functional as F
-from mmcv.ops import RoIAlign
 from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_prefix, tuple_divide
 from .. import builder
-from ..common import (bbox2roi, crop_and_resize, get_random_crop_bbox,
-                      grid_mask, images2video, masked_attention_efficient,
-                      propagate_bbox, resize_spatial_mask, spatial_neighbor,
-                      video2images)
+from ..common import (crop_and_resize, get_random_crop_bbox, grid_mask,
+                      images2video, masked_attention_efficient, propagate_bbox,
+                      resize_spatial_mask, spatial_neighbor, video2images)
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -40,16 +38,7 @@ class SimSiamTracker(VanillaTracker):
             self.patch_tracking = self.train_cfg.get('patch_tracking', True)
             self.patch_cycle_tracking = self.train_cfg.get(
                 'patch_cycle_tracking', False)
-            self.patch_num = self.train_cfg.get('patch_num', 1)
-            if self.patch_from_img:
-                output_size = self.patch_size
-                spatial_scale = 1.
-            else:
-                output_size = tuple_divide(self.patch_size, 8)
-                spatial_scale = 1. / 8.
-            if self.patch_num > 1:
-                self.roi_align = RoIAlign(
-                    output_size=output_size, spatial_scale=spatial_scale)
+            self.detach_query = self.train_cfg.get('detach_query', False)
 
     @property
     def with_patch_head(self):
@@ -126,50 +115,30 @@ class SimSiamTracker(VanillaTracker):
                            grids1=None,
                            grids2=None):
         patch_bboxes1, _ = get_random_crop_bbox(
-            imgs1.size(0) * self.patch_num,
+            imgs1.size(0),
             self.patch_size,
             imgs1.shape[2:],
             device=imgs1.device,
             center_ratio=0,
             border=0)
         patch_bboxes2, _ = get_random_crop_bbox(
-            imgs2.size(0) * self.patch_num,
+            imgs2.size(0),
             self.patch_size,
             imgs2.shape[2:],
             device=imgs2.device,
             center_ratio=0,
             border=0)
-        if self.patch_num > 1:
-            x1 = x1.expand(self.patch_num, -1, -1, -1,
-                           -1).reshape(-1, *x1.shape[1:])
-            x2 = x2.expand(self.patch_num, -1, -1, -1,
-                           -1).reshape(-1, *x2.shape[1:])
-            patch_bboxes1 = bbox2roi(
-                patch_bboxes1.view(imgs1.size(0), self.patch_num, 4))
-            patch_bboxes2 = bbox2roi(
-                patch_bboxes2.view(imgs2.size(0), self.patch_num, 4))
-            if self.patch_from_img:
-                patch_x1 = self.extract_feat(
-                    self.roi_align(imgs1, patch_bboxes1))
-                patch_x2 = self.extract_feat(
-                    self.roi_align(imgs2, patch_bboxes2))
-            else:
-                patch_x1 = self.roi_align(x1, patch_bboxes1)
-                patch_x2 = self.roi_align(x2, patch_bboxes2)
+        if self.patch_from_img:
+            patch_x1 = self.extract_feat(
+                crop_and_resize(imgs1, patch_bboxes1, self.patch_size))
+            patch_x2 = self.extract_feat(
+                crop_and_resize(imgs2, patch_bboxes2, self.patch_size))
         else:
-            if self.patch_from_img:
-                patch_x1 = self.extract_feat(
-                    crop_and_resize(imgs1, patch_bboxes1, self.patch_size))
-                patch_x2 = self.extract_feat(
-                    crop_and_resize(imgs2, patch_bboxes2, self.patch_size))
-            else:
-                stride = imgs1.size(2) // x1.size(2)
-                patch_x1 = crop_and_resize(
-                    x1, patch_bboxes1 / stride,
-                    tuple_divide(self.patch_size, stride))
-                patch_x2 = crop_and_resize(
-                    x2, patch_bboxes2 / stride,
-                    tuple_divide(self.patch_size, stride))
+            stride = imgs1.size(2) // x1.size(2)
+            patch_x1 = crop_and_resize(x1, patch_bboxes1 / stride,
+                                       tuple_divide(self.patch_size, stride))
+            patch_x2 = crop_and_resize(x2, patch_bboxes2 / stride,
+                                       tuple_divide(self.patch_size, stride))
         if grids1 is not None:
             patch_grid1 = crop_and_resize(grids1, patch_bboxes1,
                                           patch_x1.shape[2:])
@@ -195,8 +164,12 @@ class SimSiamTracker(VanillaTracker):
                 mask = None
             if grids1 is not None and self.patch_grid_radius is not None:
                 mask = grid_mask(x_grid2, patch_grid1, self.patch_grid_radius)
-            patch_x12 = masked_attention_efficient(
-                patch_x1, x2, x2, mask, mode=self.patch_att_mode)
+            if self.detach_query:
+                patch_x12 = masked_attention_efficient(
+                    patch_x1, x2.detach(), x2, mask, mode=self.patch_att_mode)
+            else:
+                patch_x12 = masked_attention_efficient(
+                    patch_x1, x2, x2, mask, mode=self.patch_att_mode)
             if self.patch_cycle_tracking:
                 if grids1 is not None and self.patch_grid_radius is not None:
                     patch_grid12 = crop_and_resize(
@@ -204,12 +177,24 @@ class SimSiamTracker(VanillaTracker):
                         patch_x1.shape[2:])
                     mask = grid_mask(x_grid1, patch_grid12,
                                      self.patch_grid_radius)
-                patch_x12 = masked_attention_efficient(
-                    patch_x12, x1, x1, mask, mode=self.patch_att_mode)
+                if self.detach_query:
+                    patch_x12 = masked_attention_efficient(
+                        patch_x12,
+                        x1.detach(),
+                        x1,
+                        mask,
+                        mode=self.patch_att_mode)
+                else:
+                    patch_x12 = masked_attention_efficient(
+                        patch_x12, x1, x1, mask, mode=self.patch_att_mode)
             if grids2 is not None and self.patch_grid_radius is not None:
                 mask = grid_mask(x_grid1, patch_grid2, self.patch_grid_radius)
-            patch_x21 = masked_attention_efficient(
-                patch_x2, x1, x1, mask, mode=self.patch_att_mode)
+            if self.detach_query:
+                patch_x21 = masked_attention_efficient(
+                    patch_x2, x1.detach(), x1, mask, mode=self.patch_att_mode)
+            else:
+                patch_x21 = masked_attention_efficient(
+                    patch_x2, x1, x1, mask, mode=self.patch_att_mode)
             if self.patch_cycle_tracking:
                 if grids1 is not None and self.patch_grid_radius is not None:
                     patch_grid21 = crop_and_resize(
@@ -217,8 +202,16 @@ class SimSiamTracker(VanillaTracker):
                         patch_x2.shape[2:])
                     mask = grid_mask(x_grid2, patch_grid21,
                                      self.patch_grid_radius)
-                patch_x21 = masked_attention_efficient(
-                    patch_x21, x2, x2, mask, mode=self.patch_att_mode)
+                if self.detach_query:
+                    patch_x21 = masked_attention_efficient(
+                        patch_x21,
+                        x2.detach(),
+                        x2,
+                        mask,
+                        mode=self.patch_att_mode)
+                else:
+                    patch_x21 = masked_attention_efficient(
+                        patch_x21, x2, x2, mask, mode=self.patch_att_mode)
         else:
             # pseudo patch x12, x21
             patch_x12 = patch_x2

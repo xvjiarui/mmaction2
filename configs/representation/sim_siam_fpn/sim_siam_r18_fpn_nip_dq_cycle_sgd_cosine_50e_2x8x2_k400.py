@@ -67,8 +67,7 @@ model = dict(
 train_cfg = dict(
     intra_video=True,
     patch_size=96,
-    patch_att_mode='cosine',
-    patch_from_img=True,
+    patch_from_img=False,
     patch_cycle_tracking=True,
     detach_query=True)
 test_cfg = dict(
@@ -77,9 +76,9 @@ test_cfg = dict(
     temperature=0.2,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
-    neighbor_range=24,
     use_fpn=True,
     use_backbone=True,
+    neighbor_range=24,
     with_first=True,
     with_first_neighbor=True,
     output_dir='eval_results')
@@ -99,7 +98,6 @@ train_pipeline = [
     dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=2),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
-    dict(type='Grid'),
     dict(
         type='RandomResizedCrop',
         area_range=(0.2, 1.),
@@ -132,10 +130,8 @@ train_pipeline = [
         same_on_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
-    # dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
-    # dict(type='ToTensor', keys=['imgs', 'label'])
-    dict(type='Collect', keys=['imgs', 'grids'], meta_keys=[]),
-    dict(type='ToTensor', keys=['imgs', 'grids'])
+    dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
+    dict(type='ToTensor', keys=['imgs', 'label'])
 ]
 val_pipeline = [
     dict(type='SequentialSampleFrames', frame_interval=1),
@@ -188,7 +184,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 200
+total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -196,23 +192,23 @@ evaluation = dict(
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['sim_siam'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')
