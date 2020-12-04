@@ -32,7 +32,8 @@ class SimSiamTracker(VanillaTracker):
             self.patch_from_img = self.train_cfg.get('patch_from_img', True)
             self.patch_mask_radius = self.train_cfg.get(
                 'patch_mask_radius', None)
-            self.patch_grid_radius = self.train_cfg.get('patch_grid_radius', 3)
+            self.patch_grid_radius = self.train_cfg.get(
+                'patch_grid_radius', None)
             self.patch_att_mode = self.train_cfg.get('patch_att_mode',
                                                      'cosine')
             self.patch_tracking = self.train_cfg.get('patch_tracking', True)
@@ -162,7 +163,7 @@ class SimSiamTracker(VanillaTracker):
                     x1.shape[2:].numel(), patch_x1.shape[2:].numel())
             else:
                 mask = None
-            if grids1 is not None and self.patch_grid_radius is not None:
+            if self.patch_grid_radius is not None:
                 mask = grid_mask(x_grid2, patch_grid1, self.patch_grid_radius)
             if self.detach_query:
                 patch_x12 = masked_attention_efficient(
@@ -171,7 +172,7 @@ class SimSiamTracker(VanillaTracker):
                 patch_x12 = masked_attention_efficient(
                     patch_x1, x2, x2, mask, mode=self.patch_att_mode)
             if self.patch_cycle_tracking:
-                if grids1 is not None and self.patch_grid_radius is not None:
+                if self.patch_grid_radius is not None:
                     patch_grid12 = crop_and_resize(
                         x_grid2, propagate_bbox(patch_x1, x2),
                         patch_x1.shape[2:])
@@ -187,7 +188,7 @@ class SimSiamTracker(VanillaTracker):
                 else:
                     patch_x12 = masked_attention_efficient(
                         patch_x12, x1, x1, mask, mode=self.patch_att_mode)
-            if grids2 is not None and self.patch_grid_radius is not None:
+            if self.patch_grid_radius is not None:
                 mask = grid_mask(x_grid1, patch_grid2, self.patch_grid_radius)
             if self.detach_query:
                 patch_x21 = masked_attention_efficient(
@@ -196,7 +197,7 @@ class SimSiamTracker(VanillaTracker):
                 patch_x21 = masked_attention_efficient(
                     patch_x2, x1, x1, mask, mode=self.patch_att_mode)
             if self.patch_cycle_tracking:
-                if grids1 is not None and self.patch_grid_radius is not None:
+                if self.patch_grid_radius is not None:
                     patch_grid21 = crop_and_resize(
                         x_grid1, propagate_bbox(patch_x2, x1),
                         patch_x2.shape[2:])

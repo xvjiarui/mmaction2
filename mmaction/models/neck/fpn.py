@@ -76,7 +76,8 @@ class FPN(nn.Module):
                  act_cfg=None,
                  upsample_cfg=dict(mode='bilinear', align_corners=False),
                  extra_fpn_out_act=False,
-                 out_index=0):
+                 out_index=0,
+                 inplace_add=True):
         super(FPN, self).__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
@@ -88,6 +89,7 @@ class FPN(nn.Module):
         self.fp16_enabled = False
         self.upsample_cfg = upsample_cfg.copy()
         self.out_index = out_index
+        self.inplace_add = inplace_add
         self.extra_fpn_out_act = extra_fpn_out_act
         assert out_index < num_outs
 
@@ -198,12 +200,22 @@ class FPN(nn.Module):
             #  it cannot co-exist with `size` in `F.interpolate`.
             if i - 1 >= self.out_index:
                 if 'scale_factor' in self.upsample_cfg:
-                    laterals[i - 1] += F.interpolate(laterals[i],
+                    if self.inplace_add:
+                        laterals[i -
+                                 1] += F.interpolate(laterals[i],
                                                      **self.upsample_cfg)
+                    else:
+                        laterals[i - 1] = laterals[i - 1] + F.interpolate(
+                            laterals[i], **self.upsample_cfg)
                 else:
                     prev_shape = laterals[i - 1].shape[2:]
-                    laterals[i - 1] += F.interpolate(
-                        laterals[i], size=prev_shape, **self.upsample_cfg)
+                    if self.inplace_add:
+                        laterals[i - 1] += F.interpolate(
+                            laterals[i], size=prev_shape, **self.upsample_cfg)
+                    else:
+                        laterals[i - 1] = laterals[i - 1] + F.interpolate(
+                            laterals[i], size=prev_shape, **self.upsample_cfg)
+
         # build outputs
         # outs = [self.fpn_convs[i](laterals[i]) for i in range(
         #     used_backbone_levels)]

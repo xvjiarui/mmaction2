@@ -1,2 +1,5 @@
 #sim_siam_r18_fpn_sgd_cosine_50e_imagenet.py
 #sim_siam_r18_fpn_sgd_cosine_50e_2x8x2_k400.py
+sim_siam_r18_sgd_cosine_opt_50e_2x8x2_k400.py
+sim_siam_r18_sgd_cosine_opt_50e_8x8x2_k400.py
+sim_siam_r18_sgd_cosine_opt_50e_imagenet.py

@@ -1,5 +1,6 @@
 from .base import BaseTracker
 from .rnd_moco_tracker import RNDMoCoTracker
+from .sim_siam_pix_tracker import SimSiamPixTracker
 from .sim_siam_tracker import SimSiamTracker
 from .space_time_walker import SpaceTimeWalker
 from .uvc_moco_tracker import UVCMoCoTracker
@@ -15,5 +16,5 @@ __all__ = [
     'BaseTracker', 'SpaceTimeWalker', 'UVCTracker', 'VanillaTracker',
     'UVCTrackerV2', 'UVCTrackerRecursive', 'UVCMoCoTracker', 'RNDMoCoTracker',
     'UVCTrackerV3', 'UVCNeckMoCoTracker', 'UVCNeckMoCoTrackerV2',
-    'VanillaTracker', 'SimSiamTracker'
+    'VanillaTracker', 'SimSiamTracker', 'SimSiamPixTracker'
 ]

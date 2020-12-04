@@ -131,7 +131,9 @@ class SimSiamHead(nn.Module):
 
         return z, p
 
-    def loss(self, p1, z1, p2, z2, weight=1.):
+    def loss(self, p1, z1, p2, z2, mask12=None, mask21=None, weight=1.):
+        assert mask12 is None
+        assert mask21 is None
 
         losses = dict()
 
@@ -236,11 +238,11 @@ class DenseSimSiamHead(nn.Module):
 
         return z, p
 
-    def loss(self, p1, z1, p2, z2, weight=1.):
+    def loss(self, p1, z1, p2, z2, mask12=None, mask21=None, weight=1.):
 
         losses = dict()
 
-        loss_feat = self.loss_feat(p1, z2.detach()) * 0.5 + self.loss_feat(
-            p2, z1.detach()) * 0.5
+        loss_feat = self.loss_feat(p1, z2.detach(
+        ), mask12) * 0.5 + self.loss_feat(p2, z1.detach(), mask21) * 0.5
         losses['loss_feat'] = loss_feat * weight
         return losses
