@@ -125,8 +125,15 @@ def main():
     for h in cfg.log_config.hooks:
         if rank == 0 and h.type == 'WandbLoggerHook':
             import wandb
-            h.init_kwargs.tags = [*h.init_kwargs.tags, 'davis']
-            wandb.init(**h.init_kwargs.to_dict())
+            init_kwargs = h.init_kwargs.to_dict()
+            init_kwargs.update(
+                dict(
+                    name=h.init.kwargs.name + '-davis',
+                    tag=[*h.init_kwargs.tags, 'davis'],
+                    resume=False,
+                    dir=f'wandb/{h.init.kwargs.name}-davis'))
+            mmcv.mkdir_or_exist(f'wandb/{h.init.kwargs.name}-davis')
+            wandb.init(**init_kwargs)
 
     # build the dataloader
     dataset = build_dataset(cfg.data.test, dict(test_mode=True))

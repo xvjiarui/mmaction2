@@ -4,7 +4,7 @@ metadata:
   labels:
     k8s-app: research
     user: jiarui
-  generateName: '{{job_name}}' # replace <your_name> with something that identifies you
+  generateName: 'dv-{{job_name}}' # replace <your_name> with something that identifies you
   namespace: '{{name_space}}'
 spec:
   ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
