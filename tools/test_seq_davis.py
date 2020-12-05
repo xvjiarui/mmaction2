@@ -158,10 +158,10 @@ def main():
         start_epoch = args.start_epoch
 
     # build the model and load checkpoint
-    model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
     train_iters = train_len // world_size // cfg.data.videos_per_gpu
     for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
+        model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
         if epoch % args.eval_interval != 0:
             continue
         ckpt_path = osp.join(cfg.work_dir, f'epoch_{epoch}.pth')
