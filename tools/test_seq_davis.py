@@ -22,6 +22,10 @@ def parse_args():
     parser.add_argument('config', help='test config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument(
+        '--auto-resume',
+        action='store_true',
+        help='automatically resume training')
+    parser.add_argument(
         '--out', default=None, help='output result file in pickle format')
     parser.add_argument(
         '--eval',
@@ -129,7 +133,7 @@ def main():
             init_kwargs.update(
                 dict(
                     name=h.init_kwargs.name + '-davis',
-                    tag=[*h.init_kwargs.tags, 'davis'],
+                    tags=[*h.init_kwargs.tags, 'davis'],
                     resume=False,
                     dir=f'wandb/{h.init_kwargs.name}-davis'))
             mmcv.mkdir_or_exist(f'wandb/{h.init_kwargs.name}-davis')
@@ -145,10 +149,18 @@ def main():
         dist=distributed,
         shuffle=False)
 
+    json_path = osp.join(cfg.work_dir, 'test_seq_davis.json')
+    if osp.exists(json_path) and args.auto_resume:
+        eval_info = mmcv.load(json_path)['last_epoch']
+        start_epoch = eval_info['last_epoch'] + 1
+    else:
+        eval_info = dict()
+        start_epoch = args.start_epoch
+
     # build the model and load checkpoint
     model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
     train_iters = train_len // world_size // cfg.data.videos_per_gpu
-    for epoch in range(args.start_epoch, cfg.total_epochs + 1,
+    for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
         if epoch % args.eval_interval != 0:
             continue
@@ -190,6 +202,8 @@ def main():
                     logger.info(f'{name}: {val:.04f}')
                 if wandb is not None:
                     wandb.log(eval_res, step=epoch * train_iters, commit=False)
+            eval_info['last_epoch'] = epoch
+            mmcv.dump(eval_info, 'test_seq_davis.json')
         if distributed:
             dist.barrier()
 
