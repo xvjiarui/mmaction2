@@ -125,7 +125,6 @@ def main():
     for h in cfg.log_config.hooks:
         if rank == 0 and h.type == 'WandbLoggerHook':
             import wandb
-            h.init_kwargs.name = f'dv-{h.init_kwargs.name}'
             h.init_kwargs.tags = [*h.init_kwargs.tags, 'davis']
             wandb.init(**h.init_kwargs.to_dict())
 
