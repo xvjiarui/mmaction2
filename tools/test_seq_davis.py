@@ -203,7 +203,7 @@ def main():
                 if wandb is not None:
                     wandb.log(eval_res, step=epoch * train_iters, commit=False)
             eval_info['last_epoch'] = epoch
-            mmcv.dump(eval_info, 'test_seq_davis.json')
+            mmcv.dump(eval_info, json_path)
         if distributed:
             dist.barrier()
 
