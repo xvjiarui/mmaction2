@@ -134,7 +134,7 @@ def main():
                 dict(
                     name=h.init_kwargs.name + '-davis',
                     tags=[*h.init_kwargs.tags, 'davis'],
-                    resume=False,
+                    resume=True,
                     dir=f'wandb/{h.init_kwargs.name}-davis'))
             mmcv.mkdir_or_exist(f'wandb/{h.init_kwargs.name}-davis')
             wandb.init(**init_kwargs)
