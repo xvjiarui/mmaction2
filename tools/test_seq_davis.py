@@ -151,7 +151,7 @@ def main():
 
     json_path = osp.join(cfg.work_dir, 'test_seq_davis.json')
     if osp.exists(json_path) and args.auto_resume:
-        eval_info = mmcv.load(json_path)['last_epoch']
+        eval_info = mmcv.load(json_path)
         start_epoch = eval_info['last_epoch'] + 1
     else:
         eval_info = dict()
