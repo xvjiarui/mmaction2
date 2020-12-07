@@ -27,7 +27,7 @@ class SimSiamPixTracker(VanillaTracker):
         if img_head is not None:
             self.img_head = builder.build_head(img_head)
         if pix_plugin is not None:
-            self.pix_plugin, _ = build_plugin_layer(pix_plugin)
+            self.pix_plugin = build_plugin_layer(pix_plugin)[1]
         else:
             self.pix_plugin = nn.Identity()
         self.init_extra_weights()

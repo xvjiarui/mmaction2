@@ -19,13 +19,7 @@ model = dict(
     cls_head=dict(
         type='UVCHead',
         loss_feat=None,
-        loss_aff=dict(
-            type='ConcentrateLoss',
-            win_len=8,
-            stride=8,
-            temperature=temperature,
-            with_norm=with_norm,
-            loss_weight=1.),
+        loss_aff=None,
         loss_bbox=dict(type='L1Loss', loss_weight=10.),
         in_channels=256,
         channels=128,
