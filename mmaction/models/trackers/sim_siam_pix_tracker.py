@@ -1,4 +1,6 @@
 import torch.nn.functional as F
+from mmcv.cnn.bricks import build_plugin_layer
+from torch import nn
 
 from mmaction.utils import add_prefix
 from .. import builder
@@ -17,12 +19,17 @@ class SimSiamPixTracker(VanillaTracker):
                  backbone,
                  pix_head=None,
                  img_head=None,
+                 pix_plugin=None,
                  **kwargs):
         super().__init__(*args, backbone=backbone, **kwargs)
         if pix_head is not None:
             self.pix_head = builder.build_head(pix_head)
         if img_head is not None:
             self.img_head = builder.build_head(img_head)
+        if pix_plugin is not None:
+            self.pix_plugin, _ = build_plugin_layer(pix_plugin)
+        else:
+            self.pix_plugin = nn.Identity()
         self.init_extra_weights()
         if self.train_cfg is not None:
             self.intra_video = self.train_cfg.get('intra_video', False)
@@ -31,6 +38,7 @@ class SimSiamPixTracker(VanillaTracker):
             self.patch_att_mode = self.train_cfg.get('patch_att_mode',
                                                      'cosine')
             self.cls_on_pix = self.train_cfg.get('cls_on_pix', False)
+            self.xview_att = self.train_cfg.get('xview_att', True)
 
     @property
     def with_pix_head(self):
@@ -99,10 +107,13 @@ class SimSiamPixTracker(VanillaTracker):
         return losses
 
     def forward_pix_head(self, x1, x2, clip_len, grids1=None, grids2=None):
-        x1 = masked_attention_efficient(
-            x1, x2, x2, mask=None, mode=self.patch_att_mode)
-        x2 = masked_attention_efficient(
-            x2, x1, x1, mask=None, mode=self.patch_att_mode)
+        x1 = self.pix_plugin(x1)
+        x2 = self.pix_plugin(x2)
+        if self.xview_att:
+            x1 = masked_attention_efficient(
+                x1, x2, x2, mask=None, mode=self.patch_att_mode)
+            x2 = masked_attention_efficient(
+                x2, x1, x1, mask=None, mode=self.patch_att_mode)
 
         loss_weight = 1. / clip_len if self.intra_video else 1.
         losses = dict()
