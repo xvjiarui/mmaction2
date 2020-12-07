@@ -55,7 +55,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'),
     pix_plugin=dict(
-        type='NonLocal2d', in_channels=256, norm_cfg=dict(type='SyncBN')))
+        type='NonLocal2d', in_channels=512, norm_cfg=dict(type='SyncBN')))
 # model training and testing settings
 train_cfg = dict(
     patch_att_mode='cosine',

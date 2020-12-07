@@ -55,12 +55,12 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'),
     pix_plugin=dict(
-        type='NonLocal2d', in_channels=256, norm_cfg=dict(type='SyncBN')))
+        type='NonLocal2d', in_channels=512, norm_cfg=dict(type='SyncBN')))
 # model training and testing settings
 train_cfg = dict(
     intra_video=True,
     patch_att_mode='cosine',
-    patch_grid_radius=3.5,
+    patch_grid_radius=1.4,
     cls_on_pix=True,
     xview_att=False)
 test_cfg = dict(
