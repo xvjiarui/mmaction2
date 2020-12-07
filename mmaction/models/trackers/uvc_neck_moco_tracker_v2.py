@@ -618,7 +618,7 @@ class UVCNeckMoCoTrackerV2(VanillaTracker):
 
         return loss
 
-    def forward_train(self, imgs, labels=None):
+    def forward_train(self, imgs, label=None):
         """Defines the computation performed at every call when training."""
         # [N, C, T, H, W]
         assert imgs.size(1) == 2
