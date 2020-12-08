@@ -1,5 +1,5 @@
 import torch.nn as nn
-from mmcv.cnn import ConvModule
+from mmcv.cnn import ConvModule, build_plugin_layer
 
 from ..builder import build_loss
 from ..registry import HEADS
@@ -169,6 +169,7 @@ class DenseSimSiamHead(nn.Module):
                  num_predictor_convs=2,
                  predictor_mid_channels=512,
                  predictor_out_channels=2048,
+                 predictor_plugin=None,
                  loss_feat=dict(type='CosineSimLoss', negative=False)):
         super().__init__()
         self.in_channels = in_channels
@@ -218,6 +219,10 @@ class DenseSimSiamHead(nn.Module):
             self.predictor_convs = nn.Sequential(*predictor_convs)
         else:
             self.predictor_convs = nn.Identity()
+        if predictor_plugin is not None:
+            self.predictor_plugin = build_plugin_layer(predictor_plugin)[1]
+        else:
+            self.predictor_plugin = nn.Identity()
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
@@ -234,7 +239,7 @@ class DenseSimSiamHead(nn.Module):
         """
         # [N, in_channels, 4, 7, 7]
         z = self.projection_convs(x)
-        p = self.predictor_convs(z)
+        p = self.predictor_convs(self.predictor_plugin(z))
 
         return z, p
 
