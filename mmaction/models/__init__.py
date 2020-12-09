@@ -9,6 +9,7 @@ from .localizers import BMN, PEM, TEM
 from .losses import (BCELossWithLogits, BinaryLogisticRegressionLoss, BMNLoss,
                      CrossEntropyLoss, NLLLoss, OHEMHingeLoss, SSNLoss)
 from .neck import FPN
+from .plugin import PixelPro
 from .recognizers import BaseRecognizer, recognizer2d, recognizer3d
 from .registry import (BACKBONES, HEADS, LOCALIZERS, LOSSES, NECKS,
                        RECOGNIZERS, TRACKERS)
@@ -23,5 +24,5 @@ __all__ = [
     'BCELossWithLogits', 'LOCALIZERS', 'build_localizer', 'PEM', 'TEM',
     'BinaryLogisticRegressionLoss', 'BMN', 'BMNLoss', 'build_model',
     'OHEMHingeLoss', 'SSNLoss', 'ResNet3dCSN', 'ResNetTIN', 'BaseTracker',
-    'SpaceTimeWalker', 'TRACKERS', 'FPN', 'NECKS', 'build_neck'
+    'SpaceTimeWalker', 'TRACKERS', 'FPN', 'NECKS', 'build_neck', 'PixelPro'
 ]
