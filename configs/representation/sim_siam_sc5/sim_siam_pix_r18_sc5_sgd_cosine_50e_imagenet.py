@@ -70,7 +70,7 @@ train_pipeline = [
     dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=1),
     dict(type='DuplicateFrames', times=2),
     dict(type='RawImageDecode'),
-    dict(type='Grid'),
+    # dict(type='Grid'),
     dict(
         type='RandomResizedCrop',
         area_range=(0.2, 1.),
@@ -103,10 +103,10 @@ train_pipeline = [
         same_on_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
-    # dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
-    # dict(type='ToTensor', keys=['imgs', 'label'])
-    dict(type='Collect', keys=['imgs', 'grids'], meta_keys=[]),
-    dict(type='ToTensor', keys=['imgs', 'grids'])
+    dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
+    dict(type='ToTensor', keys=['imgs', 'label'])
+    # dict(type='Collect', keys=['imgs', 'grids'], meta_keys=[]),
+    # dict(type='ToTensor', keys=['imgs', 'grids'])
 ]
 val_pipeline = [
     dict(type='SequentialSampleFrames', frame_interval=1),
