@@ -41,7 +41,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict()
+train_cfg = dict(shared_neck=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
