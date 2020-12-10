@@ -39,6 +39,7 @@ class SimSiamPixTracker(VanillaTracker):
                                                      'cosine')
             self.cls_on_pix = self.train_cfg.get('cls_on_pix', False)
             self.xview_att = self.train_cfg.get('xview_att', True)
+            self.shared_neck = self.train_cfg.get('shared_neck', False)
 
     @property
     def with_pix_head(self):
@@ -161,6 +162,14 @@ class SimSiamPixTracker(VanillaTracker):
 
         return losses
 
+    def forward_neck(self, x):
+        if self.shared_neck:
+            neck_x = self.neck(x, self.backbone)
+        else:
+            neck_x = self.neck(x)
+
+        return neck_x
+
     def forward_train(self, imgs, grids=None, label=None):
         # [B, N, C, T, H, W]
         assert imgs.size(1) == 2
@@ -184,8 +193,8 @@ class SimSiamPixTracker(VanillaTracker):
             loss_img_head = self.forward_img_head(x1, x2, clip_len)
             losses.update(add_prefix(loss_img_head, prefix='img_head'))
         if self.with_pix_head or self.with_cls_head:
-            neck_x1 = self.neck(x1)
-            neck_x2 = self.neck(x2)
+            neck_x1 = self.forward_neck(x1)
+            neck_x2 = self.forward_neck(x2)
         if self.with_pix_head:
             loss_patch_head = self.forward_pix_head(neck_x1, neck_x2, clip_len,
                                                     grids1, grids2)
