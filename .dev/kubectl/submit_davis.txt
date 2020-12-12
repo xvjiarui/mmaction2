@@ -39,3 +39,6 @@
 #ssu_r18_fpn_npi_sgd_cos_50e_imagenet.py
 #ssu_r18_fpn_sgd_cos_1x8x2_50e_k400.py
 #ssu_r18_fpn_sgd_cos_50e_imagenet.py
+#sim_siam_r18s8_i64_niv_nc_sgd_cosine_50e_16x8x2_k400.py
+#sim_siam_r18_nc_sgd_cosine_50e_1x8x2_k400.py
+#sim_siam_r18_nc_sgd_cosine_50e_imagenet.py
