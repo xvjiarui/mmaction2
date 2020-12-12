@@ -1,3 +1,7 @@
+import os.path as osp
+import tempfile
+
+import mmcv
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,6 +16,10 @@ from .base import BaseTracker
 @TRACKERS.register_module()
 class VanillaTracker(BaseTracker):
     """Pixel Tracker framework."""
+
+    def __init__(self, *args, **kwargs):
+        super(VanillaTracker, self).__init__(*args, **kwargs)
+        self.save_np = self.test_cfg.get('save_np', False)
 
     @property
     def stride(self):
@@ -163,13 +171,29 @@ class VanillaTracker(BaseTracker):
                 seg_preds.append(seg_pred.detach().cpu().numpy())
 
             seg_preds = np.stack(seg_preds, axis=1)
-            all_seg_preds.append(seg_preds)
-        if len(all_seg_preds) > 1:
-            all_seg_preds = np.stack(all_seg_preds, axis=1)
+            if self.save_np:
+                assert seg_preds.shape[0] == 1
+                eval_dir = '.eval'
+                mmcv.mkdir_or_exist(eval_dir)
+                temp_file = tempfile.NamedTemporaryFile(
+                    dir=eval_dir, suffix='.npy', delete=False)
+                file_path = osp.join(eval_dir, temp_file.name)
+                np.save(file_path, seg_preds[0])
+                all_seg_preds.append(file_path)
+            else:
+                all_seg_preds.append(seg_preds)
+        if self.save_np:
+            if len(all_seg_preds) > 1:
+                return [all_seg_preds]
+            else:
+                return [all_seg_preds[0]]
         else:
-            all_seg_preds = all_seg_preds[0]
-        # unravel batch dim
-        return list(all_seg_preds)
+            if len(all_seg_preds) > 1:
+                all_seg_preds = np.stack(all_seg_preds, axis=1)
+            else:
+                all_seg_preds = all_seg_preds[0]
+            # unravel batch dim
+            return list(all_seg_preds)
 
     def train(self, mode=True):
         """Set the optimization status when training."""

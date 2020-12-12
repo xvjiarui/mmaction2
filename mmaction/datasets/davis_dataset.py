@@ -1,4 +1,5 @@
 import copy
+import os
 import os.path as osp
 import tempfile
 
@@ -72,8 +73,9 @@ class DavisDataset(RawframeDataset):
         else:
             assert len(results) == len(self)
             for vid_idx in range(len(self)):
-                assert len(results[vid_idx]
-                           ) == self.video_infos[vid_idx]['total_frames']
+                assert len(results[vid_idx]) == \
+                       self.video_infos[vid_idx]['total_frames'] or \
+                       isinstance(results[vid_idx], str)
             if output_dir is None:
                 tmp_dir = tempfile.TemporaryDirectory()
                 output_dir = tmp_dir.name
@@ -84,9 +86,14 @@ class DavisDataset(RawframeDataset):
             if terminal_is_available():
                 prog_bar = mmcv.ProgressBar(len(self))
             for vid_idx in range(len(results)):
+                cur_results = results[vid_idx]
+                if isinstance(cur_results, str):
+                    file_path = cur_results
+                    cur_results = np.load(file_path)
+                    os.remove(file_path)
                 for img_idx in range(
                         self.video_infos[vid_idx]['total_frames']):
-                    result = results[vid_idx][img_idx].astype(np.uint8)
+                    result = cur_results[img_idx].astype(np.uint8)
                     img = Image.fromarray(result)
                     img.putpalette(
                         np.asarray(self.PALETTE, dtype=np.uint8).ravel())
@@ -149,6 +156,14 @@ class DavisDataset(RawframeDataset):
         eval_results = dict()
         if mmcv.is_seq_of(results, np.ndarray) and results[0].ndim == 4:
             num_feats = results[0].shape[0]
+            for feat_idx in range(num_feats):
+                cur_results = [result[feat_idx] for result in results]
+                eval_results.update(
+                    add_prefix(
+                        self.davis_evaluate(cur_results, output_dir, logger),
+                        prefix=f'feat_{feat_idx}'))
+        elif mmcv.is_seq_of(results, list):
+            num_feats = len(results[0])
             for feat_idx in range(num_feats):
                 cur_results = [result[feat_idx] for result in results]
                 eval_results.update(

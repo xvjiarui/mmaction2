@@ -54,6 +54,10 @@ spec:
                       - 2080Ti
                       - titan-xp
                       - titan-x
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+#                      - "k8s-bharadia-03.sdsc.optiputer.net"
       volumes:
         - name: data
           persistentVolumeClaim:
