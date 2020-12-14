@@ -34,6 +34,7 @@ class SimSiamUVCTracker(VanillaTracker):
             self.patch_from_img = self.train_cfg.get('patch_from_img', False)
             self.cls_on_patch = self.train_cfg.get('cls_on_patch', False)
             self.cls_on_neck = self.train_cfg.get('cls_on_neck', True)
+            self.img_on_patch = self.train_cfg.get('img_on_patch', False)
 
     @property
     def with_patch_head(self):
@@ -144,6 +145,8 @@ class SimSiamUVCTracker(VanillaTracker):
                             imgs2,
                             x1,
                             x2,
+                            bx1,
+                            bx2,
                             clip_len,
                             grids1=None,
                             grids2=None):
@@ -182,14 +185,14 @@ class SimSiamUVCTracker(VanillaTracker):
                                                                2).contiguous()
         else:
             patch_grid1 = crop_and_resize(grids1, patch_bboxes1,
-                                          self.patch_size) / 128
+                                          self.patch_size)
         if grids2 is None:
             patch_grid2 = get_crop_grid(
                 imgs2, patch_bboxes2, self.patch_size).permute(0, 3, 1,
                                                                2).contiguous()
         else:
             patch_grid2 = crop_and_resize(grids2, patch_bboxes1,
-                                          self.patch_size) / 128
+                                          self.patch_size)
 
         pred_patch_bboxes2 = self.track_head(patch_x1, x2) * stride
         pred_patch_x2 = crop_and_resize(x2, pred_patch_bboxes2 / stride,
@@ -201,7 +204,7 @@ class SimSiamUVCTracker(VanillaTracker):
                                                   0, 3, 1, 2).contiguous()
         else:
             cycle_patch_grid1 = crop_and_resize(grids1, cycle_patch_bboxes1,
-                                                self.patch_size) / 128
+                                                self.patch_size)
 
         pred_patch_bboxes1 = self.track_head(patch_x2, x1) * stride
         pred_patch_x1 = crop_and_resize(x1, pred_patch_bboxes1 / stride,
@@ -213,7 +216,7 @@ class SimSiamUVCTracker(VanillaTracker):
                                                   0, 3, 1, 2).contiguous()
         else:
             cycle_patch_grid2 = crop_and_resize(grids2, cycle_patch_bboxes2,
-                                                self.patch_size) / 128
+                                                self.patch_size)
 
         losses = dict()
 
@@ -229,18 +232,52 @@ class SimSiamUVCTracker(VanillaTracker):
                 prefix='track.1'))
 
         if self.with_patch_head:
-            loss_patch_head = self.forward_patch_head(patch_x1, pred_patch_x2,
-                                                      clip_len)
+            loss_forward_patch_head = self.forward_patch_head(
+                patch_x1, pred_patch_x2, clip_len)
             losses.update(
-                add_prefix(loss_patch_head, prefix='patch_head.forward'))
-            loss_patch_head = self.forward_patch_head(pred_patch_x1, patch_x2,
-                                                      clip_len)
+                add_prefix(
+                    loss_forward_patch_head, prefix='patch_head.forward'))
+            loss_backward_patch_head = self.forward_patch_head(
+                pred_patch_x1, patch_x2, clip_len)
             losses.update(
-                add_prefix(loss_patch_head, prefix='patch_head.backward'))
+                add_prefix(
+                    loss_backward_patch_head, prefix='patch_head.backward'))
 
         if self.with_cls_head and self.cls_on_patch:
-            loss_cls_head = self.forward_cls_head(patch_x1, patch_x2, clip_len)
-            losses.update(add_prefix(loss_cls_head, prefix='cls_head'))
+            loss_forward_cls_head = self.forward_cls_head(
+                patch_x1, pred_patch_x2, clip_len)
+            losses.update(
+                add_prefix(loss_forward_cls_head, prefix='cls_head.forward'))
+            loss_backward_cls_head = self.forward_cls_head(
+                pred_patch_x1, patch_x2, clip_len)
+            losses.update(
+                add_prefix(loss_backward_cls_head, prefix='cls_head.backward'))
+
+        # TODO bx1, bx2 is backbone feature
+        if self.with_img_head and self.img_on_patch:
+            if isinstance(bx1, tuple):
+                bx1 = bx1[-1]
+            if isinstance(bx2, tuple):
+                bx2 = bx2[-1]
+            backbone_stride = imgs1.size(2) // bx1.size(2)
+            loss_forward_img_head = self.forward_img_head(
+                crop_and_resize(bx1, patch_bboxes1 / backbone_stride,
+                                tuple_divide(self.patch_size,
+                                             backbone_stride)),
+                crop_and_resize(bx2, pred_patch_bboxes2 / backbone_stride,
+                                tuple_divide(self.patch_size,
+                                             backbone_stride)), clip_len)
+            losses.update(
+                add_prefix(loss_forward_img_head, prefix='img_head.forward'))
+            loss_backward_img_head = self.forward_img_head(
+                crop_and_resize(bx1, pred_patch_bboxes1 / backbone_stride,
+                                tuple_divide(self.patch_size,
+                                             backbone_stride)),
+                crop_and_resize(bx2, patch_bboxes2 / backbone_stride,
+                                tuple_divide(self.patch_size,
+                                             backbone_stride)), clip_len)
+            losses.update(
+                add_prefix(loss_backward_img_head, prefix='img_head.backward'))
 
         return losses
 
@@ -267,13 +304,14 @@ class SimSiamUVCTracker(VanillaTracker):
         if self.with_img_head:
             loss_img_head = self.forward_img_head(x1, x2, clip_len)
             losses.update(add_prefix(loss_img_head, prefix='img_head'))
-        if self.with_patch_head or self.with_cls_head:
+        if self.with_patch_head or self.with_cls_head or self.with_track_head:
             neck_x1 = self.forward_neck(x1)
             neck_x2 = self.forward_neck(x2)
 
-            if self.with_track_head:
+            if self.with_track_head or self.with_patch_head:
                 loss_patch_head = self.forward_patch_track(
-                    imgs1, imgs2, neck_x1, neck_x2, clip_len, grids1, grids2)
+                    imgs1, imgs2, neck_x1, neck_x2, x1, x2, clip_len, grids1,
+                    grids2)
                 losses.update(add_prefix(loss_patch_head, prefix='patch_head'))
 
             if self.with_cls_head and self.cls_on_neck:

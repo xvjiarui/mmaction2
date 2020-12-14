@@ -1269,13 +1269,16 @@ class ColorJitter(object):
 @PIPELINES.register_module()
 class Grid(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, normalize):
+        self.normalize = normalize
 
     def __call__(self, results):
         h, w = results['original_shape']
         y_grid, x_grid = np.meshgrid(
             range(h), range(w), indexing='ij', sparse=False)
+        if self.normalize:
+            y_grid = 2 * y_grid / h - 1
+            x_grid = 2 * x_grid / w - 1
         grids = [
             np.stack((y_grid, x_grid), axis=-1).astype(np.float)
             for _ in range(len(results['imgs']))

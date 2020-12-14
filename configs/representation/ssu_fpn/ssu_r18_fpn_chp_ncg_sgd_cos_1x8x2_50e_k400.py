@@ -9,12 +9,9 @@ model = dict(
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
-        # with_cp=True,
         zero_init_residual=True),
-    # neck=dict(type='SharedNeck', in_index=1, out_index=3),
     neck=dict(
         type='FPN',
-        # in_channels=[256, 512, 1024, 2048],
         in_channels=[64, 128, 256, 512],
         out_channels=256,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
@@ -44,26 +41,26 @@ model = dict(
         num_convs=0,
         kernel_size=1,
         conv_cfg=dict(type='Conv2d'),
-        norm_cfg=dict(type='SyncBN'),
+        norm_cfg=dict(type='BN'),
         act_cfg=dict(type='ReLU'),
         normalize=True,
         loss_grid=dict(type='MSELoss', loss_weight=1.),
         temperature=0.01,
         track_type='center'),
-    cls_head=None,
-    # cls_head=dict(
-    #     type='SimSiamHead',
-    #     in_channels=256,
-    #     norm_cfg=dict(type='SyncBN'),
-    #     num_projection_fcs=3,
-    #     projection_mid_channels=256,
-    #     projection_out_channels=256,
-    #     num_predictor_fcs=2,
-    #     predictor_mid_channels=64,
-    #     predictor_out_channels=256,
-    #     with_norm=True,
-    #     loss_feat=dict(type='CosineSimLoss', negative=False),
-    #     spatial_type='avg'),
+    # cls_head=None,
+    cls_head=dict(
+        type='SimSiamHead',
+        in_channels=256,
+        norm_cfg=dict(type='SyncBN'),
+        num_projection_fcs=3,
+        projection_mid_channels=256,
+        projection_out_channels=256,
+        num_predictor_fcs=2,
+        predictor_mid_channels=64,
+        predictor_out_channels=256,
+        with_norm=True,
+        loss_feat=dict(type='CosineSimLoss', negative=False),
+        spatial_type='avg'),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -78,11 +75,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(
-    intra_video=True,
-    shared_neck=False,
-    patch_from_img=True,
-    img_on_patch=True)
+train_cfg = dict(patch_from_img=True, cls_on_patch=True, cls_on_neck=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -111,7 +104,7 @@ train_pipeline = [
     dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=2),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
-    # dict(type='Grid', normalize=True),
+    # dict(type='Grid'),
     # dict(
     #     type='RandomResizedCrop',
     #     area_range=(0.2, 1.),
@@ -200,7 +193,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 200
+total_epochs = 50
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -212,19 +205,19 @@ log_config = dict(
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['ssu_fpn'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

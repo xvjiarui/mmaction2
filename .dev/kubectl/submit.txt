@@ -100,3 +100,12 @@
 #ssu_r18_fpn_npi_ncg_sgd_cos_1x8x2_50e_k400.py
 #ssu_r18_fpn_npi_ncg_sgd_cos_50e_imagenet.py
 #ssu_r18_fpn_sgd_cos_1x8x2_200e_k400.py
+#ssu_r18_fpn_chp_ncg_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_chp_ng_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_chp_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nch_ihp_ncg_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nch_ihp_ng_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nch_ihp_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nch_ncg_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nch_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nch_thc3_sgd_cos_1x8x2_50e_k400.py

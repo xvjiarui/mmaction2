@@ -40,3 +40,13 @@
 #sim_siam_r18_c4_p224_sgd_cosine_50e_imagenet.py
 #sim_siam_r18_c4_sgd_cosine_50e_imagenet.py
 #sim_siam_pix_r18_c5_cp_ppm_sgd_cosine_50e_2x8x2_k400.py
+#ssu_r18_fpn_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_npi_ncg_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_ng_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_ncg_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_nc_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_cp_sgd_cos_1x8x2_50e_k400.py
+#ssu_r18_fpn_cp_ncn_sgd_cos_1x8x2_50e_k400.py
+#sim_siam_r18s8_i64_niv_sgd_cosine_50e_16x8x2_k400.py
+#sim_siam_r18_nc_sgd_cosine_50e_1x8x2_k400.py
+#sim_siam_pix_r18_sc5s8_sgd_cosine_50e_2x8x2_k400.py
