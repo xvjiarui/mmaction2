@@ -134,7 +134,7 @@ def main():
                 dict(
                     name=h.init_kwargs.name + '-davis',
                     tags=[*h.init_kwargs.tags, 'davis'],
-                    resume=True,
+                    resume=args.auto_resume,
                     dir=f'wandb/{h.init_kwargs.name}-davis'))
             mmcv.mkdir_or_exist(f'wandb/{h.init_kwargs.name}-davis')
             wandb.init(**init_kwargs)
@@ -158,7 +158,7 @@ def main():
         start_epoch = args.start_epoch
 
     # build the model and load checkpoint
-    train_iters = train_len // world_size // cfg.data.videos_per_gpu
+    train_iters = train_len // 2 // cfg.data.videos_per_gpu
     for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
         model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
@@ -202,8 +202,9 @@ def main():
                     logger.info(f'{name}: {val:.04f}')
                 if wandb is not None:
                     wandb.log(eval_res, step=epoch * train_iters, commit=False)
-            eval_info['last_epoch'] = epoch
-            mmcv.dump(eval_info, json_path)
+            if args.auto_resume:
+                eval_info['last_epoch'] = epoch
+                mmcv.dump(eval_info, json_path)
         if distributed:
             dist.barrier()
 
