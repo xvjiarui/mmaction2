@@ -4,7 +4,7 @@ from mmcv.cnn import ConvModule
 from mmcv.ops.point_sample import generate_grid
 
 from ..builder import build_loss
-from ..common import bbox_overlaps, center2bbox, compute_affinity, coord2bbox
+from ..common import center2bbox, compute_affinity, coord2bbox
 from ..registry import HEADS
 
 
@@ -30,6 +30,7 @@ class TrackHead(nn.Module):
                  act_cfg=dict(type='ReLU'),
                  normalize=True,
                  loss_grid=dict(type='MSELoss'),
+                 loss_aff=None,
                  temperature=1.,
                  track_type='center'):
         super().__init__()
@@ -40,6 +41,10 @@ class TrackHead(nn.Module):
         self.act_cfg = act_cfg
         self.normalize = normalize
         self.loss_grid = build_loss(loss_grid)
+        if loss_aff is not None:
+            self.loss_aff = build_loss(loss_aff)
+        else:
+            self.loss_aff = None
         last_channels = in_channels
         convs = []
         for i in range(num_convs):
@@ -69,6 +74,27 @@ class TrackHead(nn.Module):
     def init_weights(self):
         """Initiate the parameters from scratch."""
         pass
+
+    def estimate_grid(self, x, pred_x):
+        # [N, w*h, 2]
+        grid = generate_grid(x.shape[0], x.shape[2:], device=x.device)
+        affinity = compute_affinity(
+            x,
+            pred_x,
+            softmax_dim=None,
+            temperature=self.temperature,
+            normalize=self.normalize).contiguous()
+        # [N, w*h, 2]
+        pred_grid = torch.bmm(affinity.softmax(dim=2), grid)
+        cycle_grid = torch.bmm(
+            affinity.transpose(1, 2).softmax(dim=2), pred_grid)
+
+        grid = grid.transpose(2, 1).reshape(x.shape[0], 2,
+                                            *x.shape[2:]).contiguous()
+        cycle_grid = cycle_grid.transpose(2, 1).reshape(
+            x.shape[0], 2, *x.shape[2:]).contiguous()
+
+        return affinity, grid, cycle_grid
 
     def estimate_bbox(self, patch_x, x):
         # [N, x_w*x_h, 2]
@@ -109,13 +135,15 @@ class TrackHead(nn.Module):
 
         return pred_bboxes
 
-    def loss(self, bboxes1, grid1, bboxes2, grid2, weight=1.):
+    def loss(self, grid1, grid2, affinity, weight=1.):
         assert grid1.shape == grid2.shape
         assert grid1.shape[1] == grid2.shape[1] == 2
 
         losses = dict()
 
-        losses['iou'] = bbox_overlaps(bboxes1, bboxes2, is_aligned=True)
+        if self.loss_aff is not None:
+            loss_aff = self.loss_aff(affinity)
+            losses['loss_aff'] = loss_aff * weight
 
         loss_grid = self.loss_grid(grid1, grid2)
         losses['loss_grid'] = loss_grid * weight

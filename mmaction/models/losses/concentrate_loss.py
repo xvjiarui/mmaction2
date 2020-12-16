@@ -79,3 +79,44 @@ class ConcentrateLoss(BaseWeightedLoss):
         loss = dist_dst.mean() + dist_src.mean()
 
         return loss
+
+
+@LOSSES.register_module()
+class AffinityConcentrateLoss(BaseWeightedLoss):
+    """NLL Loss.
+
+    It will calculate Cosine Similarity loss given cls_score and label.
+    """
+
+    def __init__(self, win_len=8, stride=8, **kwargs):
+        super().__init__(**kwargs)
+        self.win_len = win_len
+        self.stride = stride
+
+    def _forward(self, affinity, **kwargs):
+        # suppose affinity is square
+        batches = affinity.size(0)
+        height = int(affinity.size(1)**0.5)
+        width = height
+        grid = generate_grid(batches, (height, width), device=affinity.device)
+        # [N, 2, H, W]
+        grid = grid.permute(0, 2, 1).reshape(batches, 2, height, width)
+
+        # [N, 2, H, W]
+        grid_dst = propagate(grid, affinity.softmax(1))
+        grid_src = propagate(grid,
+                             affinity.permute(0, 2, 1).contiguous().softmax(1))
+
+        # [N, 2, H*W, win^2]
+        grid_unfold_dst = im2col(grid_dst, self.win_len, self.stride)
+        grid_unfold_src = im2col(grid_src, self.win_len, self.stride)
+
+        # [N, 2, H*W, 1]
+        center_dst = grid_unfold_dst.mean(dim=3, keepdims=True)
+        dist_dst = (grid_unfold_dst - center_dst)**2
+        center_src = grid_unfold_src.mean(dim=3, keepdims=True)
+        dist_src = (grid_unfold_src - center_src)**2
+
+        loss = dist_dst.mean() + dist_src.mean()
+
+        return loss

@@ -1,7 +1,7 @@
 from .base import BaseWeightedLoss
 from .binary_logistic_regression_loss import BinaryLogisticRegressionLoss
 from .bmn_loss import BMNLoss
-from .concentrate_loss import ConcentrateLoss
+from .concentrate_loss import AffinityConcentrateLoss, ConcentrateLoss
 from .cross_entropy_loss import BCELossWithLogits, CrossEntropyLoss
 from .iou_loss import BoundedIoULoss, CIoULoss, DIoULoss, GIoULoss, IoULoss
 from .l1_loss import L1Loss, SmoothL1Loss
@@ -17,5 +17,5 @@ __all__ = [
     'BinaryLogisticRegressionLoss', 'BMNLoss', 'OHEMHingeLoss', 'SSNLoss',
     'MSELoss', 'CosineSimLoss', 'ConcentrateLoss', 'L1Loss', 'SmoothL1Loss',
     'IoULoss', 'GIoULoss', 'BoundedIoULoss', 'CIoULoss', 'DIoULoss',
-    'MultiPairNCE'
+    'MultiPairNCE', 'AffinityConcentrateLoss'
 ]

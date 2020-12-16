@@ -1,70 +1,20 @@
 # model settings
+temperature = 0.2
+with_norm = True
+query_dim = 128
 model = dict(
-    type='SimSiamUVCTracker',
+    type='SimSiamTracker',
     backbone=dict(
         type='ResNet',
         pretrained=None,
         depth=18,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(3, ),
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
-        # with_cp=True,
         zero_init_residual=True),
-    # neck=dict(type='SharedNeck', in_index=1, out_index=3),
-    neck=dict(
-        type='FPN',
-        # in_channels=[256, 512, 1024, 2048],
-        in_channels=[64, 128, 256, 512],
-        out_channels=256,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
-        extra_fpn_out_act=False,
-        num_outs=4,
-        out_index=1),
-    # patch_head=dict(
-    #     type='DenseSimSiamHead',
-    #     in_channels=256,
-    #     kernel_size=1,
-    #     conv_cfg=dict(type='Conv2d'),
-    #     norm_cfg=dict(type='SyncBN'),
-    #     act_cfg=dict(type='ReLU'),
-    #     num_projection_convs=3,
-    #     projection_mid_channels=256,
-    #     projection_out_channels=256,
-    #     num_predictor_convs=2,
-    #     predictor_mid_channels=64,
-    #     predictor_out_channels=256,
-    #     predictor_plugin=dict(type='PixelPro', in_channels=256),
-    #     loss_feat=dict(type='CosineSimLoss', negative=False, pairwise=True)),
-    track_head=dict(
-        type='TrackHead',
-        in_channels=256,
-        mid_channels=256,
-        out_channels=256,
-        num_convs=3,
-        kernel_size=1,
-        conv_cfg=dict(type='Conv2d'),
-        norm_cfg=dict(type='SyncBN'),
-        act_cfg=dict(type='ReLU'),
-        normalize=True,
-        loss_grid=dict(type='MSELoss', loss_weight=1.),
-        loss_aff=dict(type='AffinityConcentrateLoss'),
-        temperature=0.01,
-        track_type='coord'),
-    # cls_head=None,
-    cls_head=dict(
-        type='SimSiamHead',
-        in_channels=256,
-        norm_cfg=dict(type='SyncBN'),
-        num_projection_fcs=3,
-        projection_mid_channels=256,
-        projection_out_channels=256,
-        num_predictor_fcs=2,
-        predictor_mid_channels=64,
-        predictor_out_channels=256,
-        with_norm=True,
-        loss_feat=dict(type='CosineSimLoss', negative=False),
-        spatial_type='avg'),
+    cls_head=None,
+    patch_head=None,
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -79,14 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(
-    intra_video=True,
-    shared_neck=False,
-    patch_from_img=True,
-    img_on_patch=False,
-    cls_on_patch=True,
-    implicit_cycle=True,
-)
+train_cfg = dict()
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -94,16 +37,15 @@ test_cfg = dict(
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
     neighbor_range=24,
-    use_fpn=True,
-    use_backbone=True,
     with_first=True,
     with_first_neighbor=True,
     output_dir='eval_results')
 # dataset settings
-dataset_type = 'VideoDataset'
+dataset_type = 'ImageDataset'
 dataset_type_val = 'DavisDataset'
-data_prefix = 'data/kinetics400/videos_train'
-ann_file_train = 'data/kinetics400/kinetics400_train_list_videos.txt'
+data_prefix = 'data/imagenet/2012/train'
+# ann_file_train = 'data/imagenet/2012/train_map.txt'
+ann_file_train = None
 data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
@@ -111,11 +53,9 @@ ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
-    dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=2),
-    # dict(type='DuplicateFrames', times=2),
-    dict(type='DecordDecode'),
-    # dict(type='Grid', normalize=True),
+    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=1),
+    dict(type='DuplicateFrames', times=2),
+    dict(type='RawImageDecode'),
     dict(
         type='RandomResizedCrop',
         area_range=(0.2, 1.),
@@ -150,8 +90,6 @@ train_pipeline = [
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['imgs', 'label'])
-    # dict(type='Collect', keys=['imgs', 'grids'], meta_keys=[]),
-    # dict(type='ToTensor', keys=['imgs', 'grids'])
 ]
 val_pipeline = [
     dict(type='SequentialSampleFrames', frame_interval=1),
@@ -216,19 +154,19 @@ log_config = dict(
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['sim_siam'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

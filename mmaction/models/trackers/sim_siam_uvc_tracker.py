@@ -2,8 +2,8 @@ from torch.nn.modules.utils import _pair
 
 from mmaction.utils import add_prefix, tuple_divide
 from .. import builder
-from ..common import (crop_and_resize, get_crop_grid, get_random_crop_bbox,
-                      images2video, video2images)
+from ..common import (bbox_overlaps, crop_and_resize, get_crop_grid,
+                      get_random_crop_bbox, images2video, video2images)
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -35,6 +35,7 @@ class SimSiamUVCTracker(VanillaTracker):
             self.cls_on_patch = self.train_cfg.get('cls_on_patch', False)
             self.cls_on_neck = self.train_cfg.get('cls_on_neck', True)
             self.img_on_patch = self.train_cfg.get('img_on_patch', False)
+            self.implicit_cycle = self.train_cfg.get('implicit_cycle', False)
 
     @property
     def with_patch_head(self):
@@ -140,16 +141,7 @@ class SimSiamUVCTracker(VanillaTracker):
                         prefix=f'{i}'))
         return losses
 
-    def forward_patch_track(self,
-                            imgs1,
-                            imgs2,
-                            x1,
-                            x2,
-                            bx1,
-                            bx2,
-                            clip_len,
-                            grids1=None,
-                            grids2=None):
+    def forward_track_head(self, imgs1, imgs2, x1, x2, grids1, grids2):
         # TODO patch_bboxes are in image domain
         patch_bboxes1, _ = get_random_crop_bbox(
             imgs1.size(0),
@@ -177,59 +169,109 @@ class SimSiamUVCTracker(VanillaTracker):
             patch_x2 = crop_and_resize(x2, patch_bboxes2 / stride,
                                        tuple_divide(self.patch_size, stride))
 
-        # patch_grid1 = crop_and_resize(grids1, patch_bboxes1, self.patch_size)
-        # patch_grid2 = crop_and_resize(grids2, patch_bboxes1, self.patch_size)
-        if grids1 is None:
-            patch_grid1 = get_crop_grid(
-                imgs1, patch_bboxes1, self.patch_size).permute(0, 3, 1,
-                                                               2).contiguous()
-        else:
-            patch_grid1 = crop_and_resize(grids1, patch_bboxes1,
-                                          self.patch_size)
-        if grids2 is None:
-            patch_grid2 = get_crop_grid(
-                imgs2, patch_bboxes2, self.patch_size).permute(0, 3, 1,
-                                                               2).contiguous()
-        else:
-            patch_grid2 = crop_and_resize(grids2, patch_bboxes1,
-                                          self.patch_size)
-
         pred_patch_bboxes2 = self.track_head(patch_x1, x2) * stride
         pred_patch_x2 = crop_and_resize(x2, pred_patch_bboxes2 / stride,
                                         tuple_divide(self.patch_size, stride))
-        cycle_patch_bboxes1 = self.track_head(pred_patch_x2, x1) * stride
-        if grids1 is None:
-            cycle_patch_grid1 = get_crop_grid(imgs1, cycle_patch_bboxes1,
-                                              self.patch_size).permute(
-                                                  0, 3, 1, 2).contiguous()
-        else:
-            cycle_patch_grid1 = crop_and_resize(grids1, cycle_patch_bboxes1,
-                                                self.patch_size)
-
         pred_patch_bboxes1 = self.track_head(patch_x2, x1) * stride
         pred_patch_x1 = crop_and_resize(x1, pred_patch_bboxes1 / stride,
                                         tuple_divide(self.patch_size, stride))
-        cycle_patch_bboxes2 = self.track_head(pred_patch_x1, x2) * stride
-        if grids2 is None:
-            cycle_patch_grid2 = get_crop_grid(imgs2, cycle_patch_bboxes2,
-                                              self.patch_size).permute(
-                                                  0, 3, 1, 2).contiguous()
-        else:
-            cycle_patch_grid2 = crop_and_resize(grids2, cycle_patch_bboxes2,
-                                                self.patch_size)
 
         losses = dict()
+        if self.implicit_cycle:
+            affinity12, patch_grid1, cycle_patch_grid1 \
+                = self.track_head.estimate_grid(patch_x1, pred_patch_x2)
+            affinity21, patch_grid2, cycle_patch_grid2 \
+                = self.track_head.estimate_grid(patch_x2, pred_patch_x1)
+
+        else:
+            # cycle tracking
+            if grids1 is None:
+                patch_grid1 = get_crop_grid(imgs1, patch_bboxes1,
+                                            self.patch_size).permute(
+                                                0, 3, 1, 2).contiguous()
+            else:
+                patch_grid1 = crop_and_resize(grids1, patch_bboxes1,
+                                              self.patch_size)
+            if grids2 is None:
+                patch_grid2 = get_crop_grid(imgs2, patch_bboxes2,
+                                            self.patch_size).permute(
+                                                0, 3, 1, 2).contiguous()
+            else:
+                patch_grid2 = crop_and_resize(grids2, patch_bboxes1,
+                                              self.patch_size)
+            cycle_patch_bboxes1 = self.track_head(pred_patch_x2, x1) * stride
+            if grids1 is None:
+                cycle_patch_grid1 = get_crop_grid(imgs1, cycle_patch_bboxes1,
+                                                  self.patch_size).permute(
+                                                      0, 3, 1, 2).contiguous()
+            else:
+                cycle_patch_grid1 = crop_and_resize(grids1,
+                                                    cycle_patch_bboxes1,
+                                                    self.patch_size)
+            cycle_patch_bboxes2 = self.track_head(pred_patch_x1, x2) * stride
+            if grids2 is None:
+                cycle_patch_grid2 = get_crop_grid(imgs2, cycle_patch_bboxes2,
+                                                  self.patch_size).permute(
+                                                      0, 3, 1, 2).contiguous()
+            else:
+                cycle_patch_grid2 = crop_and_resize(grids2,
+                                                    cycle_patch_bboxes2,
+                                                    self.patch_size)
+            losses['iou.forward'] = bbox_overlaps(
+                patch_bboxes1, cycle_patch_bboxes1, is_aligned=True)
+            losses['iou.backward'] = bbox_overlaps(
+                patch_bboxes2, cycle_patch_bboxes2, is_aligned=True)
+            affinity12 = None
+            affinity21 = None
 
         losses.update(
             add_prefix(
-                self.track_head.loss(patch_bboxes1, patch_grid1,
-                                     cycle_patch_bboxes1, cycle_patch_grid1),
-                prefix='track.0'))
+                self.track_head.loss(patch_grid1, cycle_patch_grid1,
+                                     affinity12),
+                prefix='forward'))
         losses.update(
             add_prefix(
-                self.track_head.loss(patch_bboxes2, patch_grid2,
-                                     cycle_patch_bboxes2, cycle_patch_grid2),
-                prefix='track.1'))
+                self.track_head.loss(patch_grid2, cycle_patch_grid2,
+                                     affinity21),
+                prefix='backward'))
+
+        track_results = dict(
+            patch_x1=patch_x1,
+            patch_x2=patch_x2,
+            pred_patch_x1=pred_patch_x1,
+            pred_patch_x2=pred_patch_x2,
+            patch_bboxes1=patch_bboxes1,
+            patch_bboxes2=patch_bboxes2,
+            pred_patch_bboxes1=pred_patch_bboxes1,
+            pred_patch_bboxes2=pred_patch_bboxes2)
+
+        return track_results, losses
+
+    def forward_patch_track(self,
+                            imgs1,
+                            imgs2,
+                            x1,
+                            x2,
+                            bx1,
+                            bx2,
+                            clip_len,
+                            grids1=None,
+                            grids2=None):
+        losses = dict()
+
+        track_results, loss_track_head = self.forward_track_head(
+            imgs1, imgs2, x1, x2, grids1, grids2)
+
+        patch_x1 = track_results['patch_x1']
+        patch_x2 = track_results['patch_x2']
+        pred_patch_x1 = track_results['pred_patch_x1']
+        pred_patch_x2 = track_results['pred_patch_x2']
+        patch_bboxes1 = track_results['patch_bboxes1']
+        patch_bboxes2 = track_results['patch_bboxes2']
+        pred_patch_bboxes1 = track_results['pred_patch_bboxes1']
+        pred_patch_bboxes2 = track_results['pred_patch_bboxes2']
+
+        losses.update(add_prefix(loss_track_head, prefix='track_head'))
 
         if self.with_patch_head:
             loss_forward_patch_head = self.forward_patch_head(
@@ -304,6 +346,8 @@ class SimSiamUVCTracker(VanillaTracker):
         if self.with_img_head:
             loss_img_head = self.forward_img_head(x1, x2, clip_len)
             losses.update(add_prefix(loss_img_head, prefix='img_head'))
+
+        assert self.with_track_head
         if self.with_patch_head or self.with_cls_head or self.with_track_head:
             neck_x1 = self.forward_neck(x1)
             neck_x2 = self.forward_neck(x2)
