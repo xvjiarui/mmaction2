@@ -1269,7 +1269,7 @@ class ColorJitter(object):
 @PIPELINES.register_module()
 class Grid(object):
 
-    def __init__(self, normalize):
+    def __init__(self, normalize=False):
         self.normalize = normalize
 
     def __call__(self, results):
