@@ -38,30 +38,30 @@ model = dict(
         in_channels=256,
         mid_channels=256,
         out_channels=256,
-        num_convs=3,
+        num_convs=0,
         kernel_size=1,
         conv_cfg=dict(type='Conv2d'),
-        norm_cfg=dict(type='SyncBN'),
+        norm_cfg=dict(type='BN'),
         act_cfg=dict(type='ReLU'),
         normalize=True,
         loss_grid=dict(type='MSELoss', loss_weight=1.),
         loss_aff=dict(type='AffinityConcentrateLoss'),
         temperature=0.01,
         track_type='center'),
-    cls_head=None,
-    # cls_head=dict(
-    #     type='SimSiamHead',
-    #     in_channels=256,
-    #     norm_cfg=dict(type='SyncBN'),
-    #     num_projection_fcs=3,
-    #     projection_mid_channels=256,
-    #     projection_out_channels=256,
-    #     num_predictor_fcs=2,
-    #     predictor_mid_channels=64,
-    #     predictor_out_channels=256,
-    #     with_norm=True,
-    #     loss_feat=dict(type='CosineSimLoss', negative=False),
-    #     spatial_type='avg'),
+    # cls_head=None,
+    cls_head=dict(
+        type='SimSiamHead',
+        in_channels=256,
+        norm_cfg=dict(type='SyncBN'),
+        num_projection_fcs=3,
+        projection_mid_channels=256,
+        projection_out_channels=256,
+        num_predictor_fcs=2,
+        predictor_mid_channels=64,
+        predictor_out_channels=256,
+        with_norm=True,
+        loss_feat=dict(type='CosineSimLoss', negative=False),
+        spatial_type='avg'),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -90,10 +90,11 @@ test_cfg = dict(
     with_first_neighbor=True,
     output_dir='eval_results')
 # dataset settings
-dataset_type = 'VideoDataset'
+dataset_type = 'ImageDataset'
 dataset_type_val = 'DavisDataset'
-data_prefix = 'data/kinetics400/videos_train'
-ann_file_train = 'data/kinetics400/kinetics400_train_list_videos.txt'
+data_prefix = 'data/imagenet/2012/train'
+# ann_file_train = 'data/imagenet/2012/train_map.txt'
+ann_file_train = None
 data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
@@ -101,10 +102,9 @@ ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
-    dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=2),
-    # dict(type='DuplicateFrames', times=2),
-    dict(type='DecordDecode'),
+    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=1),
+    dict(type='DuplicateFrames', times=2),
+    dict(type='RawImageDecode'),
     # dict(type='Grid'),
     dict(
         type='RandomResizedCrop',
@@ -194,7 +194,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 50
+total_epochs = 200
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

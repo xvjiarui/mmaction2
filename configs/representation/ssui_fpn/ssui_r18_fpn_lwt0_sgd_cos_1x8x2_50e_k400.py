@@ -45,7 +45,7 @@ model = dict(
         act_cfg=dict(type='ReLU'),
         normalize=True,
         loss_grid=dict(type='MSELoss', loss_weight=0.),
-        loss_aff=dict(type='AffinityConcentrateLoss'),
+        loss_aff=dict(type='AffinityConcentrateLoss', loss_weight=0.),
         temperature=0.01,
         track_type='center'),
     # cls_head=None,
