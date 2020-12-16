@@ -79,3 +79,7 @@
 #ssui_r18_fpn_sgd_cos_1x8x2_50e_k400.py
 #ssui_r18_fpn_sgd_cos_50e_imagenet.py
 #ssui_r18_fpn_thc3_sgd_cos_1x8x2_50e_k400.py
+#ssui_r18_fpn_lwt10_sgd_cos_1x8x2_50e_k400.py
+#ssui_r18_fpn_lwt0_sgd_cos_1x8x2_50e_k400.py
+#ssui_r18_fpn_sgd_cos_1x8x2_200e_k400.py
+#ssui_r18_fpn_sgd_cos_200e_imagenet.py
