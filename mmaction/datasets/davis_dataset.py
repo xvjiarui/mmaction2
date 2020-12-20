@@ -173,4 +173,9 @@ class DavisDataset(RawframeDataset):
         else:
             eval_results.update(
                 self.davis_evaluate(results, output_dir, logger))
+        copypaste = []
+        for k, v in eval_results.items():
+            if 'J&F' in k:
+                copypaste.append(f'{v*100:.2f}')
+        eval_results['copypaste'] = ','.join(copypaste)
         return eval_results

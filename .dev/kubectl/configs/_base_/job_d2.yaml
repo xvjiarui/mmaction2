@@ -7,7 +7,7 @@ metadata:
   generateName: '{{job_name}}' # replace <your_name> with something that identifies you
   namespace: '{{name_space}}'
 spec:
-  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
+  ttlSecondsAfterFinished: 172800  # Wait two day to delete completed jobs
   template:
     spec:
       restartPolicy: Never

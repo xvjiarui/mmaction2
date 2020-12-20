@@ -5,8 +5,10 @@ import mmcv
 import numpy as np
 from numpy import random as npr
 from PIL import Image, ImageFilter
+from skimage.util import view_as_windows
 from torch.nn.modules.utils import _pair
 from torchvision.transforms import ColorJitter as _ColorJitter
+from torchvision.transforms import RandomResizedCrop as _RandomResizedCrop
 
 from ..registry import PIPELINES
 
@@ -1285,5 +1287,27 @@ class Grid(object):
         ]
 
         results['grids'] = grids
+
+        return results
+
+
+# TODO not tested
+@PIPELINES.register_module()
+class Image2Patch(object):
+
+    def __init__(self, patch_size, stride, scale_jitter=(0.7, 0.9)):
+        self.patch_size = patch_size
+        self.stride = stride
+        self.crop_trans = _RandomResizedCrop(patch_size, scale=scale_jitter)
+
+    def __call__(self, results):
+
+        patches = []
+        for img in results['imgs']:
+            patch = view_as_windows(img, self.patch_size, self.stride)
+            patches.extend(list(patch.view(-1, *patch.shape[2:])))
+        for i in range(len(patches)):
+            patches[i] = self.crop_trans(patches[i])
+        results['imgs'] = patches
 
         return results

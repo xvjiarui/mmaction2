@@ -29,7 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict()
+train_cfg = dict(intra_video=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -109,10 +109,13 @@ data = dict(
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
-        type=dataset_type,
-        ann_file=ann_file_train,
-        data_prefix=data_prefix,
-        pipeline=train_pipeline),
+        type='RepeatDataset',
+        times=5,
+        dataset=dict(
+            type=dataset_type,
+            ann_file=ann_file_train,
+            data_prefix=data_prefix,
+            pipeline=train_pipeline)),
     val=dict(
         type=dataset_type_val,
         ann_file=ann_file_val,
@@ -143,30 +146,30 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_ratio=0.001,
 #     step=[1, 2])
 total_epochs = 200
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=10)
 evaluation = dict(
     interval=1,
     metrics='davis',
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['ssb'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

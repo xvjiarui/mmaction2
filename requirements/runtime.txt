@@ -3,3 +3,4 @@ mmcv==1.2.1
 numpy
 opencv-contrib-python
 Pillow
+scikit-image

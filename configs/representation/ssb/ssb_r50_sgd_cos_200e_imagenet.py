@@ -29,7 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict()
+train_cfg = dict(intra_video=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -41,11 +41,10 @@ test_cfg = dict(
     with_first_neighbor=True,
     output_dir='eval_results')
 # dataset settings
-dataset_type = 'ImageDataset'
+dataset_type = 'VideoDataset'
 dataset_type_val = 'DavisDataset'
-data_prefix = 'data/imagenet/2012/train'
-# ann_file_train = 'data/imagenet/2012/train_map.txt'
-ann_file_train = None
+data_prefix = 'data/kinetics400/videos_train'
+ann_file_train = 'data/kinetics400/kinetics400_train_list_videos.txt'
 data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
@@ -53,9 +52,10 @@ ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
-    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=1),
-    dict(type='DuplicateFrames', times=2),
-    dict(type='RawImageDecode'),
+    dict(type='DecordInit'),
+    dict(type='SampleFrames', clip_len=1, frame_interval=8, num_clips=2),
+    # dict(type='DuplicateFrames', times=2),
+    dict(type='DecordDecode'),
     dict(
         type='RandomResizedCrop',
         area_range=(0.2, 1.),
@@ -143,30 +143,30 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_ratio=0.001,
 #     step=[1, 2])
 total_epochs = 200
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=10)
 evaluation = dict(
     interval=1,
     metrics='davis',
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['ssb'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

@@ -12,3 +12,5 @@
 * ssui: Sim Siam UVC implicit_cycle cycle
 * ct: coordinate track
 * lwtx: loss weight of track head * x
+* i2p: image to patch
+* ssb: SimSiamBase
