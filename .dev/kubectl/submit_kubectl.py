@@ -44,7 +44,8 @@ def parse_args():
 
 def submit(config, args, rest):
     template_dict = dict(
-        job_name=osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
+        job_name=osp.splitext(osp.basename(config))[0].lower().replace(
+            '_', '-') + '-',
         name_space=args.name_space,
         branch=args.branch,
         gpus=args.gpus,

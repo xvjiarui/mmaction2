@@ -1,0 +1,3 @@
+ssui_r18_fpn_sgd_cos_50e_imagenet.py
+ssui_r18_fpn_chp_sgd_cos_50e_imagenet.py
+ssui_r18_fpn_npi_sgd_cos_50e_imagenet.py

@@ -112,8 +112,8 @@ def main():
                     'RawFrameDecode', 'PyAVInit'
                 ]
                 if trans.type in io_trans:
-                    cfg.data.train.pipeline[i].io_backend = 'zip'
-                    cfg.data.train.pipeline[i].path_mapping = {
+                    cfg.data.train.dataset.pipeline[i].io_backend = 'zip'
+                    cfg.data.train.dataset.pipeline[i].path_mapping = {
                         'data/': 'data_zip/',
                         'imagenet/2012/train': 'imagenet/2012/train.zip@',
                         'kinetics400/videos_train':
