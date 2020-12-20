@@ -147,8 +147,8 @@ def main():
                     'RawFrameDecode', 'PyAVInit'
                 ]
                 if trans.type in io_trans:
-                    cfg.data.train.pipeline[i].io_backend = 'petrel'
-                    cfg.data.train.pipeline[i].path_mapping = {
+                    cfg.data.train.dataset.pipeline[i].io_backend = 'petrel'
+                    cfg.data.train.dataset.pipeline[i].path_mapping = {
                         'data/': 's3://data/',
                         'kinetics400/videos_train': 'kinetics400/train',
                     }
