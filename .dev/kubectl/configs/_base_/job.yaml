@@ -57,7 +57,7 @@ spec:
 #                  - key: kubernetes.io/hostname
 #                    operator: NotIn
 #                    values:
-#                      - "k8s-bharadia-03.sdsc.optiputer.net"
+#                      - "fiona8-3.calit2.uci.edu"
       volumes:
         - name: data
           persistentVolumeClaim:

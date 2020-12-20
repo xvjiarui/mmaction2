@@ -49,7 +49,8 @@ def parse_args():
         nargs='+',
         action=DictAction,
         help='custom evaluation options')
-    parser.add_argument('--start-epoch', type=int, default=1)
+    parser.add_argument(
+        '--start-epoch', type=int, default=1, help='-1 for latest.pth')
     parser.add_argument('--eval-interval', type=int, default=1)
     parser.add_argument('--skip', action='store_true')
     parser.add_argument(
@@ -161,20 +162,24 @@ def main():
     train_iters = train_len // 2 // cfg.data.videos_per_gpu
     for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
-        model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
-        if epoch % args.eval_interval != 0:
-            continue
-        ckpt_path = osp.join(cfg.work_dir, f'epoch_{epoch}.pth')
-        if not osp.exists(ckpt_path):
-            if args.skip:
-                logger.info(f'{ckpt_path} not exist, skipping')
+        if start_epoch == -1:
+            args.auto_resume = False
+            ckpt_path = osp.realpath(osp.join(cfg.work_dir, 'latest.pth'))
+        else:
+            if epoch % args.eval_interval != 0:
                 continue
-            else:
-                logger.info(f'{ckpt_path} not exist, waiting')
-        while not osp.exists(ckpt_path):
-            time.sleep(300)
+            ckpt_path = osp.join(cfg.work_dir, f'epoch_{epoch}.pth')
+            if not osp.exists(ckpt_path):
+                if args.skip:
+                    logger.info(f'{ckpt_path} not exist, skipping')
+                    continue
+                else:
+                    logger.info(f'{ckpt_path} not exist, waiting')
+            while not osp.exists(ckpt_path):
+                time.sleep(300)
         logger.info(f'Found {ckpt_path}')
 
+        model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
         load_checkpoint(model, ckpt_path, map_location='cpu')
         if distributed:
             dist.barrier()
@@ -207,6 +212,8 @@ def main():
                 mmcv.dump(eval_info, json_path)
         if distributed:
             dist.barrier()
+        if start_epoch == -1:
+            break
 
 
 if __name__ == '__main__':

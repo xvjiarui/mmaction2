@@ -105,34 +105,65 @@ def main():
         cfg.gpu_ids = range(1) if args.gpus is None else range(args.gpus)
 
     if args.zip:
-        for i, trans in enumerate(cfg.data.train.pipeline):
-            io_trans = [
-                'RawImageDecode', 'DecordInit', 'OpenCVInit', 'RawFrameDecode',
-                'PyAVInit'
-            ]
-            if trans.type in io_trans:
-                cfg.data.train.pipeline[i].io_backend = 'zip'
-                cfg.data.train.pipeline[i].path_mapping = {
-                    'data/': 'data_zip/',
-                    'imagenet/2012/train': 'imagenet/2012/train.zip@',
-                    'kinetics400/videos_train':
-                    'kinetics400.zip@/kinetics400/train',
-                    'kinetics400/train': 'kinetics400.zip@/kinetics400/train'
-                }
+        if cfg.data.train.get('dataset') is not None:
+            for i, trans in enumerate(cfg.data.train.dataset.pipeline):
+                io_trans = [
+                    'RawImageDecode', 'DecordInit', 'OpenCVInit',
+                    'RawFrameDecode', 'PyAVInit'
+                ]
+                if trans.type in io_trans:
+                    cfg.data.train.pipeline[i].io_backend = 'zip'
+                    cfg.data.train.pipeline[i].path_mapping = {
+                        'data/': 'data_zip/',
+                        'imagenet/2012/train': 'imagenet/2012/train.zip@',
+                        'kinetics400/videos_train':
+                        'kinetics400.zip@/kinetics400/train',
+                        'kinetics400/train':
+                        'kinetics400.zip@/kinetics400/train'
+                    }
+        else:
+            for i, trans in enumerate(cfg.data.train.pipeline):
+                io_trans = [
+                    'RawImageDecode', 'DecordInit', 'OpenCVInit',
+                    'RawFrameDecode', 'PyAVInit'
+                ]
+                if trans.type in io_trans:
+                    cfg.data.train.pipeline[i].io_backend = 'zip'
+                    cfg.data.train.pipeline[i].path_mapping = {
+                        'data/': 'data_zip/',
+                        'imagenet/2012/train': 'imagenet/2012/train.zip@',
+                        'kinetics400/videos_train':
+                        'kinetics400.zip@/kinetics400/train',
+                        'kinetics400/train':
+                        'kinetics400.zip@/kinetics400/train'
+                    }
     if args.s3:
         os.system('cp .dev/ceph_s3/petreloss.conf $HOME/')
         os.system('cp .dev/ceph_s3/.s3cfg $HOME/')
-        for i, trans in enumerate(cfg.data.train.pipeline):
-            io_trans = [
-                'RawImageDecode', 'DecordInit', 'OpenCVInit', 'RawFrameDecode',
-                'PyAVInit'
-            ]
-            if trans.type in io_trans:
-                cfg.data.train.pipeline[i].io_backend = 'petrel'
-                cfg.data.train.pipeline[i].path_mapping = {
-                    'data/': 's3://data/',
-                    'kinetics400/videos_train': 'kinetics400/train',
-                }
+        if cfg.data.train.get('dataset') is not None:
+            for i, trans in enumerate(cfg.data.train.dataset.pipeline):
+                io_trans = [
+                    'RawImageDecode', 'DecordInit', 'OpenCVInit',
+                    'RawFrameDecode', 'PyAVInit'
+                ]
+                if trans.type in io_trans:
+                    cfg.data.train.pipeline[i].io_backend = 'petrel'
+                    cfg.data.train.pipeline[i].path_mapping = {
+                        'data/': 's3://data/',
+                        'kinetics400/videos_train': 'kinetics400/train',
+                    }
+        else:
+            for i, trans in enumerate(cfg.data.train.pipeline):
+                io_trans = [
+                    'RawImageDecode', 'DecordInit', 'OpenCVInit',
+                    'RawFrameDecode', 'PyAVInit'
+                ]
+                if trans.type in io_trans:
+                    cfg.data.train.pipeline[i].io_backend = 'petrel'
+                    cfg.data.train.pipeline[i].path_mapping = {
+                        'data/': 's3://data/',
+                        'kinetics400/videos_train': 'kinetics400/train',
+                    }
 
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':

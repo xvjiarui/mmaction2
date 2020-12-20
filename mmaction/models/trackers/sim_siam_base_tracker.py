@@ -73,6 +73,7 @@ class SimSiamBaseTracker(VanillaTracker):
     def forward_train(self, imgs, grids=None, label=None):
         # [B, N, C, T, H, W]
         assert imgs.size(1) == 2
+        assert imgs.ndim == 6
         clip_len = imgs.size(3)
         imgs1 = video2images(imgs[:,
                                   0].contiguous().reshape(-1, *imgs.shape[2:]))
@@ -81,11 +82,6 @@ class SimSiamBaseTracker(VanillaTracker):
         if self.image2patch is not None:
             imgs1 = self.image2patch(imgs1)
             imgs2 = self.image2patch(imgs2)
-        # from ..common import vis_imgs
-        # vis_imgs(imgs1, 'debug_imgs1')
-        # vis_imgs(imgs2, 'debug_imgs2')
-        # import ipdb
-        # ipdb.set_trace()
         x1 = self.backbone(imgs1)
         x2 = self.backbone(imgs2)
         losses = dict()
