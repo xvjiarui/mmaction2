@@ -105,12 +105,12 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=128 * 8,
+    videos_per_gpu=128,
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',
-        times=2 * 8,
+        times=2,
         dataset=dict(
             type=dataset_type,
             ann_file=ann_file_train,

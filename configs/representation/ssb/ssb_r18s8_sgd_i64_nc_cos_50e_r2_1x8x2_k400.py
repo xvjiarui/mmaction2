@@ -9,7 +9,7 @@ model = dict(
         pretrained=None,
         depth=18,
         out_indices=(3, ),
-        # strides=(1, 2, 1, 1),
+        strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
@@ -67,25 +67,25 @@ train_pipeline = [
         flip_ratio=0.5,
         same_across_clip=False,
         same_on_clip=False),
-    dict(
-        type='ColorJitter',
-        brightness=0.4,
-        contrast=0.4,
-        saturation=0.4,
-        hue=0.1,
-        p=0.8,
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(
-        type='RandomGrayScale',
-        p=0.2,
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(
-        type='RandomGaussianBlur',
-        p=0.5,
-        same_across_clip=False,
-        same_on_clip=False),
+    # dict(
+    #     type='ColorJitter',
+    #     brightness=0.4,
+    #     contrast=0.4,
+    #     saturation=0.4,
+    #     hue=0.1,
+    #     p=0.8,
+    #     same_across_clip=False,
+    #     same_on_clip=False),
+    # dict(
+    #     type='RandomGrayScale',
+    #     p=0.2,
+    #     same_across_clip=False,
+    #     same_on_clip=False),
+    # dict(
+    #     type='RandomGaussianBlur',
+    #     p=0.5,
+    #     same_across_clip=False,
+    #     same_on_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -105,12 +105,12 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=128 * 8,
+    videos_per_gpu=128,
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',
-        times=2 * 8,
+        times=2,
         dataset=dict(
             type=dataset_type,
             ann_file=ann_file_train,
