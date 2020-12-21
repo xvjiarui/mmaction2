@@ -61,31 +61,31 @@ train_pipeline = [
         area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False),
-    dict(type='Resize', scale=(64, 64), keep_ratio=False),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
     dict(
         type='Flip',
         flip_ratio=0.5,
         same_across_clip=False,
         same_on_clip=False),
-    # dict(
-    #     type='ColorJitter',
-    #     brightness=0.4,
-    #     contrast=0.4,
-    #     saturation=0.4,
-    #     hue=0.1,
-    #     p=0.8,
-    #     same_across_clip=False,
-    #     same_on_clip=False),
-    # dict(
-    #     type='RandomGrayScale',
-    #     p=0.2,
-    #     same_across_clip=False,
-    #     same_on_clip=False),
-    # dict(
-    #     type='RandomGaussianBlur',
-    #     p=0.5,
-    #     same_across_clip=False,
-    #     same_on_clip=False),
+    dict(
+        type='ColorJitter',
+        brightness=0.4,
+        contrast=0.4,
+        saturation=0.4,
+        hue=0.1,
+        p=0.8,
+        same_across_clip=False,
+        same_on_clip=False),
+    dict(
+        type='RandomGrayScale',
+        p=0.2,
+        same_across_clip=False,
+        same_on_clip=False),
+    dict(
+        type='RandomGaussianBlur',
+        p=0.5,
+        same_across_clip=False,
+        same_on_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -133,12 +133,12 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 # optimizer
-# optimizer = dict(type='Adam', lr=1e-4)
-optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='Adam', lr=1e-4)
+# optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-# lr_config = dict(policy='Fixed')
+# lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+lr_config = dict(policy='Fixed')
 # lr_config = dict(
 #     policy='step',
 #     warmup='linear',

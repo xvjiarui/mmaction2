@@ -9,7 +9,7 @@ model = dict(
         pretrained=None,
         depth=18,
         out_indices=(3, ),
-        strides=(1, 2, 1, 1),
+        # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
@@ -61,7 +61,7 @@ train_pipeline = [
         area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False),
-    dict(type='Resize', scale=(64, 64), keep_ratio=False),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
     dict(
         type='Flip',
         flip_ratio=0.5,
@@ -137,8 +137,8 @@ data = dict(
 optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
-lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-# lr_config = dict(policy='Fixed')
+# lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
+lr_config = dict(policy='Fixed')
 # lr_config = dict(
 #     policy='step',
 #     warmup='linear',

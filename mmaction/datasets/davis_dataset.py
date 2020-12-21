@@ -177,5 +177,5 @@ class DavisDataset(RawframeDataset):
         for k, v in eval_results.items():
             if 'J&F' in k:
                 copypaste.append(f'{float(v)*100:.2f}')
-        print_log(f'\nResults copypaste  {",".join(copypaste)}', logger=logger)
+        print_log(f'Results copypaste  {",".join(copypaste)}', logger=logger)
         return eval_results

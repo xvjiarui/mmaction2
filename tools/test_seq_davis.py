@@ -165,6 +165,8 @@ def main():
         if start_epoch == -1:
             args.auto_resume = False
             ckpt_path = osp.realpath(osp.join(cfg.work_dir, 'latest.pth'))
+            epoch = int(
+                osp.splitext(osp.basename(ckpt_path))[0].split('_')[-1])
         else:
             if epoch % args.eval_interval != 0:
                 continue

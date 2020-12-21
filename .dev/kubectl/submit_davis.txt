@@ -1,3 +1,4 @@
-ssui_r18_fpn_sgd_cos_50e_imagenet.py
-ssui_r18_fpn_chp_sgd_cos_50e_imagenet.py
-ssui_r18_fpn_npi_sgd_cos_50e_imagenet.py
+#ssui_r18_fpn_sgd_cos_50e_imagenet.py
+#ssui_r18_fpn_chp_sgd_cos_50e_imagenet.py
+#ssui_r18_fpn_npi_sgd_cos_50e_imagenet.py
+ssb_r18_nc_sgd_cos_50e_r2_1xRx2_k400.py
