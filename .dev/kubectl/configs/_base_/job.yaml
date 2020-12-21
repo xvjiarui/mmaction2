@@ -54,10 +54,10 @@ spec:
                       - 2080Ti
                       - titan-xp
                       - titan-x
-#                  - key: kubernetes.io/hostname
-#                    operator: NotIn
-#                    values:
-#                      - "fiona8-3.calit2.uci.edu"
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - "fiona8-3.calit2.uci.edu"
       volumes:
         - name: data
           persistentVolumeClaim:
