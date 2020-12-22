@@ -33,7 +33,15 @@ class VanillaTracker(BaseTracker):
         outs = []
         if self.with_neck:
             if self.test_cfg.get('use_fpn', True):
-                outs.append(self.extract_feat(imgs))
+                neck_out = self.extract_feat(imgs)
+                if isinstance(neck_out, (tuple, list)):
+                    neck_out_indices = self.test_cfg.get(
+                        'neck_out_indices', [0])
+                    for ni in neck_out_indices:
+                        outs.append(neck_out[ni])
+                else:
+                    outs.append(neck_out)
+            # switch manually
             if self.test_cfg.get('use_backbone', False):
                 with StrideContext(self.backbone, self.test_cfg.strides,
                                    self.test_cfg.out_indices):

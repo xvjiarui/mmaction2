@@ -9,7 +9,7 @@ model = dict(
         pretrained=None,
         depth=18,
         out_indices=(3, ),
-        # strides=(1, 2, 1, 1),
+        strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),

@@ -75,7 +75,6 @@ class FPN(nn.Module):
                  norm_cfg=None,
                  act_cfg=None,
                  upsample_cfg=dict(mode='bilinear', align_corners=False),
-                 extra_fpn_out_act=False,
                  out_index=0,
                  inplace_add=True):
         super(FPN, self).__init__()
@@ -88,10 +87,11 @@ class FPN(nn.Module):
         self.no_norm_on_lateral = no_norm_on_lateral
         self.fp16_enabled = False
         self.upsample_cfg = upsample_cfg.copy()
-        self.out_index = out_index
         self.inplace_add = inplace_add
-        self.extra_fpn_out_act = extra_fpn_out_act
-        assert out_index < num_outs
+        if not isinstance(out_index, (tuple, list)):
+            out_index = [out_index]
+        self.out_index = out_index
+        assert max(out_index) < num_outs
 
         if end_level == -1:
             self.backbone_end_level = self.num_ins
@@ -120,7 +120,7 @@ class FPN(nn.Module):
         self.fpn_convs = nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
-            if i >= self.out_index:
+            if i >= min(self.out_index):
                 l_conv = ConvModule(
                     in_channels[i],
                     out_channels,
@@ -132,36 +132,16 @@ class FPN(nn.Module):
             else:
                 l_conv = None
 
-            if i == self.out_index:
-                if self.extra_fpn_out_act:
-                    fpn_conv = nn.Sequential(
-                        ConvModule(
-                            out_channels,
-                            out_channels,
-                            3,
-                            padding=1,
-                            conv_cfg=conv_cfg,
-                            norm_cfg=norm_cfg,
-                            act_cfg=act_cfg,
-                            inplace=False), nn.ReLU(),
-                        ConvModule(
-                            out_channels,
-                            out_channels,
-                            1,
-                            conv_cfg=conv_cfg,
-                            norm_cfg=norm_cfg,
-                            act_cfg=act_cfg,
-                            inplace=False))
-                else:
-                    fpn_conv = ConvModule(
-                        out_channels,
-                        out_channels,
-                        3,
-                        padding=1,
-                        conv_cfg=conv_cfg,
-                        norm_cfg=norm_cfg,
-                        act_cfg=act_cfg,
-                        inplace=False)
+            if i in self.out_index:
+                fpn_conv = ConvModule(
+                    out_channels,
+                    out_channels,
+                    3,
+                    padding=1,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    act_cfg=act_cfg,
+                    inplace=False)
             else:
                 fpn_conv = None
 
@@ -187,7 +167,7 @@ class FPN(nn.Module):
         # ]
         laterals = []
         for i, lateral_conv in enumerate(self.lateral_convs):
-            if i >= self.out_index:
+            if i >= min(self.out_index):
                 laterals.append(lateral_conv(inputs[i + self.start_level]))
             else:
                 assert lateral_conv is None
@@ -198,7 +178,7 @@ class FPN(nn.Module):
         for i in range(used_backbone_levels - 1, 0, -1):
             # In some cases, fixing `scale factor` (e.g. 2) is preferred, but
             #  it cannot co-exist with `size` in `F.interpolate`.
-            if i - 1 >= self.out_index:
+            if i - 1 >= min(self.out_index):
                 if 'scale_factor' in self.upsample_cfg:
                     if self.inplace_add:
                         laterals[i -
@@ -216,11 +196,9 @@ class FPN(nn.Module):
                         laterals[i - 1] = laterals[i - 1] + F.interpolate(
                             laterals[i], size=prev_shape, **self.upsample_cfg)
 
-        # build outputs
-        # outs = [self.fpn_convs[i](laterals[i]) for i in range(
-        #     used_backbone_levels)]
-
-        # return outs[self.out_index]
-        out = self.fpn_convs[self.out_index](laterals[self.out_index])
-
-        return out
+        outs = []
+        for i in self.out_index:
+            outs.append(self.fpn_convs[i](laterals[i]))
+        if len(outs) == 1:
+            return outs[0]
+        return tuple(outs)

@@ -29,7 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False, image2patch=True)
+train_cfg = dict(intra_video=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -58,15 +58,15 @@ train_pipeline = [
     dict(type='DecordDecode'),
     dict(
         type='RandomResizedCrop',
-        area_range=(0.8, 1.),
+        area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    # dict(
-    #     type='Flip',
-    #     flip_ratio=0.5,
-    #     same_across_clip=False,
-    #     same_on_clip=False),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
+    dict(
+        type='Flip',
+        flip_ratio=0.5,
+        same_across_clip=False,
+        same_on_clip=False),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,
@@ -105,14 +105,17 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=64,
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
-        type=dataset_type,
-        ann_file=ann_file_train,
-        data_prefix=data_prefix,
-        pipeline=train_pipeline),
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(
+            type=dataset_type,
+            ann_file=ann_file_train,
+            data_prefix=data_prefix,
+            pipeline=train_pipeline)),
     val=dict(
         type=dataset_type_val,
         ann_file=ann_file_val,
