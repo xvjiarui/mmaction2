@@ -88,7 +88,13 @@ class SimSiamNeckTracker(VanillaTracker):
                         prefix=f'{i}'))
         return losses
 
-    def forward_multi_heads(self, heads, x1, x2, clip_len, prefix):
+    def forward_multi_heads(self,
+                            heads,
+                            x1,
+                            x2,
+                            clip_len,
+                            prefix,
+                            use_last=False):
         losses = dict()
         if not isinstance(heads, nn.Sequential) or len(heads) == 1:
             # use last
@@ -99,6 +105,9 @@ class SimSiamNeckTracker(VanillaTracker):
             loss_head = self.forward_head(heads, x1, x2, clip_len)
             losses.update(add_prefix(loss_head, prefix=prefix))
         else:
+            if use_last:
+                x1 = x1[-len(heads):]
+                x2 = x2[-len(heads):]
             assert len(heads) == len(x1) == len(x2)
             for idx in range(len(heads)):
                 loss_head = self.forward_head(heads[idx], x1[idx], x2[idx],
@@ -129,7 +138,8 @@ class SimSiamNeckTracker(VanillaTracker):
                     x1,
                     x2,
                     clip_len,
-                    prefix='backbone_head'))
+                    prefix='backbone_head',
+                    use_last=True))
         if self.with_neck_head:
             neck_x1 = self.neck(x1)
             neck_x2 = self.neck(x2)
