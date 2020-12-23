@@ -181,6 +181,7 @@ def main():
                 time.sleep(300)
         logger.info(f'Found {ckpt_path}')
 
+        logger.info('test_cfg: ', cfg.test_cfg)
         model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
         load_checkpoint(model, ckpt_path, map_location='cpu')
         if distributed:

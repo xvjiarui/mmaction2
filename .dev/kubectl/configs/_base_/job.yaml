@@ -49,15 +49,15 @@ spec:
                   - key: gpu-type
                     operator: In
                     values:
-                      - "1080"
-#                      - 1080Ti
-#                      - 2080Ti
-#                      - titan-xp
-#                      - titan-x
-#                  - key: kubernetes.io/hostname
-#                    operator: NotIn
-#                    values:
-#                      - "fiona8-3.calit2.uci.edu"
+#                      - "1080"
+                      - 1080Ti
+                      - 2080Ti
+                      - titan-xp
+                      - titan-x
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - "fiona8-3.calit2.uci.edu"
       volumes:
         - name: data
           persistentVolumeClaim:
