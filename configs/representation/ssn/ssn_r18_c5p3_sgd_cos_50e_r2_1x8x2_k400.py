@@ -49,6 +49,7 @@ test_cfg = dict(
     precede_frames=20,
     topk=10,
     temperature=0.2,
+    use_backbone=True,
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
     neighbor_range=24,
