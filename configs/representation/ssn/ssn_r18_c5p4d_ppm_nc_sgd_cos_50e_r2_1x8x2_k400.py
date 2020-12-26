@@ -16,7 +16,7 @@ model = dict(
         out_channels=256,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         num_outs=4,
-        out_index=1),
+        out_index=2),
     backbone_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -43,6 +43,8 @@ model = dict(
         num_predictor_convs=2,
         predictor_mid_channels=64,
         predictor_out_channels=256,
+        predictor_plugin=dict(
+            type='PixelPro', in_channels=256, norm_cfg=dict(type='SyncBN')),
         loss_feat=dict(type='CosineSimLoss', negative=False)))
 # model training and testing settings
 train_cfg = dict(intra_video=False)

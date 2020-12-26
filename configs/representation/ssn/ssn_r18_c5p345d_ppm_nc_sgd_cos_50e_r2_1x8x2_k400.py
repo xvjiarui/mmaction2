@@ -16,7 +16,7 @@ model = dict(
         out_channels=256,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         num_outs=4,
-        out_index=1),
+        out_index=(1, 2, 3)),
     backbone_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -30,20 +30,25 @@ model = dict(
         with_norm=True,
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'),
-    neck_head=dict(
-        type='DenseSimSiamHead',
-        in_channels=256,
-        kernel_size=1,
-        conv_cfg=dict(type='Conv2d'),
-        norm_cfg=dict(type='SyncBN'),
-        act_cfg=dict(type='ReLU'),
-        num_projection_convs=3,
-        projection_mid_channels=256,
-        projection_out_channels=256,
-        num_predictor_convs=2,
-        predictor_mid_channels=64,
-        predictor_out_channels=256,
-        loss_feat=dict(type='CosineSimLoss', negative=False)))
+    neck_head=[
+        dict(
+            type='DenseSimSiamHead',
+            in_channels=256,
+            kernel_size=1,
+            conv_cfg=dict(type='Conv2d'),
+            norm_cfg=dict(type='SyncBN'),
+            act_cfg=dict(type='ReLU'),
+            num_projection_convs=3,
+            projection_mid_channels=256,
+            projection_out_channels=256,
+            num_predictor_convs=2,
+            predictor_mid_channels=64,
+            predictor_out_channels=256,
+            predictor_plugin=dict(
+                type='PixelPro', in_channels=256,
+                norm_cfg=dict(type='SyncBN')),
+            loss_feat=dict(type='CosineSimLoss', negative=False))
+    ] * 3)
 # model training and testing settings
 train_cfg = dict(intra_video=False)
 test_cfg = dict(
@@ -51,6 +56,7 @@ test_cfg = dict(
     topk=10,
     temperature=0.2,
     use_backbone=True,
+    neck_out_indices=(0, 1, 2),
     strides=(1, 2, 1, 1),
     out_indices=(2, 3),
     neighbor_range=24,

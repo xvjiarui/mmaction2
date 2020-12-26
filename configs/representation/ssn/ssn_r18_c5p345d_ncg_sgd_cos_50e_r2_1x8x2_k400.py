@@ -34,16 +34,17 @@ model = dict(
         dict(
             type='DenseSimSiamHead',
             in_channels=256,
+            kernel_size=1,
+            conv_cfg=dict(type='Conv2d'),
             norm_cfg=dict(type='SyncBN'),
-            num_projection_fcs=3,
+            act_cfg=dict(type='ReLU'),
+            num_projection_convs=3,
             projection_mid_channels=256,
             projection_out_channels=256,
-            num_predictor_fcs=2,
+            num_predictor_convs=2,
             predictor_mid_channels=64,
             predictor_out_channels=256,
-            with_norm=True,
-            loss_feat=dict(type='CosineSimLoss', negative=False),
-            spatial_type='avg')
+            loss_feat=dict(type='CosineSimLoss', negative=False))
     ] * 3)
 # model training and testing settings
 train_cfg = dict(intra_video=False)
