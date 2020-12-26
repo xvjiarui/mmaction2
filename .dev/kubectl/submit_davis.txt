@@ -39,6 +39,8 @@
 #ssb_r18s8_nc_sgd_cos_50e_r2_1x8x2_k400.py
 #ssb_r18s8_sgd_cos_50e_r2_1x8x2_k400.py
 #ssn_r18_c345p345_sgd_cos_50e_r2_1x8x2_k400.py
-ssb_r18_nc_gs_sgd_cos_50e_r2_1x8x2_k400.py
-ssb_r18_nc_cj_sgd_cos_50e_r2_1x8x2_k400.py
-ssb_r18_sgd_cos_50e_r5_1x8x2_k400.py
+#ssb_r18_nc_gs_sgd_cos_50e_r2_1x8x2_k400.py
+#ssb_r18_nc_cj_sgd_cos_50e_r2_1x8x2_k400.py
+#ssb_r18_sgd_cos_50e_r5_1x8x2_k400.py
+#ssb_r18_i320_nc_sgd_cos_50e_r2_1x8x2_k400.py
+#ssb_r18_nc_sgd_cos_50e_r5_1x8x2_k400.py
