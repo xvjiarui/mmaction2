@@ -278,8 +278,8 @@ class RandomResizedCrop(object):
                         self.aspect_ratio_range)
                     new_h, new_w = bottom - top, right - left
 
-                    results['crop_bbox'] = np.array([left, top, right, bottom])
-                    results['img_shape'] = (new_h, new_w)
+                results['crop_bbox'] = np.array([left, top, right, bottom])
+                results['img_shape'] = (new_h, new_w)
                 results['imgs'][i] = img[top:bottom, left:right]
                 if 'grids' in results:
                     grid = results['grids'][i]

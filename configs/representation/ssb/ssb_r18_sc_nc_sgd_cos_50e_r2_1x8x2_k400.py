@@ -9,7 +9,7 @@ model = dict(
         pretrained=None,
         depth=18,
         out_indices=(3, ),
-        strides=(1, 2, 1, 1),
+        # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
@@ -29,7 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False, image2patch=True)
+train_cfg = dict(intra_video=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -58,10 +58,10 @@ train_pipeline = [
     dict(type='DecordDecode'),
     dict(
         type='RandomResizedCrop',
-        area_range=(0.8, 1.),
-        same_across_clip=False,
-        same_on_clip=False),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
+        area_range=(0.2, 1.),
+        same_across_clip=True,
+        same_on_clip=True),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
     # dict(
     #     type='Flip',
     #     flip_ratio=0.5,
@@ -105,14 +105,17 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=24,
+    videos_per_gpu=128,
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
-        type=dataset_type,
-        ann_file=ann_file_train,
-        data_prefix=data_prefix,
-        pipeline=train_pipeline),
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(
+            type=dataset_type,
+            ann_file=ann_file_train,
+            data_prefix=data_prefix,
+            pipeline=train_pipeline)),
     val=dict(
         type=dataset_type_val,
         ann_file=ann_file_val,
@@ -150,23 +153,23 @@ evaluation = dict(
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['ssb'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')
