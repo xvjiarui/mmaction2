@@ -1,8 +1,8 @@
 import torch.nn as nn
 from mmcv.utils import build_from_cfg
 
-from .registry import (BACKBONES, HEADS, LOCALIZERS, LOSSES, NECKS,
-                       RECOGNIZERS, TRACKERS)
+from .registry import (BACKBONES, DROP_LAYERS, HEADS, LOCALIZERS, LOSSES,
+                       NECKS, RECOGNIZERS, TRACKERS)
 
 
 def build(cfg, registry, default_args=None):
@@ -40,6 +40,11 @@ def build_neck(cfg):
 def build_head(cfg):
     """Build head."""
     return build(cfg, HEADS)
+
+
+def build_drop_layer(cfg):
+    """Build dropout layer."""
+    return build(cfg, DROP_LAYERS)
 
 
 def build_recognizer(cfg, train_cfg=None, test_cfg=None):

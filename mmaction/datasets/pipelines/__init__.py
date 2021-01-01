@@ -1,7 +1,7 @@
 from .augmentations import (RGB2LAB, CenterCrop, ColorJitter, Flip, Fuse, Grid,
-                            Image2Patch, MultiGroupCrop, MultiScaleCrop,
-                            Normalize, PhotoMetricDistortion, RandomCrop,
-                            RandomGaussianBlur, RandomGrayScale,
+                            HidePatch, Image2Patch, MultiGroupCrop,
+                            MultiScaleCrop, Normalize, PhotoMetricDistortion,
+                            RandomCrop, RandomGaussianBlur, RandomGrayScale,
                             RandomResizedCrop, Resize, TenCrop, ThreeCrop)
 from .compose import Compose
 from .formating import (Collect, FormatShape, ImageToTensor, ToDataContainer,
@@ -25,5 +25,5 @@ __all__ = [
     'UntrimmedSampleFrames', 'RawFrameDecode', 'SequentialSampleFrames',
     'PhotoMetricDistortion', 'RGB2LAB', 'RandomGaussianBlur',
     'RandomGrayScale', 'DuplicateFrames', 'ColorJitter', 'RawImageDecode',
-    'Grid', 'Image2Patch'
+    'Grid', 'Image2Patch', 'HidePatch'
 ]

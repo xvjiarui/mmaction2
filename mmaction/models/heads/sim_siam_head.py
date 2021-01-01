@@ -1,7 +1,7 @@
 import torch.nn as nn
 from mmcv.cnn import ConvModule, build_plugin_layer
 
-from ..builder import build_loss
+from ..builder import build_drop_layer, build_loss
 from ..registry import HEADS
 
 
@@ -28,6 +28,8 @@ class SimSiamHead(nn.Module):
                  conv_cfg=dict(type='Conv2d'),
                  norm_cfg=dict(type='BN'),
                  act_cfg=None,
+                 drop_layer_cfg=None,
+                 order=('pool', 'drop'),
                  num_projection_fcs=3,
                  projection_mid_channels=2048,
                  projection_out_channels=2048,
@@ -108,6 +110,12 @@ class SimSiamHead(nn.Module):
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         else:
             self.avg_pool = nn.Identity()
+        if drop_layer_cfg is not None:
+            self.dropout = build_drop_layer(drop_layer_cfg)
+        else:
+            self.dropout = nn.Identity()
+        assert set(order) == {'pool', 'drop'}
+        self.order = order
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
@@ -124,8 +132,12 @@ class SimSiamHead(nn.Module):
         """
         # [N, in_channels, 4, 7, 7]
         x = self.convs(x)
-        x = self.avg_pool(x)
-        x = x.flatten(1)
+        for layer in self.order:
+            if layer == 'pool':
+                x = self.avg_pool(x)
+                x = x.flatten(1)
+            if layer == 'drop':
+                x = self.dropout(x)
         z = self.projection_fcs(x)
         p = self.predictor_fcs(z)
 

@@ -1311,3 +1311,28 @@ class Image2Patch(object):
         results['imgs'] = patches
 
         return results
+
+
+@PIPELINES.register_module()
+class HidePatch(object):
+    """after normalization."""
+
+    def __init__(self, patch_size, hide_prob):
+        if not isinstance(patch_size, (list, tuple)):
+            patch_size = [patch_size]
+        self.patch_size = patch_size
+        self.hide_prob = hide_prob
+
+    def __call__(self, results):
+        patch_size = np.random.choice(self.patch_size)
+        results['img_shape'] = results['imgs'][0].shape[:2]
+        h, w = results['imgs'][0].shape[:2]
+        for i, img in enumerate(results['imgs']):
+            for y in range(0, h, patch_size):
+                for x in range(0, w, patch_size):
+                    apply = npr.rand() < self.hide_prob
+                    if apply:
+                        results['imgs'][i][y:y + patch_size,
+                                           x:x + patch_size] = 0
+
+        return results
