@@ -32,6 +32,7 @@ class MoCoHead(nn.Module):
                  norm_cfg=None,
                  act_cfg=None,
                  num_fcs=2,
+                 fc_mid_channels=128,
                  fc_out_channels=128,
                  with_norm=True,
                  loss_feat=dict(type='MultiPairNCE'),
@@ -40,8 +41,7 @@ class MoCoHead(nn.Module):
                  temperature=1.,
                  spatial_type='avg',
                  multi_pair=True,
-                 intra_batch=True,
-                 **kwargs):
+                 intra_batch=True):
         super().__init__()
         self.in_channels = in_channels
         self.conv_out_channels = conv_out_channels
@@ -97,9 +97,9 @@ class MoCoHead(nn.Module):
         if num_fcs > 1:
             fcs = []
             for i in range(num_fcs - 1):
-                fcs.append(nn.Linear(last_layer_dim, self.fc_out_channels))
+                fcs.append(nn.Linear(last_layer_dim, fc_mid_channels))
                 fcs.append(nn.ReLU())
-                last_layer_dim = self.fc_out_channels
+                last_layer_dim = fc_mid_channels
             fcs.append(nn.Linear(last_layer_dim, self.fc_out_channels))
             self.fcs = nn.Sequential(*fcs)
         else:
