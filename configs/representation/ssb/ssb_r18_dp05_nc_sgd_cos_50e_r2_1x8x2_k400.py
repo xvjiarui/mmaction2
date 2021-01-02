@@ -20,7 +20,7 @@ model = dict(
         in_channels=512,
         norm_cfg=dict(type='SyncBN'),
         order=('drop', 'pool'),
-        drop_layer_cfg=dict(type='Dropout2d', p=0.5, inplace=True),
+        drop_layer_cfg=dict(type='Dropout2d', p=0.5, inplace=False),
         num_projection_fcs=3,
         projection_mid_channels=512,
         projection_out_channels=512,
