@@ -1514,7 +1514,7 @@ class RandomErasing(object):
 
     def get_pixels(self, patch_shape):
         if self.mode == 'pixel':
-            return np.random.randn(patch_shape)
+            return np.random.randn(*patch_shape)
         elif self.mode == 'rand':
             return np.random.randn(1, 1, patch_shape[-1])
         else:

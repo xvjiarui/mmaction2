@@ -97,7 +97,7 @@ train_pipeline = [
     #      same_on_clip=False, same_across_clip=False),
     dict(type='Normalize', **img_norm_cfg),
     # dict(type='HidePatch', patch_size=[16, 32, 44, 56], hide_prob=0.2),
-    # dict(type='RandomErasing'),
+    dict(type='RandomErasing', p=0.2, mode='pixel'),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['imgs', 'label'])
