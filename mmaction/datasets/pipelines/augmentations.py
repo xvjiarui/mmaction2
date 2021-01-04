@@ -8,7 +8,9 @@ from PIL import Image, ImageFilter
 from skimage.util import view_as_windows
 from torch.nn.modules.utils import _pair
 from torchvision.transforms import ColorJitter as _ColorJitter
+from torchvision.transforms import RandomAffine as _RandomAffine
 from torchvision.transforms import RandomResizedCrop as _RandomResizedCrop
+from torchvision.transforms import functional as F
 
 from ..registry import PIPELINES
 
@@ -1325,7 +1327,6 @@ class HidePatch(object):
 
     def __call__(self, results):
         patch_size = np.random.choice(self.patch_size)
-        results['img_shape'] = results['imgs'][0].shape[:2]
         h, w = results['imgs'][0].shape[:2]
         for i, img in enumerate(results['imgs']):
             for y in range(0, h, patch_size):
@@ -1334,5 +1335,209 @@ class HidePatch(object):
                     if apply:
                         results['imgs'][i][y:y + patch_size,
                                            x:x + patch_size] = 0
+
+        return results
+
+
+@PIPELINES.register_module()
+class RandomAffine(object):
+
+    def __init__(self,
+                 degrees,
+                 p=0.5,
+                 same_on_clip=True,
+                 same_across_clip=True,
+                 translate=None,
+                 scale=None,
+                 shear=None,
+                 resample=2,
+                 fillcolor=0):
+        trans = _RandomAffine(
+            degrees=degrees,
+            translate=translate,
+            scale=scale,
+            shear=shear,
+            resample=resample,
+            fillcolor=fillcolor)
+        self.degrees = trans.degrees
+        self.translate = trans.translate
+        self.scale = trans.scale
+        self.shear = trans.shear
+        self.resample = trans.resample
+        self.fillcolor = trans.fillcolor
+        self.p = p
+        self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
+
+    def __call__(self, results):
+        apply = npr.rand() < self.p
+        h, w = results['imgs'][0].shape[:2]
+        ret = _RandomAffine.get_params(self.degrees, self.translate,
+                                       self.scale, self.shear, (w, h))
+        for i, img in enumerate(results['imgs']):
+            is_new_clip = not self.same_across_clip and i % results[
+                'clip_len'] == 0 and i > 0
+            if not self.same_on_clip or is_new_clip:
+                apply = npr.rand() < self.p
+                ret = _RandomAffine.get_params(self.degrees, self.translate,
+                                               self.scale, self.shear, (w, h))
+            if apply:
+                img = np.array(
+                    F.affine(
+                        Image.fromarray(img),
+                        *ret,
+                        resample=self.resample,
+                        fillcolor=self.fillcolor))
+                results['imgs'][i] = img
+
+        return results
+
+
+@PIPELINES.register_module()
+class RandomChoiceRotate(object):
+
+    def __init__(self, p, degrees, same_on_clip=True, same_across_clip=True):
+        self.p = p
+        if not isinstance(degrees, (list, tuple)):
+            degrees = [degrees]
+        self.degrees = degrees
+        self.label_map = {d: i for i, d in enumerate(degrees)}
+        self.same_on_clip = same_on_clip
+        self.same_across_clip = same_across_clip
+
+    def __call__(self, results):
+        apply = npr.rand() < self.p
+        degree = np.random.choice(self.degrees)
+        labels = []
+        for i, img in enumerate(results['imgs']):
+            is_new_clip = not self.same_across_clip and i % results[
+                'clip_len'] == 0 and i > 0
+            if not self.same_on_clip or is_new_clip:
+                apply = npr.rand() < self.p
+                degree = np.random.choice(self.degrees)
+            if apply:
+                img = np.array(mmcv.imrotate(img, angle=degree))
+                results['imgs'][i] = img
+                labels.append(self.label_map[degree])
+            else:
+                labels.append(0)
+        results['rotation_labels'] = np.array(labels)
+
+        return results
+
+
+@PIPELINES.register_module()
+class RandomErasing(object):
+    """ Randomly selects a rectangle region in an image and erases its pixels.
+        'Random Erasing Data Augmentation' by Zhong et al.
+        See https://arxiv.org/pdf/1708.04896.pdf
+        This variant of RandomErasing is intended to be applied to either a
+        batch or single image tensor after it has been normalized by dataset
+        mean and std.
+    Args:
+         p: Probability that the Random Erasing operation will be performed.
+         min_area: Minimum percentage of erased area wrt input image area.
+         max_area: Maximum percentage of erased area wrt input image area.
+         min_aspect: Minimum aspect ratio of erased area.
+         mode: pixel color mode, one of 'const', 'rand', or 'pixel'
+            'const' - erase block is constant color of 0 for all channels
+            'rand'  - erase block is same per-channel random (normal) color
+            'pixel' - erase block is per-pixel random (normal) color
+        max_count: maximum number of erasing blocks per image, area per box is
+            scaled by count. per-image count is randomly chosen between 1 and
+            this value.
+    """
+
+    def __init__(self,
+                 p=0.5,
+                 area_range=(0.02, 1 / 3),
+                 aspect_ratio_range=(1 / 3, 3),
+                 count_range=(1, 1),
+                 mode='const'):
+        self.p = p
+        self.area_range = area_range
+        self.aspect_ratio_range = aspect_ratio_range
+        self.count_range = count_range
+        assert mode in ['rand', 'pixel', 'const']
+        self.mode = mode
+
+    @staticmethod
+    def get_crop_bbox(img_shape,
+                      area_range,
+                      aspect_ratio_range,
+                      max_attempts=10):
+        """Get a crop bbox given the area range and aspect ratio range.
+
+        Args:
+            img_shape (Tuple[int]): Image shape
+            area_range (Tuple[float]): The candidate area scales range of
+                output cropped images. Default: (0.08, 1.0).
+            aspect_ratio_range (Tuple[float]): The candidate aspect
+                ratio range of output cropped images. Default: (3 / 4, 4 / 3).
+                max_attempts (int): The maximum of attempts. Default: 10.
+            max_attempts (int): Max attempts times to generate random candidate
+                bounding box. If it doesn't qualified one, the center bounding
+                box will be used.
+        Returns:
+            (list[int]) A random crop bbox within the area range and aspect
+            ratio range.
+        """
+        assert 0 < area_range[0] <= area_range[1] <= 1
+        assert 0 < aspect_ratio_range[0] <= aspect_ratio_range[1]
+
+        img_h, img_w = img_shape
+        area = img_h * img_w
+
+        min_ar, max_ar = aspect_ratio_range
+        aspect_ratios = np.exp(
+            np.random.uniform(
+                np.log(min_ar), np.log(max_ar), size=max_attempts))
+        target_areas = np.random.uniform(*area_range, size=max_attempts) * area
+        candidate_crop_w = np.round(np.sqrt(target_areas *
+                                            aspect_ratios)).astype(np.int32)
+        candidate_crop_h = np.round(np.sqrt(target_areas /
+                                            aspect_ratios)).astype(np.int32)
+
+        for i in range(max_attempts):
+            crop_w = candidate_crop_w[i]
+            crop_h = candidate_crop_h[i]
+            if crop_h <= img_h and crop_w <= img_w:
+                x_offset = random.randint(0, img_w - crop_w)
+                y_offset = random.randint(0, img_h - crop_h)
+                return x_offset, y_offset, x_offset + crop_w, y_offset + crop_h
+
+        # Fallback
+        crop_size = min(img_h, img_w)
+        x_offset = (img_w - crop_size) // 2
+        y_offset = (img_h - crop_size) // 2
+        return x_offset, y_offset, x_offset + crop_size, y_offset + crop_size
+
+    def get_pixels(self, patch_shape):
+        if self.mode == 'pixel':
+            return np.random.randn(patch_shape)
+        elif self.mode == 'rand':
+            return np.random.randn(1, 1, patch_shape[-1])
+        else:
+            return np.zeros(patch_shape, dtype=np.float)
+
+    def erase(self, img):
+        count = random.randint(*self.count_range)
+        img_h, img_w = img.shape[:2]
+        for _ in range(count):
+            left, top, right, bottom = self.get_crop_bbox(
+                (img_h, img_w),
+                (self.area_range[0] / count, self.area_range[1] / count),
+                self.aspect_ratio_range)
+            new_h, new_w = bottom - top, right - left
+            img[top:bottom, left:right] = self.get_pixels(
+                (new_h, new_w, img.shape[2]))
+
+        return img
+
+    def __call__(self, results):
+        for i, img in enumerate(results['imgs']):
+            apply = npr.rand() < self.p
+            if apply:
+                results['imgs'][i] = self.erase(img)
 
         return results

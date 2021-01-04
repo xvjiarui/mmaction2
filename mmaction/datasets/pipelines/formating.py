@@ -266,6 +266,12 @@ class FormatShape(object):
                 grids = grids.reshape((-1, ) + grids.shape[2:])
                 # M' x C x L x H x W
                 # M' = N_crops x N_clips
+            if 'rotation_labels' in results:
+                rotation_labels = results['rotation_labels']
+                rotation_labels = rotation_labels.reshape((-1, clip_len))
+                # M' x L
+                # M' = N_crops x N_clips
+                results['rotation_labels'] = rotation_labels
         elif self.input_format == 'NCHW':
             imgs = np.transpose(imgs, (0, 3, 1, 2))
             # M x C x H x W

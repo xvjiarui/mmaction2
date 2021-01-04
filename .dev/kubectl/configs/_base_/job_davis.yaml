@@ -25,7 +25,7 @@ spec:
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
           limits: # Maximum resources can be used for the job
-            memory: "12Gi"
+            memory: "{{max_mem}}"
             cpu: "{{max_cpus}}"
             nvidia.com/gpu: "{{ gpus }}"
         volumeMounts:

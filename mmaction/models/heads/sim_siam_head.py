@@ -33,9 +33,11 @@ class SimSiamHead(nn.Module):
                  num_projection_fcs=3,
                  projection_mid_channels=2048,
                  projection_out_channels=2048,
+                 drop_projection_fc=False,
                  num_predictor_fcs=2,
                  predictor_mid_channels=512,
                  predictor_out_channels=2048,
+                 drop_predictor_fc=False,
                  with_norm=True,
                  loss_feat=dict(type='CosineSimLoss', negative=False),
                  spatial_type='avg'):
@@ -82,6 +84,8 @@ class SimSiamHead(nn.Module):
             # no relu on output
             if not is_last:
                 projection_fcs.append(nn.ReLU())
+                if drop_projection_fc:
+                    projection_fcs.append(build_drop_layer(drop_layer_cfg))
             last_channels = out_channels
         if len(projection_fcs):
             self.projection_fcs = nn.Sequential(*projection_fcs)
@@ -97,6 +101,8 @@ class SimSiamHead(nn.Module):
             if not is_last:
                 predictor_fcs.append(BatchNorm1d(out_channels))
                 predictor_fcs.append(nn.ReLU())
+                if drop_predictor_fc:
+                    predictor_fcs.append(build_drop_layer(drop_layer_cfg))
             last_channels = out_channels
         if len(predictor_fcs):
             self.predictor_fcs = nn.Sequential(*predictor_fcs)

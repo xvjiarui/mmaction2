@@ -3,7 +3,7 @@ temperature = 0.2
 with_norm = True
 query_dim = 128
 model = dict(
-    type='SimSiamBaseTracker',
+    type='SimSiamBaseClsTracker',
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -13,7 +13,19 @@ model = dict(
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
-    # cls_head=None,
+    cls_head=dict(
+        type='ImageClsHead',
+        num_classes=4,
+        in_channels=512,
+        norm_cfg=dict(type='BN'),
+        num_projection_fcs=3,
+        projection_mid_channels=512,
+        projection_out_channels=512,
+        drop_projection_fc=False,
+        loss_cls=dict(type='CrossEntropyLoss'),
+        spatial_type='avg',
+        dropout_ratio=0.5,
+        init_std=0.01),
     # patch_head=None,
     img_head=dict(
         type='SimSiamHead',
@@ -63,12 +75,6 @@ train_pipeline = [
     #     same_across_clip=False,
     #     same_on_clip=False),
     dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    # dict(type='RandomAffine',
-    #      degrees=10,
-    #      p=0.5,
-    #      shear=(-0.1, 0.1, -0.1, 0.1),
-    #      same_across_clip=False,
-    #      same_on_clip=False),
     # dict(
     #     type='Flip',
     #     flip_ratio=0.5,
@@ -93,14 +99,16 @@ train_pipeline = [
     #     p=0.5,
     #     same_across_clip=False,
     #     same_on_clip=False),
-    # dict(type='RandomChoiceRotate', p=1, degrees=(0, 90, 180, 270),
-    #      same_on_clip=False, same_across_clip=False),
+    dict(
+        type='RandomChoiceRotate',
+        p=1,
+        degrees=(0, 90, 180, 270),
+        same_on_clip=False,
+        same_across_clip=False),
     dict(type='Normalize', **img_norm_cfg),
-    # dict(type='HidePatch', patch_size=[16, 32, 44, 56], hide_prob=0.2),
-    # dict(type='RandomErasing'),
     dict(type='FormatShape', input_format='NCTHW'),
-    dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
-    dict(type='ToTensor', keys=['imgs', 'label'])
+    dict(type='Collect', keys=['imgs', 'rotation_labels'], meta_keys=[]),
+    dict(type='ToTensor', keys=['imgs', 'rotation_labels'])
 ]
 val_pipeline = [
     dict(type='SequentialSampleFrames', frame_interval=1),

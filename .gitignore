@@ -115,6 +115,7 @@ mmaction/version.py
 *.log.json
 benchlist.txt
 work_dirs/
+.dev/kubectl/*.sh
 
 # Pytorch
 *.pth
