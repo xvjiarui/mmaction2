@@ -5,6 +5,7 @@ from mmaction.utils import add_prefix
 from .. import builder
 from ..backbones import ResNet
 from ..common import images2video, video2images
+from ..heads import SimSiamHead
 from ..registry import TRACKERS
 from .vanilla_tracker import VanillaTracker
 
@@ -39,11 +40,13 @@ class SimSiamBaseSingleTracker(VanillaTracker):
             self.img_head.init_weights()
 
     def forward_img_head(self, x11, x12, x22, x21, clip_len):
+        assert isinstance(self.img_head, SimSiamHead)
         losses = dict()
         _, p1 = self.img_head(x11)
-        z1, _ = self.img_head(x12)
         _, p2 = self.img_head(x22)
-        z2, _ = self.img_head(x21)
+        with torch.no_grad():
+            z1 = self.img_head.projection_fcs(x21)
+            z2 = self.img_head.projection_fcs(x12)
         loss_weight = 1. / clip_len if self.intra_video else 1.
         losses.update(
             add_prefix(

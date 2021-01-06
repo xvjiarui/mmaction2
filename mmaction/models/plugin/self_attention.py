@@ -54,7 +54,6 @@ class SelfAttention(nn.Module):
 
     def forward(self, query, key, value):
         assert query.shape == key.shape == value.shape
-        print(query.shape)
         identity = query
         query = query.flatten(2)
         key = key.flatten(2)
