@@ -127,6 +127,18 @@ class SimSiamHead(nn.Module):
         """Initiate the parameters from scratch."""
         pass
 
+    def forward_projection(self, x):
+        x = self.convs(x)
+        for layer in self.order:
+            if layer == 'pool':
+                x = self.avg_pool(x)
+                x = x.flatten(1)
+            if layer == 'drop':
+                x = self.dropout(x)
+        z = self.projection_fcs(x)
+
+        return z
+
     def forward(self, x):
         """Defines the computation performed at every call.
 

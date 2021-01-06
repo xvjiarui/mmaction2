@@ -45,8 +45,8 @@ class SimSiamBaseSingleTracker(VanillaTracker):
         _, p1 = self.img_head(x11)
         _, p2 = self.img_head(x22)
         with torch.no_grad():
-            z1 = self.img_head.projection_fcs(x21)
-            z2 = self.img_head.projection_fcs(x12)
+            z1 = self.img_head.forward_projection(x21)
+            z2 = self.img_head.forward_projection(x12)
         loss_weight = 1. / clip_len if self.intra_video else 1.
         losses.update(
             add_prefix(
