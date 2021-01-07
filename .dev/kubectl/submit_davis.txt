@@ -109,4 +109,7 @@
 #ssb_r18_hp02_sgd_cos_50e_r2_1x8x2_k40.py
 
 #mb_r18_sgd_cos_50e_r2_1x8x2_k400.py
-mb_r18_sgd_cos_50e_r2_2x8x2_k400.py
+#mb_r18_sgd_cos_50e_r2_2x8x2_k400.py
+#ssbc_r18_nc_fc0_sgd_cos_50e_r2_1x8x2_k400.py
+mb_r50_nc_sgd_cos_50e_r2_1x8x2_k400.py
+#mb_r18_nc_sgd_cos_50e_r2_4x8x2_k400.py
