@@ -24,6 +24,7 @@ class SimSiamBaseSingleTracker(VanillaTracker):
         if self.train_cfg is not None:
             self.intra_video = self.train_cfg.get('intra_video', False)
             self.att_indices = self.train_cfg.get('att_indices')
+            self.att_src2dst = self.train_cfg.get('att_src2dst', True)
 
     @property
     def with_img_head(self):
@@ -68,23 +69,41 @@ class SimSiamBaseSingleTracker(VanillaTracker):
 
     def forward_backbone(self, imgs1, imgs2):
         assert isinstance(self.backbone, ResNet)
-        x1 = self.backbone.conv1(imgs1)
-        x1 = self.backbone.maxpool(x1)
-        att_feat = {}
-        for i, layer_name in enumerate(self.backbone.res_layers):
-            res_layer = getattr(self.backbone, layer_name)
-            x1 = res_layer(x1)
-            if i in self.att_indices and self.with_att_plugin:
-                att_feat[i] = x1
-
-        with torch.no_grad():
-            x2 = self.backbone.conv1(imgs2)
-            x2 = self.backbone.maxpool(x2)
+        if self.att_src2dst:
+            x1 = self.backbone.conv1(imgs1)
+            x1 = self.backbone.maxpool(x1)
+            att_feat = {}
             for i, layer_name in enumerate(self.backbone.res_layers):
                 res_layer = getattr(self.backbone, layer_name)
-                x2 = res_layer(x2)
+                x1 = res_layer(x1)
                 if i in self.att_indices and self.with_att_plugin:
-                    x2 = self.att_plugin(x2, att_feat[i], x2)
+                    att_feat[i] = x1
+
+            with torch.no_grad():
+                x2 = self.backbone.conv1(imgs2)
+                x2 = self.backbone.maxpool(x2)
+                for i, layer_name in enumerate(self.backbone.res_layers):
+                    res_layer = getattr(self.backbone, layer_name)
+                    x2 = res_layer(x2)
+                    if i in self.att_indices and self.with_att_plugin:
+                        x2 = self.att_plugin(x2, att_feat[i], x2)
+        else:
+            att_feat = {}
+            with torch.no_grad():
+                x2 = self.backbone.conv1(imgs2)
+                x2 = self.backbone.maxpool(x2)
+                for i, layer_name in enumerate(self.backbone.res_layers):
+                    res_layer = getattr(self.backbone, layer_name)
+                    x2 = res_layer(x2)
+                    if i in self.att_indices and self.with_att_plugin:
+                        att_feat[i] = x2
+            x1 = self.backbone.conv1(imgs1)
+            x1 = self.backbone.maxpool(x1)
+            for i, layer_name in enumerate(self.backbone.res_layers):
+                res_layer = getattr(self.backbone, layer_name)
+                x1 = res_layer(x1)
+                if i in self.att_indices and self.with_att_plugin:
+                    x1 = self.att_plugin(x1, att_feat[i], x1)
 
         return x1, x2
 

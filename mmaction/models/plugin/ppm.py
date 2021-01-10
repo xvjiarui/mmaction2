@@ -54,15 +54,20 @@ class PixelPro(nn.Module):
         else:
             self.convs = nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x, key=None, value=None):
         identity = x
-        g = self.convs(x)
+        if key is None:
+            key = x
+        if value is None:
+            value = x
+        g = self.convs(value)
         g = g.flatten(2)
         x = x.flatten(2)
+        key = key.flatten(2)
         if self.normalize:
             x = F.normalize(x, p=2, dim=1)
         # [B, HxW, HxW]
-        affinity = torch.einsum('bci, bcj->bij', x, x).contiguous()
+        affinity = torch.einsum('bci, bcj->bij', x, key).contiguous()
         affinity = affinity.clamp(min=0)**self.gamma
 
         out = torch.matmul(g, affinity).contiguous()
