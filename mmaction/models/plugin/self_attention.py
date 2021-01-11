@@ -311,17 +311,24 @@ class MultiHeadAttention(nn.Module):
         num_heads (int): Parallel attention heads. Same as
             `nn.MultiheadAttention`.
         dropout (float): A Dropout layer on attn_output_weights. Default 0.0.
+        batchwise_drop (float): Drop attention batchwisely. Default: False
     """
 
-    def __init__(self, embed_dims, num_heads, dropout=0.0):
+    def __init__(self,
+                 embed_dims,
+                 num_heads,
+                 dropout=0.0,
+                 batchwise_drop=False):
         super(MultiHeadAttention, self).__init__()
         assert embed_dims % num_heads == 0, \
             f'embed_dims must be divisible by num_heads. got {embed_dims} ' \
             f'and {num_heads}.'
         self.embed_dims = embed_dims
         self.num_heads = num_heads
-        self.attn = nn.MultiheadAttention(embed_dims, num_heads, dropout)
+        self.attn = nn.MultiheadAttention(
+            embed_dims, num_heads, dropout if not batchwise_drop else 0.)
         self.dropout = nn.Dropout(dropout)
+        self.batchwise_drop = batchwise_drop
 
     def forward(self, x, key=None, value=None):
         """Forward function for `MultiheadAttention`.
@@ -349,9 +356,14 @@ class MultiHeadAttention(nn.Module):
         key = key.flatten(2).permute(2, 0, 1)  # [bs, c, h, w] -> [h*w, bs, c]
         value = value.flatten(2).permute(2, 0,
                                          1)  # [bs, c, h, w] -> [h*w, bs, c]
-        out = self.attn(
-            query, key, value=value, attn_mask=None, key_padding_mask=None)[0]
-        out = self.dropout(out)
+        out, out_weights = self.attn(
+            query, key, value=value, attn_mask=None, key_padding_mask=None)
+        if self.batchwise_drop:
+            scale = out.new_ones((1, out.size(1), 1))
+            scale = self.dropout(scale)
+            out *= scale
+        else:
+            out = self.dropout(out)
         out = out.permute(1, 2, 0).reshape_as(x)
 
         return x + out
