@@ -16,7 +16,6 @@ model = dict(
         in_channels=[64, 128, 256, 512],
         out_channels=256,
         norm_cfg=dict(type='SyncBN', requires_grad=True),
-        extra_fpn_out_act=False,
         num_outs=4,
         out_index=1),
     # patch_head=dict(
