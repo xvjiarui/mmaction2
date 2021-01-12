@@ -62,6 +62,7 @@ def parse_args():
         '--zip', action='store_true', help='reading from zip file')
     parser.add_argument(
         '--s3', action='store_true', help='reading from ceph s3 file')
+    parser.add_argument('--suffix', type=str, help='work_dir suffix')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -88,6 +89,8 @@ def main():
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0])
+    if args.suffix is not None:
+        cfg.work_dir = f'{cfg.work_dir}-{args.suffix}'
     if any(h.type == 'WandbLoggerHook' for h in cfg.log_config.hooks):
         mmcv.mkdir_or_exist(
             osp.join('./wandb',
