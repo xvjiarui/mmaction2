@@ -91,10 +91,13 @@ def main():
                                 osp.splitext(osp.basename(args.config))[0])
     if args.suffix is not None:
         cfg.work_dir = f'{cfg.work_dir}-{args.suffix}'
-    if any(h.type == 'WandbLoggerHook' for h in cfg.log_config.hooks):
-        mmcv.mkdir_or_exist(
-            osp.join('./wandb',
-                     osp.splitext(osp.basename(args.config))[0]))
+    for i, h in enumerate(cfg.log_config.hooks):
+        if h.type == 'WandbLoggerHook':
+            if args.suffix is not None:
+                wandb_dir = cfg.log_config.hooks[i].init_kwargs.dir
+                cfg.log_config.hooks[i].init_kwargs.dir = f'{wandb_dir}-' \
+                                                          f'{args.suffix}'
+            mmcv.mkdir_or_exist(cfg.log_config.hooks[i].init_kwargs.dir)
     if args.load_from is not None:
         cfg.load_from = args.load_from
     if args.resume_from is not None:
