@@ -134,13 +134,16 @@ def main():
         if rank == 0 and h.type == 'WandbLoggerHook':
             import wandb
             init_kwargs = h.init_kwargs.to_dict()
+            suffix = 'davis'
+            if args.suffix is not None:
+                suffix = f'{args.suffix}-{suffix}'
             init_kwargs.update(
                 dict(
                     name=h.init_kwargs.name + '-davis',
                     tags=[*h.init_kwargs.tags, 'davis'],
                     resume=args.auto_resume,
-                    dir=f'wandb/{h.init_kwargs.name}-davis'))
-            mmcv.mkdir_or_exist(f'wandb/{h.init_kwargs.name}-davis')
+                    dir=f'wandb/{h.init_kwargs.name}-{suffix}'))
+            mmcv.mkdir_or_exist(f'wandb/{h.init_kwargs.name}-{suffix}')
             wandb.init(**init_kwargs)
 
     # build the dataloader
