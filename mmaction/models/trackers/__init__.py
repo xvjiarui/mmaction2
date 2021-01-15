@@ -4,6 +4,7 @@ from .rnd_moco_tracker import RNDMoCoTracker
 from .sim_siam_base_cls_tracker import SimSiamBaseClsTracker
 from .sim_siam_base_single_tracker import SimSiamBaseSingleTracker
 from .sim_siam_base_tracker import SimSiamBaseTracker
+from .sim_siam_base_tsn_tracker import SimSiamBaseTSNTracker
 from .sim_siam_neck_tracker import SimSiamNeckTracker
 from .sim_siam_pix_tracker import SimSiamPixTracker
 from .sim_siam_tracker import SimSiamTracker
@@ -24,5 +25,6 @@ __all__ = [
     'UVCTrackerV3', 'UVCNeckMoCoTracker', 'UVCNeckMoCoTrackerV2',
     'VanillaTracker', 'SimSiamTracker', 'SimSiamPixTracker',
     'SimSiamUVCTracker', 'SimSiamBaseTracker', 'SimSiamNeckTracker',
-    'MoCoBaseTracker', 'SimSiamBaseClsTracker', 'SimSiamBaseSingleTracker'
+    'MoCoBaseTracker', 'SimSiamBaseClsTracker', 'SimSiamBaseSingleTracker',
+    'SimSiamBaseTSNTracker'
 ]
