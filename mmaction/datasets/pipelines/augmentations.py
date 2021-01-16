@@ -188,6 +188,7 @@ class RandomResizedCrop(object):
                  aspect_ratio_range=(3 / 4, 4 / 3),
                  same_on_clip=True,
                  same_across_clip=True,
+                 same_clip_indices=None,
                  lazy=False):
         self.area_range = area_range
         self.aspect_ratio_range = aspect_ratio_range
@@ -200,6 +201,9 @@ class RandomResizedCrop(object):
                             f'but got {type(aspect_ratio_range)}')
         self.same_on_clip = same_on_clip
         self.same_across_clip = same_across_clip
+        if same_clip_indices is not None:
+            assert isinstance(same_clip_indices, Sequence)
+        self.same_clip_indices = same_clip_indices
 
     @staticmethod
     def get_crop_bbox(img_shape,
@@ -274,7 +278,14 @@ class RandomResizedCrop(object):
             for i, img in enumerate(results['imgs']):
                 is_new_clip = not self.same_across_clip and i % results[
                     'clip_len'] == 0 and i > 0
-                if not self.same_on_clip or is_new_clip:
+                generate_new = not self.same_on_clip or is_new_clip
+                if self.same_clip_indices is not None:
+                    assert min(self.same_clip_indices) >= 0
+                    assert max(self.same_clip_indices) < results['num_clips']
+                    keep_same = i // results[
+                        'clip_len'] in self.same_clip_indices
+                    generate_new = generate_new and not keep_same
+                if generate_new:
                     left, top, right, bottom = self.get_crop_bbox(
                         (img_h, img_w), self.area_range,
                         self.aspect_ratio_range)
@@ -592,7 +603,8 @@ class Flip(object):
                  direction='horizontal',
                  lazy=False,
                  same_on_clip=True,
-                 same_across_clip=True):
+                 same_across_clip=True,
+                 same_clip_indices=None):
         if direction not in self._directions:
             raise ValueError(f'Direction {direction} is not supported. '
                              f'Currently support ones are {self._directions}')
@@ -601,6 +613,9 @@ class Flip(object):
         self.lazy = lazy
         self.same_on_clip = same_on_clip
         self.same_across_clip = same_across_clip
+        if same_clip_indices is not None:
+            assert isinstance(same_clip_indices, Sequence)
+        self.same_clip_indices = same_clip_indices
 
     def __call__(self, results):
         """Performs the Flip augmentation.
@@ -626,7 +641,14 @@ class Flip(object):
             for i, img in enumerate(results['imgs']):
                 is_new_clip = not self.same_across_clip and i % results[
                     'clip_len'] == 0 and i > 0
-                if not self.same_on_clip or is_new_clip:
+                generate_new = not self.same_on_clip or is_new_clip
+                if self.same_clip_indices is not None:
+                    assert min(self.same_clip_indices) >= 0
+                    assert max(self.same_clip_indices) < results['num_clips']
+                    keep_same = i // results[
+                        'clip_len'] in self.same_clip_indices
+                    generate_new = generate_new and not keep_same
+                if generate_new:
                     flip = npr.rand() < self.flip_ratio
                 if flip:
                     mmcv.imflip_(img, self.direction)

@@ -21,6 +21,8 @@ class SimSiamBaseTracker(VanillaTracker):
         self.init_extra_weights()
         if self.train_cfg is not None:
             self.intra_video = self.train_cfg.get('intra_video', False)
+            self.transpose_temporal = self.train_cfg.get(
+                'transpose_temporal', False)
             if self.train_cfg.get('image2patch', False):
                 self.patch_size = _pair(self.train_cfg.get('patch_size', 64))
                 self.patch_stride = _pair(
@@ -72,6 +74,8 @@ class SimSiamBaseTracker(VanillaTracker):
 
     def forward_train(self, imgs, grids=None, label=None):
         # [B, N, C, T, H, W]
+        if self.transpose_temporal:
+            imgs = imgs.tranpose(1, 3).contiguous()
         assert imgs.size(1) == 2
         assert imgs.ndim == 6
         clip_len = imgs.size(3)

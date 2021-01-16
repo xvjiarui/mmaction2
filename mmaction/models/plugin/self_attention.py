@@ -16,7 +16,9 @@ class SelfAttention(nn.Module):
                  num_convs=0,
                  reduction=2,
                  use_residual=True,
-                 normalize=False):
+                 normalize=False,
+                 matmul_norm=False,
+                 dropout=0.0):
         super(SelfAttention, self).__init__()
         self.in_channels = in_channels
         self.kernel_size = kernel_size
@@ -27,6 +29,7 @@ class SelfAttention(nn.Module):
         self.reduction = reduction
         self.use_residual = use_residual
         self.normalize = normalize
+        self.matmul_norm = matmul_norm
         mid_channels = in_channels // reduction
         out_channels = in_channels
 
@@ -51,6 +54,7 @@ class SelfAttention(nn.Module):
             self.convs = nn.Sequential(*convs)
         else:
             self.convs = nn.Identity()
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, query, key, value):
         assert query.shape == key.shape == value.shape
@@ -64,9 +68,17 @@ class SelfAttention(nn.Module):
             key = F.normalize(key, p=2, dim=1)
         # [B, HxW, HxW]
         affinity = torch.einsum('bci, bcj->bij', key, query).contiguous()
+        if self.matmul_norm:
+            affinity = (query.shape[1]**-.5) * affinity
         affinity = affinity.softmax(dim=1)
         out = torch.matmul(value, affinity).contiguous()
         out = out.view_as(identity)
+
+        scale = out.new_ones((out.size(0), 1, 1, 1))
+        scale = self.dropout(scale)
+        out *= scale
+        if not self.use_residual:
+            out += identity * (1 - scale)
 
         if self.use_residual:
             return out + identity
@@ -274,7 +286,8 @@ class SelfAttentionBlock(_SelfAttentionBlock):
                  with_out=True,
                  conv_cfg=dict(type='Conv2d'),
                  norm_cfg=dict(type='BN'),
-                 act_cfg=dict(type='ReLU')):
+                 act_cfg=dict(type='ReLU'),
+                 use_residual=True):
         super(SelfAttentionBlock, self).__init__(
             key_in_channels=key_in_channels,
             query_in_channels=query_in_channels,
@@ -293,10 +306,14 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
             act_cfg=act_cfg)
+        self.use_residual = use_residual
 
     def forward(self, query_feats, key_feats, value_feats):
-        return query_feats + super().forward(query_feats, key_feats,
-                                             value_feats)
+        if self.use_residual:
+            return query_feats + super().forward(query_feats, key_feats,
+                                                 value_feats)
+        else:
+            return super().forward(query_feats, key_feats, value_feats)
 
 
 @PLUGIN_LAYERS.register_module()
@@ -318,7 +335,8 @@ class MultiHeadAttention(nn.Module):
                  embed_dims,
                  num_heads,
                  dropout=0.0,
-                 batchwise_drop=False):
+                 batchwise_drop=False,
+                 use_residual=True):
         super(MultiHeadAttention, self).__init__()
         assert embed_dims % num_heads == 0, \
             f'embed_dims must be divisible by num_heads. got {embed_dims} ' \
@@ -329,6 +347,7 @@ class MultiHeadAttention(nn.Module):
             embed_dims, num_heads, dropout if not batchwise_drop else 0.)
         self.dropout = nn.Dropout(dropout)
         self.batchwise_drop = batchwise_drop
+        self.use_residual = use_residual
 
     def forward(self, x, key=None, value=None):
         """Forward function for `MultiheadAttention`.
@@ -362,11 +381,15 @@ class MultiHeadAttention(nn.Module):
             scale = out.new_ones((1, out.size(1), 1))
             scale = self.dropout(scale)
             out *= scale
+            if not self.use_residual:
+                out += query * (1 - scale)
         else:
             out = self.dropout(out)
         out = out.permute(1, 2, 0).reshape_as(x)
+        if self.use_residual:
+            out = x + out
 
-        return x + out
+        return out
 
     def __repr__(self):
         """str: a string that describes the module"""
