@@ -75,7 +75,7 @@ class SimSiamBaseTracker(VanillaTracker):
     def forward_train(self, imgs, grids=None, label=None):
         # [B, N, C, T, H, W]
         if self.transpose_temporal:
-            imgs = imgs.tranpose(1, 3).contiguous()
+            imgs = imgs.transpose(1, 3).contiguous()
         assert imgs.size(1) == 2
         assert imgs.ndim == 6
         clip_len = imgs.size(3)
