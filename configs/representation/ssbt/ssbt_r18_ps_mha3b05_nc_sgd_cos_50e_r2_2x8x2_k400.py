@@ -3,23 +3,29 @@ temperature = 0.2
 with_norm = True
 query_dim = 128
 model = dict(
-    type='SimSiamBaseTracker',
+    type='SimSiamBaseTSNTracker',
     backbone=dict(
         type='ResNet',
         pretrained=None,
         depth=18,
         out_indices=(3, ),
-        # strides=(1, 2, 2, 2),
+        # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
     # cls_head=None,
     # patch_head=None,
+    att_plugin=dict(
+        type='MultiHeadAttention',
+        embed_dims=512,
+        num_heads=1,
+        dropout=0.5,
+        batchwise_drop=True,
+        use_residual=True),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
         norm_cfg=dict(type='SyncBN'),
-        drop_layer_cfg=dict(type='Dropout2d', p=0.5, inplace=True),
         num_projection_fcs=3,
         projection_mid_channels=512,
         projection_out_channels=512,
@@ -30,7 +36,13 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False, transpose_temporal=True)
+train_cfg = dict(
+    intra_video=False,
+    att_indices=(3, ),
+    att_to_target=False,
+    feat_rescale=True,
+    aux_as_value=False,
+    transpose_temporal=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -54,26 +66,22 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
-    # dict(type='DuplicateFrames', times=2),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=2),
+    # dict(type='DuplicateFrames', times=4),
     dict(type='DecordDecode'),
-    # dict(
-    #     type='RandomResizedCrop',
-    #     area_range=(0.2, 1.),
-    #     same_across_clip=False,
-    #     same_on_clip=False),
-    dict(type='Resize', scale=(256, 256), keep_ratio=False),
-    # dict(type='RandomAffine',
-    #      degrees=10,
-    #      p=0.5,
-    #      shear=(-0.1, 0.1, -0.1, 0.1),
-    #      same_across_clip=False,
-    #      same_on_clip=False),
-    # dict(
-    #     type='Flip',
-    #     flip_ratio=0.5,
-    #     same_across_clip=False,
-    #     same_on_clip=False),
+    dict(
+        type='RandomResizedCrop',
+        area_range=(0.2, 1.),
+        same_across_clip=False,
+        same_on_clip=False,
+        same_clip_indices=(1, )),
+    dict(type='Resize', scale=(224, 224), keep_ratio=False),
+    dict(
+        type='Flip',
+        flip_ratio=0.5,
+        same_across_clip=False,
+        same_on_clip=False,
+        same_clip_indices=(1, )),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,
@@ -93,11 +101,7 @@ train_pipeline = [
     #     p=0.5,
     #     same_across_clip=False,
     #     same_on_clip=False),
-    # dict(type='RandomChoiceRotate', p=1, degrees=(0, 90, 180, 270),
-    #      same_on_clip=False, same_across_clip=False),
     dict(type='Normalize', **img_norm_cfg),
-    # dict(type='HidePatch', patch_size=[16, 32, 44, 56], hide_prob=0.2),
-    dict(type='RandomErasing', p=0.2, mode='pixel'),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['imgs', 'label'])
@@ -120,10 +124,13 @@ data = dict(
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
-        type=dataset_type,
-        ann_file=ann_file_train,
-        data_prefix=data_prefix,
-        pipeline=train_pipeline),
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(
+            type=dataset_type,
+            ann_file=ann_file_train,
+            data_prefix=data_prefix,
+            pipeline=train_pipeline)),
     val=dict(
         type=dataset_type_val,
         ann_file=ann_file_val,
@@ -154,30 +161,30 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_ratio=0.001,
 #     step=[1, 2])
 total_epochs = 50
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=5)
 evaluation = dict(
     interval=1,
     metrics='davis',
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['ssbt'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

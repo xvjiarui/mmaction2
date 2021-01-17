@@ -282,7 +282,7 @@ class RandomResizedCrop(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
-                    keep_same = i // results[
+                    keep_same = i % results[
                         'clip_len'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if generate_new:
@@ -645,7 +645,7 @@ class Flip(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
-                    keep_same = i // results[
+                    keep_same = i % results[
                         'clip_len'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if generate_new:
