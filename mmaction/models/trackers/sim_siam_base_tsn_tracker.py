@@ -31,6 +31,7 @@ class SimSiamBaseTSNTracker(VanillaTracker):
             self.aux_as_value = self.train_cfg.get('aux_as_value', True)
             self.transpose_temporal = self.train_cfg.get(
                 'transpose_temporal', False)
+            self.bp_aux = self.train_cfg.get('bp_aux', False)
 
     @property
     def with_img_head(self):
@@ -102,7 +103,7 @@ class SimSiamBaseTSNTracker(VanillaTracker):
                             x2 = x2 * 0.5
         else:
             att_feat = {}
-            with torch.no_grad():
+            with torch.set_grad_enabled(self.bp_aux):
                 x2 = self.backbone(imgs2)
                 x_aux = self.backbone.conv1(imgs_aux)
                 x_aux = self.backbone.maxpool(x_aux)
