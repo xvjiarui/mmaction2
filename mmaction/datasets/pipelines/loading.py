@@ -189,12 +189,18 @@ class SampleFrames(object):
 @PIPELINES.register_module()
 class DuplicateFrames(object):
 
-    def __init__(self, times=2):
+    def __init__(self, times, as_clip=True):
         self.times = times
+        self.as_clip = as_clip
 
     def __call__(self, results):
-        results['frame_inds'] = np.tile(results['frame_inds'], self.times)
-        results['num_clips'] *= self.times
+        if self.as_clip:
+            results['frame_inds'] = np.tile(results['frame_inds'], self.times)
+            results['num_clips'] *= self.times
+        else:
+            results['frame_inds'] = np.repeat(results['frame_inds'],
+                                              self.times)
+            results['clip_len'] *= self.times
 
         return results
 
