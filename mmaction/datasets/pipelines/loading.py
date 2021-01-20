@@ -206,6 +206,76 @@ class DuplicateFrames(object):
 
 
 @PIPELINES.register_module()
+class Frame2Clip(object):
+
+    def __call__(self, results):
+        clip_len = results['clip_len']
+        num_clips = results['num_clips']
+        results['clip_len'] = num_clips
+        results['num_clips'] = clip_len
+
+        return results
+
+
+@PIPELINES.register_module()
+class AppendFrames(object):
+
+    def __init__(self,
+                 num_frames,
+                 frame_interval,
+                 temporal_jitter=False,
+                 out_of_bound_opt='loop'):
+        self.num_frames = num_frames
+        self.frame_interval = frame_interval
+        self.temporal_jitter = temporal_jitter
+        self.out_of_bound_opt = out_of_bound_opt
+        assert self.out_of_bound_opt in ['loop', 'repeat_last']
+
+    def __call__(self, results):
+        total_frames = results['total_frames']
+        clip_len = results['clip_len']
+        num_clips = results['num_clips']
+        assert clip_len == 1
+        assert num_clips % 2 == 0
+        frame_inds = results['frame_inds']
+        before_frame_offsets = -np.flip(
+            np.arange(self.num_frames + 1)[None, :]) * self.frame_interval
+        after_frame_offsets = np.arange(self.num_frames +
+                                        1)[None, :] * self.frame_interval
+        if self.temporal_jitter:
+            before_frame_offsets += np.concatenate(
+                (np.random.randint(self.frame_interval,
+                                   size=self.num_frames), [0]))
+            after_frame_offsets -= np.concatenate(
+                ([0],
+                 np.random.randint(self.frame_interval, size=self.num_frames)))
+        before_frame_inds = frame_inds[:num_clips // 2,
+                                       None] + before_frame_offsets
+        before_frame_inds = np.concatenate(before_frame_inds)
+        after_frame_inds = frame_inds[num_clips // 2:,
+                                      None] + after_frame_offsets
+        after_frame_inds = np.concatenate(after_frame_inds)
+
+        frame_inds = np.concatenate([before_frame_inds, after_frame_inds])
+
+        if self.out_of_bound_opt == 'loop':
+            frame_inds = np.mod(frame_inds, total_frames)
+        elif self.out_of_bound_opt == 'repeat_last':
+            safe_inds = frame_inds < total_frames
+            unsafe_inds = 1 - safe_inds
+            last_ind = np.max(safe_inds * frame_inds, axis=1)
+            new_inds = (safe_inds * frame_inds + (unsafe_inds.T * last_ind).T)
+            frame_inds = new_inds
+        else:
+            raise ValueError('Illegal out_of_bound option.')
+
+        results['frame_inds'] = frame_inds
+        results['clip_len'] += self.num_frames
+
+        return results
+
+
+@PIPELINES.register_module()
 class UntrimmedSampleFrames(object):
     """Sample frames from the untrimmed video.
 
