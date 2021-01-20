@@ -9,33 +9,14 @@ model = dict(
         pretrained=None,
         depth=18,
         out_indices=(3, ),
-        # strides=(1, 2, 2, 1),
+        # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
     # cls_head=None,
     # patch_head=None,
-    # att_plugin=dict(
-    #     type='SelfAttention',
-    #     dropout=0.5,
-    #     matmul_norm=True,
-    #     use_residual=False),
     att_plugin=dict(
-        type='MultiHeadAttention',
-        embed_dims=256,
-        num_heads=1,
-        dropout=1.,
-        batchwise_drop=True,
-        use_residual=True),
-    # att_plugin=dict(type='PixelPro', in_channels=256, use_residual=True),
-    # att_plugin=dict(
-    #     type='SelfAttentionBlock',
-    #     key_in_channels=256,
-    #     query_in_channels=256,
-    #     value_in_channels=256,
-    #     channels=128,
-    #     out_channels=256),
-    # att_plugin=None,
+        type='SelfAttention', dropout=0., matmul_norm=True, use_residual=True),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -52,13 +33,11 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     intra_video=False,
-    att_indices=(2, ),
+    att_indices=(3, ),
     att_to_target=False,
-    feat_rescale=False,
+    feat_rescale=True,
     aux_as_value=False,
-    transpose_temporal=True,
-    pred_frame_index=1,
-    target_frame_index=-2)
+    transpose_temporal=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -78,36 +57,26 @@ data_prefix_val = 'data/davis/DAVIS/JPEGImages/480p'
 anno_prefix_val = 'data/davis/DAVIS/Annotations/480p'
 data_root_val = 'data/davis/DAVIS'
 ann_file_val = 'data/davis/DAVIS/ImageSets/davis2017_val_list_rawframes.txt'
-# CRW MEAN STD
-# img_norm_cfg = dict(
-#     mean=[0.4914 * 255, 0.4822 * 255, 0.4465 * 255],
-#     std=[0.2023 * 255, 0.1994 * 255, 0.2010 * 255], to_bgr=False)
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=4, frame_interval=8, num_clips=1),
-    # dict(type='DuplicateFrames', times=2, as_clip=False),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=2),
+    # dict(type='DuplicateFrames', times=4),
     dict(type='DecordDecode'),
     dict(
         type='RandomResizedCrop',
         area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False,
-        same_frame_indices=(1, 3)),
+        same_clip_indices=(1, )),
     dict(type='Resize', scale=(224, 224), keep_ratio=False),
-    # dict(type='RandomAffine',
-    #      degrees=10,
-    #      p=0.5,
-    #      shear=(-0.1, 0.1, -0.1, 0.1),
-    #      same_across_clip=False,
-    #      same_on_clip=False),
     dict(
         type='Flip',
         flip_ratio=0.5,
         same_across_clip=False,
         same_on_clip=False,
-        same_frame_indices=(1, 3)),
+        same_clip_indices=(1, )),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,
@@ -150,10 +119,13 @@ data = dict(
     workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
-        type=dataset_type,
-        ann_file=ann_file_train,
-        data_prefix=data_prefix,
-        pipeline=train_pipeline),
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(
+            type=dataset_type,
+            ann_file=ann_file_train,
+            data_prefix=data_prefix,
+            pipeline=train_pipeline)),
     val=dict(
         type=dataset_type_val,
         ann_file=ann_file_val,
@@ -184,30 +156,30 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_ratio=0.001,
 #     step=[1, 2])
 total_epochs = 50
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=5)
 evaluation = dict(
     interval=1,
     metrics='davis',
     key_indicator='feat_1.J&F-Mean',
     rule='greater')
 log_config = dict(
-    interval=10,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
-        # dict(
-        #     type='WandbLoggerHook',
-        #     init_kwargs=dict(
-        #         project='mmaction2',
-        #         name='{{fileBasenameNoExtension}}',
-        #         resume=True,
-        #         tags=['moco2'],
-        #         dir='wandb/{{fileBasenameNoExtension}}',
-        #         config=dict(
-        #             model=model,
-        #             train_cfg=train_cfg,
-        #             test_cfg=test_cfg,
-        #             data=data))),
+        dict(
+            type='WandbLoggerHook',
+            init_kwargs=dict(
+                project='mmaction2',
+                name='{{fileBasenameNoExtension}}',
+                resume=True,
+                tags=['ssbt'],
+                dir='wandb/{{fileBasenameNoExtension}}',
+                config=dict(
+                    model=model,
+                    train_cfg=train_cfg,
+                    test_cfg=test_cfg,
+                    data=data))),
     ])
 # runtime settings
 dist_params = dict(backend='nccl')

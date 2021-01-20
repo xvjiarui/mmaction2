@@ -189,6 +189,7 @@ class RandomResizedCrop(object):
                  same_on_clip=True,
                  same_across_clip=True,
                  same_clip_indices=None,
+                 same_frame_indices=None,
                  lazy=False):
         self.area_range = area_range
         self.aspect_ratio_range = aspect_ratio_range
@@ -204,6 +205,9 @@ class RandomResizedCrop(object):
         if same_clip_indices is not None:
             assert isinstance(same_clip_indices, Sequence)
         self.same_clip_indices = same_clip_indices
+        if same_frame_indices is not None:
+            assert isinstance(same_frame_indices, Sequence)
+        self.same_frame_indices = same_frame_indices
 
     @staticmethod
     def get_crop_bbox(img_shape,
@@ -284,6 +288,12 @@ class RandomResizedCrop(object):
                     assert max(self.same_clip_indices) < results['num_clips']
                     keep_same = i % results[
                         'clip_len'] in self.same_clip_indices
+                    generate_new = generate_new and not keep_same
+                if self.same_frame_indices is not None:
+                    assert min(self.same_frame_indices) >= 0
+                    assert max(self.same_frame_indices) < results['clip_len']
+                    keep_same = i % results[
+                        'num_clips'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
                 if generate_new:
                     left, top, right, bottom = self.get_crop_bbox(
@@ -604,7 +614,8 @@ class Flip(object):
                  lazy=False,
                  same_on_clip=True,
                  same_across_clip=True,
-                 same_clip_indices=None):
+                 same_clip_indices=None,
+                 same_frame_indices=None):
         if direction not in self._directions:
             raise ValueError(f'Direction {direction} is not supported. '
                              f'Currently support ones are {self._directions}')
@@ -616,6 +627,9 @@ class Flip(object):
         if same_clip_indices is not None:
             assert isinstance(same_clip_indices, Sequence)
         self.same_clip_indices = same_clip_indices
+        if same_frame_indices is not None:
+            assert isinstance(same_frame_indices, Sequence)
+        self.same_frame_indices = same_frame_indices
 
     def __call__(self, results):
         """Performs the Flip augmentation.
@@ -647,6 +661,12 @@ class Flip(object):
                     assert max(self.same_clip_indices) < results['num_clips']
                     keep_same = i % results[
                         'clip_len'] in self.same_clip_indices
+                    generate_new = generate_new and not keep_same
+                if self.same_frame_indices is not None:
+                    assert min(self.same_frame_indices) >= 0
+                    assert max(self.same_frame_indices) < results['clip_len']
+                    keep_same = i % results[
+                        'num_clips'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
                 if generate_new:
                     flip = npr.rand() < self.flip_ratio

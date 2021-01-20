@@ -26,8 +26,12 @@ class SimSiamBaseTSNTracker(VanillaTracker):
             self.att_indices = self.train_cfg.get('att_indices')
             self.att_to_target = self.train_cfg.get('att_to_target', True)
             self.feat_rescale = self.train_cfg.get('feat_rescale', False)
-            self.pred_index = self.train_cfg.get('pred_index', 0)
-            self.target_index = self.train_cfg.get('target_index', -1)
+            self.pred_clip_index = self.train_cfg.get('pred_clip_index', 0)
+            self.pred_frame_index = self.train_cfg.get('pred_frame_index', 0)
+            self.target_clip_index = self.train_cfg.get(
+                'target_clip_index', -1)
+            self.target_frame_index = self.train_cfg.get(
+                'target_frame_index', -1)
             self.aux_as_value = self.train_cfg.get('aux_as_value', True)
             self.transpose_temporal = self.train_cfg.get(
                 'transpose_temporal', False)
@@ -130,25 +134,42 @@ class SimSiamBaseTSNTracker(VanillaTracker):
 
     def forward_train(self, imgs, label=None):
         # [B, N, C, T, H, W]
-        assert imgs.size(1) >= 2
         assert imgs.ndim == 6
         clip_len = imgs.size(3)
         num_clips = imgs.size(1)
         if self.transpose_temporal:
-            assert num_clips == clip_len == 2
             assert not self.intra_video
-            imgs1 = imgs[:, 0, :, 0]
-            imgs2 = imgs[:, 1, :, -1]
-            imgs_aux = [imgs[:, 0, :, -1], imgs[:, 1, :, 0]]
+            if num_clips > 1:
+                assert num_clips == clip_len == 2
+                imgs1 = imgs[:, self.pred_clip_index, :, self.pred_frame_index]
+                imgs2 = imgs[:, self.target_clip_index, :,
+                             self.target_frame_index]
+                imgs_aux = [
+                    imgs[:, self.pred_clip_index, :,
+                         (self.pred_frame_index + 1) % clip_len],
+                    imgs[:, self.target_clip_index, :,
+                         (self.target_frame_index + 1) % clip_len]
+                ]
+            else:
+                imgs1 = imgs[:, 0, :, self.pred_frame_index]
+                imgs2 = imgs[:, 0, :, self.target_frame_index]
+                imgs_aux = [
+                    imgs[:, 0, :,
+                         (self.pred_frame_index + 1) % (clip_len // 2)],
+                    imgs[:, 0, :, clip_len // 2 +
+                         (self.target_frame_index + 1) % (clip_len // 2)]
+                ]
+
         else:
+            assert num_clips >= 2
             imgs = [
                 video2images(imgs[:,
                                   i].contiguous().reshape(-1, *imgs.shape[2:]))
-                for i in range(imgs.size(1))
+                for i in range(num_clips)
             ]
-            imgs1 = imgs[self.pred_index]
-            imgs2 = imgs[self.target_index]
-            imgs_aux = imgs[self.pred_index + 1:self.target_index]
+            imgs1 = imgs[self.pred_clip_index]
+            imgs2 = imgs[self.target_clip_index]
+            imgs_aux = imgs[self.pred_clip_index + 1:self.target_clip_index]
         assert len(imgs_aux) >= 1
         if self.att_to_target:
             imgs_aux.reverse()
