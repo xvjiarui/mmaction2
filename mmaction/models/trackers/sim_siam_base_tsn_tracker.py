@@ -107,8 +107,9 @@ class SimSiamBaseTSNTracker(VanillaTracker):
                             x2 = x2 * 0.5
         else:
             att_feat = {}
-            with torch.set_grad_enabled(self.bp_aux):
+            with torch.no_grad():
                 x2 = self.backbone(imgs2)
+            with torch.set_grad_enabled(self.bp_aux):
                 x_aux = self.backbone.conv1(imgs_aux)
                 x_aux = self.backbone.maxpool(x_aux)
                 for i, layer_name in enumerate(self.backbone.res_layers):

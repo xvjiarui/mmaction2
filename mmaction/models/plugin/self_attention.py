@@ -57,7 +57,7 @@ class SelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, query, key, value):
-        assert query.shape == key.shape == value.shape
+        assert key.shape[2:] == value.shape[2:]
         identity = query
         query = query.flatten(2)
         key = key.flatten(2)
@@ -370,6 +370,7 @@ class MultiHeadAttention(nn.Module):
             key = query
         if value is None:
             value = key
+        assert key.shape[2:] == value.shape[2:]
         query = query.flatten(2).permute(2, 0,
                                          1)  # [bs, c, h, w] -> [h*w, bs, c]
         key = key.flatten(2).permute(2, 0, 1)  # [bs, c, h, w] -> [h*w, bs, c]

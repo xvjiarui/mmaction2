@@ -286,12 +286,18 @@ class RandomResizedCrop(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
+                    # TODO fix bug
+                    # keep_same = i % results[
+                    #     'num_clips'] in self.same_clip_indices
                     keep_same = i % results[
                         'clip_len'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if self.same_frame_indices is not None:
                     assert min(self.same_frame_indices) >= 0
                     assert max(self.same_frame_indices) < results['clip_len']
+                    # TODO fix bug
+                    # keep_same = i % results[
+                    #     'clip_len'] in self.same_frame_indices
                     keep_same = i % results[
                         'num_clips'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
@@ -659,12 +665,18 @@ class Flip(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
+                    # TODO fix bug
+                    # keep_same = i % results[
+                    #     'num_clips'] in self.same_clip_indices
                     keep_same = i % results[
                         'clip_len'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if self.same_frame_indices is not None:
                     assert min(self.same_frame_indices) >= 0
                     assert max(self.same_frame_indices) < results['clip_len']
+                    # TODO fix bug
+                    # keep_same = i % results[
+                    #     'clip_len'] in self.same_frame_indices
                     keep_same = i % results[
                         'num_clips'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
