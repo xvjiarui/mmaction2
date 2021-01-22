@@ -279,7 +279,6 @@ class RandomResizedCrop(object):
         results['img_shape'] = (new_h, new_w)
 
         if not self.lazy:
-            print(results['frame_inds'])
             for i, img in enumerate(results['imgs']):
                 is_new_clip = not self.same_across_clip and i % results[
                     'clip_len'] == 0 and i > 0
@@ -296,8 +295,6 @@ class RandomResizedCrop(object):
                     keep_same = i % results[
                         'clip_len'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
-                if not generate_new:
-                    print(results['frame_inds'][i])
                 if generate_new:
                     left, top, right, bottom = self.get_crop_bbox(
                         (img_h, img_w), self.area_range,
@@ -671,8 +668,6 @@ class Flip(object):
                     keep_same = i % results[
                         'clip_len'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
-                if not generate_new:
-                    print(results['frame_inds'][i])
                 if generate_new:
                     flip = npr.rand() < self.flip_ratio
                 if flip:
