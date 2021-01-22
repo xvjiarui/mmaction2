@@ -279,6 +279,7 @@ class RandomResizedCrop(object):
         results['img_shape'] = (new_h, new_w)
 
         if not self.lazy:
+            print(results['frame_inds'])
             for i, img in enumerate(results['imgs']):
                 is_new_clip = not self.same_across_clip and i % results[
                     'clip_len'] == 0 and i > 0
@@ -286,21 +287,17 @@ class RandomResizedCrop(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
-                    # TODO fix bug
-                    # keep_same = i % results[
-                    #     'num_clips'] in self.same_clip_indices
                     keep_same = i % results[
-                        'clip_len'] in self.same_clip_indices
+                        'num_clips'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if self.same_frame_indices is not None:
                     assert min(self.same_frame_indices) >= 0
                     assert max(self.same_frame_indices) < results['clip_len']
-                    # TODO fix bug
-                    # keep_same = i % results[
-                    #     'clip_len'] in self.same_frame_indices
                     keep_same = i % results[
-                        'num_clips'] in self.same_frame_indices
+                        'clip_len'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
+                if not generate_new:
+                    print(results['frame_inds'][i])
                 if generate_new:
                     left, top, right, bottom = self.get_crop_bbox(
                         (img_h, img_w), self.area_range,
@@ -665,21 +662,17 @@ class Flip(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
-                    # TODO fix bug
-                    # keep_same = i % results[
-                    #     'num_clips'] in self.same_clip_indices
                     keep_same = i % results[
-                        'clip_len'] in self.same_clip_indices
+                        'num_clips'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if self.same_frame_indices is not None:
                     assert min(self.same_frame_indices) >= 0
                     assert max(self.same_frame_indices) < results['clip_len']
-                    # TODO fix bug
-                    # keep_same = i % results[
-                    #     'clip_len'] in self.same_frame_indices
                     keep_same = i % results[
-                        'num_clips'] in self.same_frame_indices
+                        'clip_len'] in self.same_frame_indices
                     generate_new = generate_new and not keep_same
+                if not generate_new:
+                    print(results['frame_inds'][i])
                 if generate_new:
                     flip = npr.rand() < self.flip_ratio
                 if flip:

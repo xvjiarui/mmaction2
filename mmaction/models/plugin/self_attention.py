@@ -1,7 +1,37 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import PLUGIN_LAYERS, ConvModule, constant_init
+from mmcv.cnn import PLUGIN_LAYERS
+from mmcv.cnn import ConvModule as _ConvModule
+from mmcv.cnn import build_norm_layer, constant_init
+
+
+class ConvModule(_ConvModule):
+
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 *,
+                 norm_cfg=None,
+                 **kwargs):
+        with_layer_norm = norm_cfg is not None and norm_cfg['type'] == 'LN'
+        if with_layer_norm:
+            norm_cfg = norm_cfg.copy()
+            normalized_shape = norm_cfg.pop('normalized_shape')
+        super(ConvModule, self).__init__(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            norm_cfg=norm_cfg,
+            **kwargs)
+        # build normalization layers
+        if with_layer_norm:
+            # norm layer is after conv layer
+            delattr(self, self.norm_name)
+            self.norm_name, norm = build_norm_layer(self.norm_cfg,
+                                                    normalized_shape)
+            self.add_module(self.norm_name, norm)
 
 
 @PLUGIN_LAYERS.register_module()
@@ -56,7 +86,11 @@ class SelfAttention(nn.Module):
             self.convs = nn.Identity()
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, query, key, value):
+    def forward(self, query, key=None, value=None):
+        if key is None:
+            key = query
+        if value is None:
+            value = key
         assert key.shape[2:] == value.shape[2:]
         identity = query
         query = query.flatten(2)
@@ -182,8 +216,6 @@ class _SelfAttentionBlock(nn.Module):
     def build_project(self, in_channels, channels, num_convs, use_conv_module,
                       conv_cfg, norm_cfg, act_cfg):
         """Build projection layer for key/query/value/out."""
-        if num_convs == 0:
-            return nn.Identity()
         if use_conv_module:
             convs = [
                 ConvModule(
@@ -272,11 +304,11 @@ class SelfAttentionBlock(_SelfAttentionBlock):
     """
 
     def __init__(self,
-                 key_in_channels,
                  query_in_channels,
-                 value_in_channels,
                  channels,
-                 out_channels,
+                 out_channels=None,
+                 key_in_channels=None,
+                 value_in_channels=None,
                  key_query_num_convs=1,
                  value_out_num_convs=1,
                  key_query_norm=False,
@@ -284,10 +316,18 @@ class SelfAttentionBlock(_SelfAttentionBlock):
                  share_key_query=False,
                  matmul_norm=True,
                  with_out=True,
-                 conv_cfg=dict(type='Conv2d'),
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU'),
-                 use_residual=True):
+                 use_residual=True,
+                 zero_init=True):
+        if out_channels is None:
+            out_channels = query_in_channels
+        if key_in_channels is None:
+            key_in_channels = query_in_channels
+        if value_in_channels is None:
+            value_in_channels = key_in_channels
+        self.use_residual = use_residual
+        self.zero_init = zero_init
         super(SelfAttentionBlock, self).__init__(
             key_in_channels=key_in_channels,
             query_in_channels=query_in_channels,
@@ -303,17 +343,90 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             with_out=with_out,
             key_downsample=None,
             query_downsample=None,
-            conv_cfg=conv_cfg,
+            conv_cfg=dict(type='Conv1d'),
             norm_cfg=norm_cfg,
             act_cfg=act_cfg)
-        self.use_residual = use_residual
 
-    def forward(self, query_feats, key_feats, value_feats):
-        if self.use_residual:
-            return query_feats + super().forward(query_feats, key_feats,
-                                                 value_feats)
+        # force overwrite
+        if with_out:
+            self.out_project = self.build_project(
+                channels,
+                out_channels,
+                num_convs=1,
+                use_conv_module=False,
+                conv_cfg=self.conv_cfg,
+                norm_cfg=self.norm_cfg,
+                act_cfg=self.act_cfg)
+
+        # call init again
+        self.init_weights()
+
+    def init_weights(self):
+        """Initialize weight of later layer."""
+        if self.zero_init:
+            if self.out_project is not None:
+                if isinstance(self.out_project, ConvModule):
+                    if self.out_project.with_norm:
+                        constant_init(self.out_project.norm, 0)
+                    else:
+                        constant_init(self.out_project.conv, 0)
+                else:
+                    constant_init(self.out_project, 0)
+            elif self.value_project is not None:
+                if isinstance(self.value_project, ConvModule):
+                    if self.value_project.with_norm:
+                        constant_init(self.value_project.norm, 0)
+                    else:
+                        constant_init(self.value_project.conv, 0)
+                else:
+                    constant_init(self.value_project, 0)
+
+    def build_project(self, in_channels, channels, num_convs, use_conv_module,
+                      conv_cfg, norm_cfg, act_cfg):
+        """Build projection layer for key/query/value/out."""
+        if num_convs == 0:
+            return nn.Identity()
+        if use_conv_module:
+            convs = [
+                ConvModule(
+                    in_channels,
+                    channels,
+                    1,
+                    conv_cfg=conv_cfg,
+                    norm_cfg=norm_cfg,
+                    act_cfg=act_cfg)
+            ]
+            for _ in range(num_convs - 1):
+                convs.append(
+                    ConvModule(
+                        channels,
+                        channels,
+                        1,
+                        conv_cfg=conv_cfg,
+                        norm_cfg=norm_cfg,
+                        act_cfg=act_cfg))
         else:
-            return super().forward(query_feats, key_feats, value_feats)
+            convs = [nn.Conv1d(in_channels, channels, 1)]
+            for _ in range(num_convs - 1):
+                convs.append(nn.Conv1d(channels, channels, 1))
+        if len(convs) > 1:
+            convs = nn.Sequential(*convs)
+        else:
+            convs = convs[0]
+        return convs
+
+    def forward(self, query_feats, key_feats=None, value_feats=None):
+        if key_feats is None:
+            key_feats = query_feats
+        if value_feats is None:
+            value_feats = key_feats
+        out = super().forward(
+            query_feats.flatten(2), key_feats.flatten(2),
+            value_feats.flatten(2))
+        out = out.reshape_as(query_feats)
+        if self.use_residual:
+            out = out + query_feats
+        return out
 
 
 @PLUGIN_LAYERS.register_module()

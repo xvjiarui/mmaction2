@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 
 import torch
@@ -83,7 +84,7 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                 if self.self_as_value:
                     att_feat[i].append(x1)
                 concat_att = torch.stack(att_feat[i], dim=2)
-                x1 = self.att_plugin(x1, concat_att, concat_att)
+                x1 = self.att_plugin(x1, concat_att)
 
         return x1, x2
 
@@ -119,11 +120,26 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                 if i != self.target_frame_index:
                     imgs_aux.append(imgs[:, 0, :, i])
 
-        assert len(imgs_aux) >= 1
-        x11, x12 = self.forward_backbone(imgs1, imgs2,
-                                         imgs_aux[:len(imgs_aux) // 2])
-        x22, x21 = self.forward_backbone(imgs2, imgs1,
-                                         imgs_aux[len(imgs_aux) // 2:])
+        from ..common import vis_imgs
+        vis_imgs(imgs1, save_dir='debug_imgs1')
+        vis_imgs(imgs2, save_dir='debug_imgs2')
+        vis_imgs(imgs_aux[0], save_dir='debug_imgsa1')
+        vis_imgs(imgs_aux[1], save_dir='debug_imgsa2')
+        assert len(imgs_aux) == 2
+        import ipdb
+        ipdb.set_trace()
+
+        if len(imgs_aux) >= 2:
+            x11, x12 = self.forward_backbone(imgs1, imgs2,
+                                             imgs_aux[:len(imgs_aux) // 2])
+            x22, x21 = self.forward_backbone(imgs2, imgs1,
+                                             imgs_aux[len(imgs_aux) // 2:])
+        else:
+            assert len(imgs_aux) == 0
+            warnings.warn(f'len(imgs_aux) == {len(imgs_aux)}')
+            x11, x12 = self.forward_backbone(imgs1, imgs2, [])
+            x22, x21 = self.forward_backbone(imgs2, imgs1, [])
+
         losses = dict()
         if self.with_img_head:
             loss_img_head = self.forward_img_head(x11, x12, x22, x21, clip_len)
