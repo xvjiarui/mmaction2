@@ -120,15 +120,6 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                 if i != self.target_frame_index:
                     imgs_aux.append(imgs[:, 0, :, i])
 
-        from ..common import vis_imgs
-        vis_imgs(imgs1, save_dir='debug_imgs1')
-        vis_imgs(imgs2, save_dir='debug_imgs2')
-        vis_imgs(imgs_aux[0], save_dir='debug_imgsa1')
-        vis_imgs(imgs_aux[1], save_dir='debug_imgsa2')
-        assert len(imgs_aux) == 2
-        import ipdb
-        ipdb.set_trace()
-
         if len(imgs_aux) >= 2:
             x11, x12 = self.forward_backbone(imgs1, imgs2,
                                              imgs_aux[:len(imgs_aux) // 2])
