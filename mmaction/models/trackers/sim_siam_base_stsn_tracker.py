@@ -33,6 +33,7 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                 'target_frame_index', -1)
             self.self_as_value = self.train_cfg.get('self_as_value', True)
             self.bp_aux = self.train_cfg.get('bp_aux', False)
+            self.target_att = self.train_cfg.get('target_att', False)
 
     @property
     def with_img_head(self):
@@ -65,7 +66,15 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
         assert isinstance(self.backbone, ResNet)
         att_feat = defaultdict(list)
         with torch.no_grad():
-            x2 = self.backbone(imgs2)
+            # x2 = self.backbone(imgs2)
+            x2 = self.backbone.conv1(imgs2)
+            x2 = self.backbone.maxpool(x2)
+            for i, layer_name in enumerate(self.backbone.res_layers):
+                res_layer = getattr(self.backbone, layer_name)
+                x2 = res_layer(x2)
+                if i in self.att_indices and self.with_att_plugin \
+                        and self.target_att:
+                    x2 = self.att_plugin(x2, x2)
         with torch.set_grad_enabled(self.bp_aux):
             for imgs_aux in imgs_aux_list:
                 x_aux = self.backbone.conv1(imgs_aux)
