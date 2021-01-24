@@ -22,7 +22,7 @@ model = dict(
         value_out_norm=True,
         with_out=True,
         # norm_cfg=dict(type='SyncBN'),
-        norm_cfg=dict(type='LN', normalized_shape=(256, 7 * 7)),
+        norm_cfg=dict(type='LN', normalized_shape=(256, 7 * 7 * 2)),
         zero_init=True),
     img_head=dict(
         type='SimSiamHead',
