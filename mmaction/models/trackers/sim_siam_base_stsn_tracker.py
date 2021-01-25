@@ -34,6 +34,9 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
             self.self_as_value = self.train_cfg.get('self_as_value', True)
             self.bp_aux = self.train_cfg.get('bp_aux', False)
             self.target_att = self.train_cfg.get('target_att', False)
+            self.target_att_times = self.train_cfg.get('target_att_times', 1)
+            if self.target_att:
+                assert self.target_att_times >= 1
 
     @property
     def with_img_head(self):
@@ -74,7 +77,14 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                 x2 = res_layer(x2)
                 if i in self.att_indices and self.with_att_plugin \
                         and self.target_att:
-                    x2 = self.att_plugin(x2, x2)
+                    if self.target_att_times > 1:
+                        x2 = self.att_plugin(
+                            x2,
+                            x2.unsqueeze(2).expand(-1, -1,
+                                                   self.target_att_times, -1,
+                                                   -1))
+                    else:
+                        x2 = self.att_plugin(x2, x2)
         with torch.set_grad_enabled(self.bp_aux):
             for imgs_aux in imgs_aux_list:
                 x_aux = self.backbone.conv1(imgs_aux)
