@@ -46,7 +46,7 @@ default_cfg = {
             'dilations': (1, 1, 2, 4),
             'strides': (1, 2, 1, 1),
             'out_indices': (3, ),
-            'with_cp': True
+            'with_cp': False
         }
     },
 }

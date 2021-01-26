@@ -47,6 +47,30 @@ def _convert_batchnorm(module):
     return module_output
 
 
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self, name, fmt=':f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        fmtstr = '{name}: {val' + self.fmt + '}({avg' + self.fmt + '})'
+        return fmtstr.format(**self.__dict__)
+
+
 class Net(nn.Module):
 
     def __init__(self, backbone, head):
@@ -360,29 +384,32 @@ class TrackerSiamFC(Tracker):
             drop_last=True)
 
         # loop over epochs
-        start_time = time.perf_counter()
-        last_iter = 0
         total_iters = self.cfg.epoch_num * len(dataloader)
+        batch_time_meter = AverageMeter('Time', ':.3f')
+        data_time_meter = AverageMeter('Data', ':.3f')
+        loss_meter = AverageMeter('Loss', ':.3f')
         for epoch in range(self.cfg.epoch_num):
             # loop over dataloader
+            before_iter_time = time.perf_counter()
             for it, batch in enumerate(dataloader):
+                data_time_meter.update(time.perf_counter() - before_iter_time, )
+                passed_iters = it + epoch * len(dataloader) + 1
                 loss = self.train_step(batch, backward=True)
+                loss_meter.update(loss, batch[0].size(0))
                 if (it + 1) % self.cfg.log_config.interval == 0 or it == (
                         len(dataloader) - 1):
-                    passed_iters = it + epoch * len(dataloader) + 1
-                    total_seconds_per_img = (time.perf_counter() -
-                                             start_time) / (
-                                                 passed_iters - last_iter)
                     eta = datetime.timedelta(
-                        seconds=int(total_seconds_per_img *
+                        seconds=int(batch_time_meter.avg *
                                     (total_iters - passed_iters + 1)))
                     self.logger.info(
-                        f'Epoch: {epoch+1} [{it+1}/{len(dataloader)}]'
-                        f' ETA: {str(eta)}'
-                        f' lr: {self.current_lr()[0]:.5f}'
-                        f' Loss: {loss:.5f}')
-                    last_iter = passed_iters
-                    start_time = time.perf_counter()
+                        f'Epoch: {epoch+1} [{it+1}/{len(dataloader)}] '
+                        f'{data_time_meter} '
+                        f'{batch_time_meter} '
+                        f'ETA: {str(eta)} '
+                        f'lr: {self.current_lr()[0]:.5f} '
+                        f'{loss_meter}')
+                batch_time_meter.update(time.perf_counter() - before_iter_time, )
+                before_iter_time = time.perf_counter()
             # update lr at each epoch
             self.lr_scheduler.step()
 

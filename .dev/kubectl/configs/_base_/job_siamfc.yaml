@@ -30,11 +30,29 @@ spec:
             nvidia.com/gpu: "{{ gpus }}"
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
-            name: data
+            name: dst
           - mountPath: /exps # the directory you can access your persistent storage in container
             name: exps
           - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
             name: dshm
+      initContainers:
+        - name: init-data
+          image: gitlab-registry.nautilus.optiputer.net/prp/gsutil
+          command: ["/bin/sh"] # replace this with your own job execution scripts
+          args: ["-c", "mkdir -p /mnt/dest/GOT-10k/train;
+          gsutil -m rsync -erCUP /mnt/source/GOT-10k/train /mnt/dest/GOT-10k/train;
+          gsutil -m rsync -erCUP /mnt/source/GOT-10k/train /mnt/dest/GOT-10k/train;
+          mkdir -p /mnt/dest/otb;
+          gsutil -m rsync -erCUP /mnt/source/otb /mnt/dest/otb;
+          gsutil -m rsync -erCUP /mnt/source/otb /mnt/dest/otb;
+          exit 0"]
+          volumeMounts:
+            - name: src
+              mountPath: /mnt/source
+            - name: dst
+              mountPath: /mnt/dest
+      nodeSelector:
+        nautilus.io/disktype: nvme
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -43,11 +61,28 @@ spec:
                   - key: gpu-type
                     operator: In
                     values:
-                      - 1080Ti
-                      - 2080Ti
-                      - titan-xp
+                      - "1070"
+                      - "1080"
+#                      - 1080Ti
+#                      - 2080Ti
+#                      - titan-xp
+#                      - titan-x
+#                      - TITANRTX
+#                      - A100
+#                      - V100
+#                      - "3090"
+#                      - RTX8000
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+#                      - k8s-chase-ci-02.calit2.optiputer.net
       volumes:
-        - name: data
+#        - name: data
+#          persistentVolumeClaim:
+#            claimName: data
+        - name: dst
+          emptyDir: {}
+        - name: src
           persistentVolumeClaim:
             claimName: data
         - name: exps

@@ -49,11 +49,21 @@ spec:
                   - key: gpu-type
                     operator: In
                     values:
+                      - "1070"
                       - "1080"
 #                      - 1080Ti
 #                      - 2080Ti
 #                      - titan-xp
 #                      - titan-x
+#                      - TITANRTX
+#                      - A100
+#                      - V100
+#                      - "3090"
+#                      - RTX8000
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+#                      - k8s-chase-ci-02.calit2.optiputer.net
       volumes:
         - name: data
           persistentVolumeClaim:

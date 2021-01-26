@@ -144,6 +144,14 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                                              imgs_aux[:len(imgs_aux) // 2])
             x22, x21 = self.forward_backbone(imgs2, imgs1,
                                              imgs_aux[len(imgs_aux) // 2:])
+            # from ..common import vis_imgs
+            # print(len(imgs_aux))
+            # vis_imgs(imgs1, save_dir='debug_imgs1')
+            # vis_imgs(imgs2, save_dir='debug_imgs2')
+            # vis_imgs(imgs_aux[0], save_dir='debug_imgsa1')
+            # vis_imgs(imgs_aux[1], save_dir='debug_imgsa2')
+            # import ipdb
+            # ipdb.set_trace()
         else:
             assert len(imgs_aux) == 0
             warnings.warn(f'len(imgs_aux) == {len(imgs_aux)}')

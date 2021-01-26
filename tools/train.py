@@ -63,6 +63,8 @@ def parse_args():
     parser.add_argument(
         '--s3', action='store_true', help='reading from ceph s3 file')
     parser.add_argument('--suffix', type=str, help='work_dir suffix')
+    parser.add_argument(
+        '--disable-wandb', action='store_true', help='disable wandb')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -93,6 +95,9 @@ def main():
         cfg.work_dir = f'{cfg.work_dir}-{args.suffix}'
     for i, h in enumerate(cfg.log_config.hooks):
         if h.type == 'WandbLoggerHook':
+            if args.disable_wandb:
+                cfg.log_config.hooks.pop(i)
+                break
             if args.suffix is not None:
                 wandb_dir = cfg.log_config.hooks[i].init_kwargs.dir
                 cfg.log_config.hooks[i].init_kwargs.dir = f'{wandb_dir}-' \
