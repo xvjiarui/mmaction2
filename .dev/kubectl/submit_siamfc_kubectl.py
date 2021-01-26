@@ -36,6 +36,9 @@ def parse_args():
         default='self-supervised-video',
         choices=['self-supervised-video', 'ece3d-vision', 'image-model'])
     parser.add_argument('--epoch', type=str, default='latest.pth')
+    parser.add_argument('--boost-gpu-utils', action='store_true')
+    parser.add_argument('--copy-got', action='store_true')
+    parser.add_argument('--copy-otb', action='store_true')
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -44,6 +47,17 @@ def parse_args():
 def submit(config, args, rest):
     work_dir = osp.join('./work_dirs', osp.splitext(osp.basename(config))[0])
     pretrained_ckpt = osp.join(work_dir, args.epoch)
+    bg_script = ''
+    if args.boost_gpu_utils:
+        bg_script += 'pip install py3nvml && ' \
+                     'python projects/siamfc-pytorch/get_utils.py -f 1'
+    if len(bg_script):
+        bg_script = f'nohub {bg_script} &;'
+    copy_script = ''
+    if args.copy_got:
+        copy_script += 'mkdir -p /mnt/dest/GOT-10k/train; gsutil -m rsync -erCUP /mnt/source/GOT-10k/train /mnt/dest/GOT-10k/train;' * 2  # noqa
+    if args.copy_otb:
+        copy_script += 'mkdir -p /mnt/dest/otb; gsutil -m rsync -erCUP /mnt/source/otb /mnt/dest/otb;' * 2  # noqa
     template_dict = dict(
         job_name='sf-' +
         osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
@@ -55,13 +69,16 @@ def submit(config, args, rest):
         max_cpus=int(args.cpus * 1.5),
         max_mem=f'{int(args.mem * 1.5)}Gi',
         config=config,
-        pretrained_ckpt=pretrained_ckpt,
+        pretrained_ckpt=f'--pretrained {pretrained_ckpt}',
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
         wandb='mkdir -p /exps/mmaction2/wandb; '
         'ln -s /exps/mmaction2/wandb; '
         'pip install --upgrade wandb && wandb login '
-        f'{WANDB_KEY} ;' if args.wandb else '')
+        f'{WANDB_KEY} ;' if args.wandb else '',
+        bg_script=bg_script,
+        copy_script=copy_script,
+        data_path='dst' if len(copy_script) else 'src')
     with open(args.job, 'r') as f:
         config_file = f.read()
     for key, value in template_dict.items():

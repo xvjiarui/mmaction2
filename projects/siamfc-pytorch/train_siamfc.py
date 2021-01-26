@@ -1,4 +1,5 @@
 import argparse
+import builtins
 import os
 import os.path as osp
 import time
@@ -97,7 +98,7 @@ def main():
     mmcv.mkdir_or_exist(osp.abspath(cfg.work_dir))
     # init logger before other steps
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    log_file = osp.join(cfg.work_dir, f'{timestamp}.log')
+    log_file = osp.join(cfg.work_dir, f'sf-{timestamp}.log')
     logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
 
     logger.info(f'Config: {cfg.text}')
@@ -109,6 +110,10 @@ def main():
         set_random_seed(args.seed, deterministic=args.deterministic)
     cfg.seed = args.seed
 
+    def print_log(*args):
+        logger.info(','.join(args))
+
+    builtins.print = print_log
     tracker = TrackerSiamFC(cfg, logger)
     if args.checkpoint is None and (cfg.model.backbone.frozen_stages < 4
                                     or cfg.extra_conv):

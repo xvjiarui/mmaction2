@@ -17,20 +17,22 @@ spec:
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
         args: ["-c", "rm -rf mmaction2; pip install --upgrade got10k; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
-        ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
-        python projects/siamfc-pytorch/train_siamfc.py {{config}} --pretrained {{pretrained_ckpt}} --gpus {{gpus}} {{py_args}}"]
+        ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}} {{bg_script}}
+        python projects/siamfc-pytorch/train_siamfc.py {{config}} {{pretrained_ckpt}} --gpus {{gpus}} {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
             memory: "{{mem}}"
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
+            ephemeral-storage: 80Gi
           limits: # Maximum resources can be used for the job
             memory: "{{max_mem}}"
             cpu: "{{max_cpus}}"
             nvidia.com/gpu: "{{ gpus }}"
+            ephemeral-storage: 80Gi
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
-            name: dst
+            name: "{{data_path}}"
           - mountPath: /exps # the directory you can access your persistent storage in container
             name: exps
           - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
@@ -39,13 +41,7 @@ spec:
         - name: init-data
           image: gitlab-registry.nautilus.optiputer.net/prp/gsutil
           command: ["/bin/sh"] # replace this with your own job execution scripts
-          args: ["-c", "mkdir -p /mnt/dest/GOT-10k/train;
-          gsutil -m rsync -erCUP /mnt/source/GOT-10k/train /mnt/dest/GOT-10k/train;
-          gsutil -m rsync -erCUP /mnt/source/GOT-10k/train /mnt/dest/GOT-10k/train;
-          mkdir -p /mnt/dest/otb;
-          gsutil -m rsync -erCUP /mnt/source/otb /mnt/dest/otb;
-          gsutil -m rsync -erCUP /mnt/source/otb /mnt/dest/otb;
-          exit 0"]
+          args: ["-c", "{{copy_script}} exit 0"]
           volumeMounts:
             - name: src
               mountPath: /mnt/source
@@ -63,15 +59,15 @@ spec:
                     values:
                       - "1070"
                       - "1080"
-#                      - 1080Ti
-#                      - 2080Ti
-#                      - titan-xp
-#                      - titan-x
-#                      - TITANRTX
+                      - 1080Ti
+                      - 2080Ti
+                      - titan-xp
+                      - titan-x
+                      - TITANRTX
 #                      - A100
-#                      - V100
-#                      - "3090"
-#                      - RTX8000
+                      - V100
+                      - "3090"
+                      - RTX8000
 #                  - key: kubernetes.io/hostname
 #                    operator: NotIn
 #                    values:
