@@ -132,8 +132,19 @@ def main():
     overall = performance[tracker.name]['overall']
     success_curve = overall.pop('success_curve')
     precision_curve = overall.pop('precision_curve')
-    result_str = '\n'.join(f'{k}: {v:.4f}' for k, v in overall.items())
-    logger.info('results:\n' + result_str)
+    success_score = overall['success_score'] * 100
+    success_score = np.round(success_score, 2)
+    precision_score = overall['precision_score'] * 100
+    precision_score = np.round(precision_score, 2)
+    success_rate = overall['success_rate'] * 100
+    success_rate = np.round(success_rate, 2)
+    speed_fps = overall['speed_fps']
+    speed_fps = np.round(speed_fps, 2)
+    logger.info(f'copypaste: {precision_score},{success_score}')
+    logger.info(f'success_score: {success_score}')
+    logger.info(f'precision_score: {precision_score}')
+    logger.info(f'success_rate: {success_rate}')
+    logger.info(f'speed_fps: {speed_fps}')
     if wandb is not None:
         wandb.log(overall)
 
