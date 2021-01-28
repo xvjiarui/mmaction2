@@ -319,7 +319,8 @@ class SelfAttentionBlock(_SelfAttentionBlock):
                  norm_cfg=dict(type='BN'),
                  act_cfg=dict(type='ReLU'),
                  use_residual=True,
-                 zero_init=True):
+                 zero_init=True,
+                 dropout=0.0):
         if out_channels is None:
             out_channels = query_in_channels
         if key_in_channels is None:
@@ -346,6 +347,7 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             conv_cfg=dict(type='Conv1d'),
             norm_cfg=norm_cfg,
             act_cfg=act_cfg)
+        self.dropout = nn.Dropout2d(dropout)
 
         # force overwrite
         if with_out:
@@ -424,6 +426,7 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             query_feats.flatten(2), key_feats.flatten(2),
             value_feats.flatten(2))
         out = out.reshape_as(query_feats)
+        out = self.dropout(out)
         if self.use_residual:
             out = out + query_feats
         return out
