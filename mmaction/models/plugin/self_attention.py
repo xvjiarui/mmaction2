@@ -48,7 +48,8 @@ class SelfAttention(nn.Module):
                  use_residual=True,
                  normalize=False,
                  matmul_norm=False,
-                 dropout=0.0):
+                 dropout=0.0,
+                 downsample=None):
         super(SelfAttention, self).__init__()
         self.in_channels = in_channels
         self.kernel_size = kernel_size
@@ -85,12 +86,21 @@ class SelfAttention(nn.Module):
         else:
             self.convs = nn.Identity()
         self.dropout = nn.Dropout(dropout)
+        if downsample is not None:
+            self.downsample = nn.MaxPool3d(
+                kernel_size=(1, downsample, downsample),
+                stride=(1, downsample, downsample))
+        else:
+            self.downsample = None
 
     def forward(self, query, key=None, value=None):
         if key is None:
             key = query
         if value is None:
             value = key
+        if self.downsample is not None:
+            key = self.downsample(key)
+            value = self.downsample(value)
         assert key.shape[2:] == value.shape[2:]
         identity = query
         query = query.flatten(2)
@@ -320,7 +330,8 @@ class SelfAttentionBlock(_SelfAttentionBlock):
                  act_cfg=dict(type='ReLU'),
                  use_residual=True,
                  zero_init=True,
-                 dropout=0.0):
+                 dropout=0.0,
+                 downsample=None):
         if out_channels is None:
             out_channels = query_in_channels
         if key_in_channels is None:
@@ -348,6 +359,12 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             norm_cfg=norm_cfg,
             act_cfg=act_cfg)
         self.dropout = nn.Dropout2d(dropout)
+        if downsample is not None:
+            self.downsample = nn.MaxPool3d(
+                kernel_size=(1, downsample, downsample),
+                stride=(1, downsample, downsample))
+        else:
+            self.downsample = None
 
         # force overwrite
         if with_out:
@@ -422,6 +439,9 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             key_feats = query_feats
         if value_feats is None:
             value_feats = key_feats
+        if self.downsample is not None:
+            key_feats = self.downsample(key_feats)
+            value_feats = self.downsample(value_feats)
         out = super().forward(
             query_feats.flatten(2), key_feats.flatten(2),
             value_feats.flatten(2))

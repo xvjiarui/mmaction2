@@ -16,7 +16,11 @@ model = dict(
     # cls_head=None,
     # patch_head=None,
     att_plugin=dict(
-        type='SelfAttention', dropout=0., matmul_norm=True, use_residual=True),
+        type='SelfAttention',
+        dropout=0.,
+        matmul_norm=True,
+        use_residual=True,
+        downsample=2),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,

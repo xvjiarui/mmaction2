@@ -23,6 +23,7 @@ model = dict(
         with_out=True,
         norm_cfg=dict(type='SyncBN'),
         # norm_cfg=dict(type='LN', normalized_shape=(128, 14*14)),
+        downsample=2,
         zero_init=True),
     img_head=dict(
         type='SimSiamHead',
