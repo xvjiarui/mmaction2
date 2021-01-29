@@ -13,7 +13,7 @@ from .vanilla_tracker import VanillaTracker
 
 
 @TRACKERS.register_module()
-class SimSiamBaseSTSNTracker(VanillaTracker):
+class SimSiamBaseSTSN2Tracker(VanillaTracker):
     """3D recognizer model framework."""
 
     def __init__(self, *args, backbone, att_plugin, img_head=None, **kwargs):
@@ -52,6 +52,15 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
         if self.with_img_head:
             self.img_head.init_weights()
 
+    def forward_img_head_ori(self, x1, x2, clip_len):
+        losses = dict()
+        z1, p1 = self.img_head(x1)
+        z2, p2 = self.img_head(x2)
+        losses.update(
+            add_prefix(
+                self.img_head.loss(p1, z1, p2, z2, weight=0.5), prefix='1'))
+        return losses
+
     def forward_img_head(self, x11, x12, x22, x21, clip_len):
         assert isinstance(self.img_head, SimSiamHead)
         losses = dict()
@@ -62,12 +71,48 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
             z2 = self.img_head.forward_projection(x12)
         losses.update(
             add_prefix(
-                self.img_head.loss(p1, z1, p2, z2, weight=1.), prefix='0'))
+                self.img_head.loss(p1, z1, p2, z2, weight=0.5), prefix='0'))
         return losses
+
+    def forward_backbone_ori(self, imgs1, imgs2, ori_x1, ori_x2):
+        assert isinstance(self.backbone, ResNet)
+        assert len(ori_x1) > 0 and len(ori_x2) > 0
+        x1_from_ori = True
+        x2_from_ori = True
+        if 'stem' in ori_x2:
+            x2 = ori_x2['stem']
+        else:
+            x2 = self.backbone.conv1(imgs2)
+            x2 = self.backbone.maxpool(x2)
+            x2_from_ori = False
+        for i, layer_name in enumerate(self.backbone.res_layers):
+            if x2_from_ori and layer_name in ori_x2:
+                x2 = ori_x2[layer_name]
+            else:
+                res_layer = getattr(self.backbone, layer_name)
+                x2 = res_layer(x2)
+                x2_from_ori = False
+        if 'stem' in ori_x1:
+            x1 = ori_x1['stem']
+        else:
+            x1 = self.backbone.conv1(imgs1)
+            x1 = self.backbone.maxpool(x1)
+            x1_from_ori = False
+        for i, layer_name in enumerate(self.backbone.res_layers):
+            if x1_from_ori and layer_name in ori_x1:
+                x1 = ori_x1[layer_name]
+            else:
+                res_layer = getattr(self.backbone, layer_name)
+                x1 = res_layer(x1)
+                x1_from_ori = False
+
+        return x1, x2
 
     def forward_backbone(self, imgs1, imgs2, imgs_aux_list):
         assert isinstance(self.backbone, ResNet)
         att_feat = defaultdict(list)
+        ori_x1 = dict()
+        x1_from_ori = True
         with torch.no_grad():
             # x2 = self.backbone(imgs2)
             x2 = self.backbone.conv1(imgs2)
@@ -94,6 +139,7 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                         att_feat[i].append(x_aux)
         x1 = self.backbone.conv1(imgs1)
         x1 = self.backbone.maxpool(x1)
+        ori_x1['stem'] = x1
         for i, layer_name in enumerate(self.backbone.res_layers):
             res_layer = getattr(self.backbone, layer_name)
             x1 = res_layer(x1)
@@ -102,8 +148,11 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                     att_feat[i].append(x1)
                 concat_att = torch.stack(att_feat[i], dim=2)
                 x1 = self.att_plugin(x1, concat_att)
+                x1_from_ori = False
+            elif x1_from_ori:
+                ori_x1[layer_name] = x1
 
-        return x1, x2
+        return x1, x2, ori_x1
 
     def forward_train(self, imgs, label=None):
         # [B, N, C, T, H, W]
@@ -138,27 +187,23 @@ class SimSiamBaseSTSNTracker(VanillaTracker):
                     imgs_aux.append(imgs[:, 0, :, i])
 
         if len(imgs_aux) >= 2:
-            x11, x12 = self.forward_backbone(imgs1, imgs2,
-                                             imgs_aux[:len(imgs_aux) // 2])
-            x22, x21 = self.forward_backbone(imgs2, imgs1,
-                                             imgs_aux[len(imgs_aux) // 2:])
-            # from ..common import vis_imgs
-            # print(len(imgs_aux))
-            # vis_imgs(imgs1, save_dir='debug_imgs1')
-            # vis_imgs(imgs2, save_dir='debug_imgs2')
-            # vis_imgs(imgs_aux[0], save_dir='debug_imgsa1')
-            # vis_imgs(imgs_aux[1], save_dir='debug_imgsa2')
-            # import ipdb
-            # ipdb.set_trace()
+            x11, x12, ori_x1 = self.forward_backbone(
+                imgs1, imgs2, imgs_aux[:len(imgs_aux) // 2])
+            x22, x21, ori_x2 = self.forward_backbone(
+                imgs2, imgs1, imgs_aux[len(imgs_aux) // 2:])
         else:
             assert len(imgs_aux) == 0
             warnings.warn(f'len(imgs_aux) == {len(imgs_aux)}')
-            x11, x12 = self.forward_backbone(imgs1, imgs2, [])
-            x22, x21 = self.forward_backbone(imgs2, imgs1, [])
+            x11, x12, ori_x1 = self.forward_backbone(imgs1, imgs2, [])
+            x22, x21, ori_x2 = self.forward_backbone(imgs2, imgs1, [])
+
+        x1, x2 = self.forward_backbone_ori(imgs1, imgs2, ori_x1, ori_x2)
 
         losses = dict()
         if self.with_img_head:
             loss_img_head = self.forward_img_head(x11, x12, x22, x21, clip_len)
+            losses.update(add_prefix(loss_img_head, prefix='img_head'))
+            loss_img_head = self.forward_img_head_ori(x1, x2, clip_len)
             losses.update(add_prefix(loss_img_head, prefix='img_head'))
 
         return losses
