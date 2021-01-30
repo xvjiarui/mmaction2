@@ -1,9 +1,27 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import PLUGIN_LAYERS
+from mmcv.cnn import NORM_LAYERS, PLUGIN_LAYERS
 from mmcv.cnn import ConvModule as _ConvModule
 from mmcv.cnn import build_norm_layer, constant_init
+
+
+@NORM_LAYERS.register_module(name='SLN')
+class SingletonLayerNorm(nn.LayerNorm):
+
+    def __init__(self, num_features, channel_dim=1, **kwargs):
+        self.channel_dim = channel_dim
+        super(SingletonLayerNorm, self).__init__(
+            normalized_shape=num_features, **kwargs)
+
+    def forward(self, x):
+        x = x.transpose(self.channel_dim, -1)
+        x = super(SingletonLayerNorm, self).forward(x)
+        x = x.transpose(self.channel_dim, -1)
+        return x
+
+    def extra_repr(self):
+        return f'channel_dim={self.channel_dim}'
 
 
 class ConvModule(_ConvModule):
@@ -87,20 +105,35 @@ class SelfAttention(nn.Module):
             self.convs = nn.Identity()
         self.dropout = nn.Dropout(dropout)
         if downsample is not None:
-            self.downsample = nn.MaxPool3d(
+            assert downsample > 1
+            self.downsample3d = nn.MaxPool3d(
                 kernel_size=(1, downsample, downsample),
-                stride=(1, downsample, downsample))
+                stride=(1, downsample, downsample),
+                ceil_mode=True)
         else:
-            self.downsample = None
+            self.downsample3d = None
+
+    def downsample_input(self, x):
+        if self.downsample3d is None:
+            return x
+        add_dim = False
+        if x.ndim == 4:
+            add_dim = True
+            # [N, C, 1, H, W]
+            x = x.unsqueeze(2)
+        x = self.downsample3d(x)
+        if add_dim:
+            # [N, C, H, W]
+            x = x.squeeze(2)
+        return x
 
     def forward(self, query, key=None, value=None):
         if key is None:
             key = query
         if value is None:
             value = key
-        if self.downsample is not None:
-            key = self.downsample(key)
-            value = self.downsample(value)
+        key = self.downsample_input(key)
+        value = self.downsample_input(value)
         assert key.shape[2:] == value.shape[2:]
         identity = query
         query = query.flatten(2)
@@ -360,11 +393,13 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             act_cfg=act_cfg)
         self.dropout = nn.Dropout2d(dropout)
         if downsample is not None:
-            self.downsample = nn.MaxPool3d(
+            assert downsample > 1
+            self.downsample3d = nn.MaxPool3d(
                 kernel_size=(1, downsample, downsample),
-                stride=(1, downsample, downsample))
+                stride=(1, downsample, downsample),
+                ceil_mode=True)
         else:
-            self.downsample = None
+            self.downsample3d = None
 
         # force overwrite
         if with_out:
@@ -434,14 +469,27 @@ class SelfAttentionBlock(_SelfAttentionBlock):
             convs = convs[0]
         return convs
 
+    def downsample_input(self, x):
+        if self.downsample3d is None:
+            return x
+        add_dim = False
+        if x.ndim == 4:
+            add_dim = True
+            # [N, C, 1, H, W]
+            x = x.unsqueeze(2)
+        x = self.downsample3d(x)
+        if add_dim:
+            # [N, C, H, W]
+            x = x.squeeze(2)
+        return x
+
     def forward(self, query_feats, key_feats=None, value_feats=None):
         if key_feats is None:
             key_feats = query_feats
         if value_feats is None:
             value_feats = key_feats
-        if self.downsample is not None:
-            key_feats = self.downsample(key_feats)
-            value_feats = self.downsample(value_feats)
+        key_feats = self.downsample_input(key_feats)
+        value_feats = self.downsample_input(value_feats)
         out = super().forward(
             query_feats.flatten(2), key_feats.flatten(2),
             value_feats.flatten(2))

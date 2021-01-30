@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from mmcv.cnn import (Linear, build_activation_layer, build_norm_layer,
-                      xavier_init)
+from mmcv.cnn import (PLUGIN_LAYERS, Linear, build_activation_layer,
+                      build_norm_layer, xavier_init)
 
 
 class MultiheadAttention(nn.Module):
@@ -258,6 +258,91 @@ class TransformerEncoderLayer(nn.Module):
         repr_str += f'act_cfg={self.act_cfg}, '
         repr_str += f'norm_cfg={self.norm_cfg}, '
         repr_str += f'num_fcs={self.num_fcs})'
+        return repr_str
+
+
+@PLUGIN_LAYERS.register_module()
+class TransformerBlock(TransformerEncoderLayer):
+
+    def __init__(self, pre_norm=False, downsample=None, **kwargs):
+        if pre_norm:
+            order = ('norm', 'selfattn', 'norm', 'ffn')
+        else:
+            order = ('selfattn', 'norm', 'ffn', 'norm')
+        super(TransformerBlock, self).__init__(order=order, **kwargs)
+        if downsample is not None:
+            assert downsample > 1
+            self.downsample3d = nn.MaxPool3d(
+                kernel_size=(1, downsample, downsample),
+                stride=(1, downsample, downsample),
+                ceil_mode=True)
+        else:
+            self.downsample3d = None
+
+    def downsample_input(self, x):
+        if self.downsample3d is None:
+            return x
+        add_dim = False
+        if x.ndim == 4:
+            add_dim = True
+            # [N, C, 1, H, W]
+            x = x.unsqueeze(2)
+        x = self.downsample3d(x)
+        if add_dim:
+            # [N, C, H, W]
+            x = x.squeeze(2)
+        return x
+
+    def forward(self, x, key=None, value=None):
+        bs, c, h, w = x.shape
+        if key is None:
+            key = x
+        if value is None:
+            value = key
+        assert key.shape[2:] == value.shape[2:]
+
+        key = self.downsample_input(key)
+        value = self.downsample_input(value)
+
+        x = x.flatten(2).permute(2, 0, 1)  # [bs, c, h, w] -> [h*w, bs, c]
+        key = key.flatten(2).permute(2, 0, 1)  # [bs, c, h, w] -> [h*w, bs, c]
+        value = value.flatten(2).permute(2, 0,
+                                         1)  # [bs, c, h, w] -> [h*w, bs, c]
+        norm_cnt = 0
+        inp_residual = x
+        for layer in self.order:
+            if layer == 'selfattn':
+                # self attention
+                x = self.self_attn(
+                    x,
+                    key=key,
+                    value=value,
+                    residual=inp_residual if self.pre_norm else None,
+                    query_pos=None,
+                    key_pos=None,
+                    attn_mask=None,
+                    key_padding_mask=None)
+                inp_residual = x
+            elif layer == 'norm':
+                x = self.norms[norm_cnt](x)
+                norm_cnt += 1
+            elif layer == 'ffn':
+                x = self.ffn(x, inp_residual if self.pre_norm else None)
+        x = x.permute(1, 2, 0).reshape(bs, c, h, w)
+
+        return x
+
+    def __repr__(self):
+        return super(TransformerEncoderLayer, self).__repr__()
+
+    def extra_repr(self):
+        """str: a string that describes the module"""
+        repr_str = f'embed_dims={self.embed_dims}, '
+        repr_str += f'num_heads={self.num_heads}, '
+        repr_str += f'feedforward_channels={self.feedforward_channels}, '
+        repr_str += f'dropout={self.dropout}, '
+        repr_str += f'order={self.order}, '
+        repr_str += f'num_fcs={self.num_fcs}'
         return repr_str
 
 

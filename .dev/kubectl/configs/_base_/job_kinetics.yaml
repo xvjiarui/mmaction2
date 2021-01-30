@@ -1,0 +1,115 @@
+apiVersion: batch/v1
+kind: Job # Deployment will automatically restart when killed. Use Pod if not needed
+metadata:
+  labels:
+    k8s-app: research
+    user: jiarui
+  generateName: '{{job_name}}' # replace <your_name> with something that identifies you
+  namespace: '{{name_space}}'
+spec:
+  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: research
+        image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh"] # replace this with your own job execution scripts
+        args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2;
+        python setup.py develop; ln -s /data; ls -n /data/kinetics400;
+        ln -s /data/kinetics400/train /data/kinetics400/videos_train;
+        ln -s /data/kinetics400/val /data/kinetics400/videos_val;
+        mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
+        ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
+        resources:
+          requests: # Minimum resources needed for the job
+            memory: "{{mem}}"
+            cpu: "{{ cpus }}"
+            nvidia.com/gpu: "{{ gpus }}"
+            ephemeral-storage: 200Gi
+          limits: # Maximum resources can be used for the job
+            memory: "{{max_mem}}"
+            cpu: "{{max_cpus}}"
+            nvidia.com/gpu: "{{ gpus }}"
+            ephemeral-storage: 200Gi
+        volumeMounts:
+          - mountPath: /data # the directory you can access your persistent storage in container
+            name: dst
+#          - mountPath: /data_zip # the directory you can access your persistent storage in container
+#            name: data-zip
+          - mountPath: /exps # the directory you can access your persistent storage in container
+            name: exps
+          - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
+            name: dshm
+      initContainers:
+      - name: init-data
+        image: gitlab-registry.nautilus.optiputer.net/prp/gsutil
+        command: ["/bin/sh"] # replace this with your own job execution scripts
+        args: ["-c", "mkdir -p /mnt/dest/kinetics400;
+        gsutil -m rsync -erCUP /mnt/source/kinetics/kinetics400 /mnt/dest/kinetics400;
+        gsutil -m rsync -erCUP /mnt/source/kinetics/kinetics400 /mnt/dest/kinetics400;
+        exit 0"]
+#        args:
+#          - gsutil
+#          - "-m"
+#          - rsync
+#          - "-erCUP"
+#          - /mnt/source/kinetics/kinetics400
+#          - /mnt/dest
+        volumeMounts:
+          - name: src
+            mountPath: /mnt/source
+          - name: dst
+            mountPath: /mnt/dest
+      nodeSelector:
+        nautilus.io/disktype: nvme
+#        nautilus.io/large-gpu: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+#                  - key: nautilus.io/group
+#                    operator: In
+#                    values:
+#                      - haosu
+                  - key: gpu-type
+                    operator: In
+                    values:
+#                      - "1080"
+                      - 1080Ti
+                      - 2080Ti
+                      - titan-xp
+                      - titan-x
+                      - TITANRTX
+#                      - A100
+#                      - K40
+                      - V100
+                      - "3090"
+                      - RTX8000
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+###                      - ucm-fiona01.ucmerced.edu
+###                      - k8s-bharadia-03.sdsc.optiputer.net
+###                      - k8s-gpu-01.calit2.optiputer.net
+#                      - k8s-gpu-2.ucr.edu
+      volumes:
+#        - name: data
+#          persistentVolumeClaim:
+#            claimName: data
+#        - name: data-zip
+#          persistentVolumeClaim:
+#            claimName: data-zip
+        - name: dst
+          emptyDir: {}
+        - name: src
+          persistentVolumeClaim:
+            claimName: data
+        - name: exps
+          persistentVolumeClaim:
+            claimName: exps
+        - name: dshm
+          emptyDir:
+            medium: Memory
