@@ -428,9 +428,9 @@ class SequentialSampleFrames(object):
                 to the next transform in pipeline.
         """
         total_frames = results['total_frames']
-        results['frame_inds'] = np.arange(results['start_index'], total_frames,
-                                          self.frame_interval)
-        results['clip_len'] = total_frames - results['start_index']
+        results['frame_inds'] = np.arange(0, total_frames, self.frame_interval)
+        results['frame_inds'] += +results['start_index']
+        results['clip_len'] = total_frames
         results['frame_interval'] = self.frame_interval
         results['num_clips'] = 1
         return results
@@ -1032,8 +1032,53 @@ class RawFrameDecode(object):
                 backend='pillow')
             results['ref_seg_map'] = seg_map
             assert seg_map.shape == results['img_shape']
+        if 'pose_coord' in results:
+            pose_coord = results['pose_coord']
+            num_poses = pose_coord.shape[1]
+            height, width = imgs[0].shape[:2]
+            pose_map = np.zeros((height, width, num_poses), dtype=np.float)
+            sigma = 0.5
+            for j in range(num_poses):
+                if sigma > 0:
+                    draw_label_map(pose_map[:, :, j], pose_coord[:, j], sigma)
+                else:
+                    tx = int(pose_coord[0, j])
+                    ty = int(pose_coord[1, j])
+                    if 0 <= tx < width and 0 <= ty < height:
+                        pose_map[ty, tx, j] = 1.0
+            results['ref_seg_map'] = pose_map
 
         return results
+
+
+def draw_label_map(img, pt, sigma):
+    # Draw a 2D gaussian
+
+    # Check that any part of the gaussian is in-bounds
+    ul = [int(pt[0] - 3 * sigma), int(pt[1] - 3 * sigma)]
+    br = [int(pt[0] + 3 * sigma + 1), int(pt[1] + 3 * sigma + 1)]
+    if (ul[0] >= img.shape[1] or ul[1] >= img.shape[0] or br[0] < 0
+            or br[1] < 0):
+        # If not, just return the image as is
+        return img
+
+    # Generate gaussian
+    size = 6 * sigma + 1
+    x = np.arange(0, size, 1, float)
+    y = x[:, np.newaxis]
+    x0 = y0 = size // 2
+    # The gaussian is not normalized, we want the center value to equal 1
+    g = np.exp(-((x - x0)**2 + (y - y0)**2) / (2 * sigma**2))
+
+    # Usable gaussian range
+    g_x = max(0, -ul[0]), min(br[0], img.shape[1]) - ul[0]
+    g_y = max(0, -ul[1]), min(br[1], img.shape[0]) - ul[1]
+    # Image range
+    img_x = max(0, ul[0]), min(br[0], img.shape[1])
+    img_y = max(0, ul[1]), min(br[1], img.shape[0])
+
+    img[img_y[0]:img_y[1], img_x[0]:img_x[1]] = g[g_y[0]:g_y[1], g_x[0]:g_x[1]]
+    return img
 
 
 @PIPELINES.register_module()

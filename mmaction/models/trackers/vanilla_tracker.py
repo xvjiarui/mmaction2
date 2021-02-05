@@ -102,17 +102,29 @@ class VanillaTracker(BaseTracker):
         all_seg_preds = []
         feat_bank = self.get_feats(imgs, len(dummy_faet))
         for feat_idx, feat_shape in enumerate(feat_shapes):
-            resized_seg_map = pil_nearest_interpolate(
-                ref_seg_map.unsqueeze(1),
-                size=feat_shape[2:]).squeeze(1).long()
-            resized_seg_map = F.one_hot(resized_seg_map).permute(0, 3, 1,
-                                                                 2).float()
+            input_onehot = ref_seg_map.ndim == 4
+            if not input_onehot:
+                resized_seg_map = pil_nearest_interpolate(
+                    ref_seg_map.unsqueeze(1),
+                    size=feat_shape[2:]).squeeze(1).long()
+                resized_seg_map = F.one_hot(resized_seg_map).permute(
+                    0, 3, 1, 2).float()
+                ref_seg_map = F.interpolate(
+                    ref_seg_map.unsqueeze(1),
+                    size=img_meta[0]['original_shape'][:2],
+                    mode='nearest').squeeze(1)
+            else:
+                resized_seg_map = F.interpolate(
+                    ref_seg_map,
+                    size=feat_shape[2:],
+                    mode='bilinear',
+                    align_corners=False).float()
+                ref_seg_map = F.interpolate(
+                    ref_seg_map,
+                    size=img_meta[0]['original_shape'][:2],
+                    mode='bilinear',
+                    align_corners=False)
             seg_bank = []
-
-            ref_seg_map = F.interpolate(
-                ref_seg_map.unsqueeze(1),
-                size=img_meta[0]['original_shape'][:2],
-                mode='nearest').squeeze(1)
 
             seg_preds = [ref_seg_map.detach().cpu().numpy()]
             neighbor_range = self.test_cfg.get('neighbor_range', None)
@@ -163,19 +175,20 @@ class VanillaTracker(BaseTracker):
                     size=img_meta[0]['original_shape'][:2],
                     mode='bilinear',
                     align_corners=False)
-                seg_pred_min = seg_pred.view(*seg_pred.shape[:2], -1).min(
-                    dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
-                seg_pred_max = seg_pred.view(*seg_pred.shape[:2], -1).max(
-                    dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
-                normalized_seg_pred = (seg_pred - seg_pred_min) / (
-                    seg_pred_max - seg_pred_min + 1e-12)
-                seg_pred = torch.where(seg_pred_max > 0, normalized_seg_pred,
-                                       seg_pred)
-                seg_pred = seg_pred.argmax(dim=1)
-                seg_pred = F.interpolate(
-                    seg_pred.byte().unsqueeze(1),
-                    size=img_meta[0]['original_shape'][:2],
-                    mode='nearest').squeeze(1)
+                if not input_onehot:
+                    seg_pred_min = seg_pred.view(*seg_pred.shape[:2], -1).min(
+                        dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
+                    seg_pred_max = seg_pred.view(*seg_pred.shape[:2], -1).max(
+                        dim=-1)[0].view(*seg_pred.shape[:2], 1, 1)
+                    normalized_seg_pred = (seg_pred - seg_pred_min) / (
+                        seg_pred_max - seg_pred_min + 1e-12)
+                    seg_pred = torch.where(seg_pred_max > 0,
+                                           normalized_seg_pred, seg_pred)
+                    seg_pred = seg_pred.argmax(dim=1)
+                    seg_pred = F.interpolate(
+                        seg_pred.byte().unsqueeze(1),
+                        size=img_meta[0]['original_shape'][:2],
+                        mode='nearest').squeeze(1)
                 seg_preds.append(seg_pred.detach().cpu().numpy())
 
             seg_preds = np.stack(seg_preds, axis=1)

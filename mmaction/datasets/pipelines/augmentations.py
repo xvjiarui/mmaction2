@@ -286,8 +286,8 @@ class RandomResizedCrop(object):
                 if self.same_clip_indices is not None:
                     assert min(self.same_clip_indices) >= 0
                     assert max(self.same_clip_indices) < results['num_clips']
-                    keep_same = i % results[
-                        'num_clips'] in self.same_clip_indices
+                    keep_same = i // results[
+                        'clip_len'] in self.same_clip_indices
                     generate_new = generate_new and not keep_same
                 if self.same_frame_indices is not None:
                     assert min(self.same_frame_indices) >= 0
@@ -575,10 +575,16 @@ class Resize(object):
             lazyop['interpolation'] = self.interpolation
 
         if 'ref_seg_map' in results:
-            results['ref_seg_map'] = mmcv.imresize(
-                results['ref_seg_map'], (new_w, new_h),
-                interpolation='nearest',
-                backend='pillow')
+            if results['ref_seg_map'].dtype == np.uint8:
+                results['ref_seg_map'] = mmcv.imresize(
+                    results['ref_seg_map'], (new_w, new_h),
+                    interpolation='nearest',
+                    backend='pillow')
+            else:
+                results['ref_seg_map'] = mmcv.imresize(
+                    results['ref_seg_map'], (new_w, new_h),
+                    interpolation='bilinear',
+                    backend='cv2')
 
         return results
 

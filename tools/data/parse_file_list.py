@@ -467,3 +467,30 @@ def parse_davis2017_splits():
 
     splits = ((train_list, val_list, test_list), )
     return splits
+
+
+def parse_jhmdb_splits():
+    """Parse DAVIS2017 dataset into "train", "val" splits.
+
+    Returns:
+        list: "train", "val", "test" splits of Moments in Time.
+    """
+    # Read the annotations
+    import pickle
+    with open('data/jhmdb/JHMDB/JHMDB-GT.pkl', 'rb') as f:
+        # u = pickle._Unpickler(f)
+        # u.encoding = 'latin1'
+        # gt_info = u.load()
+        gt_info = pickle.load(f, encoding='latin1')
+    train_list = gt_info['train_videos']
+    test_list = gt_info['test_videos']
+    for i in range(len(train_list)):
+        for j in range(len(train_list[i])):
+            train_list[i][j] = (train_list[i][j], j)
+    for i in range(len(test_list)):
+        for j in range(len(test_list[i])):
+            test_list[i][j] = (test_list[i][j], j)
+
+    splits = ((train_list[0], test_list[0]), (train_list[1], test_list[1]),
+              (train_list[2], test_list[2]))
+    return splits
