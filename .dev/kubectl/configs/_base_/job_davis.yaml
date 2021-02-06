@@ -56,14 +56,16 @@ spec:
 #                      - titan-xp
 #                      - titan-x
 #                      - TITANRTX
-#                      - A100
+##                      - A100
 #                      - V100
 #                      - "3090"
 #                      - RTX8000
-#                  - key: kubernetes.io/hostname
-#                    operator: NotIn
-#                    values:
-#                      - k8s-chase-ci-02.calit2.optiputer.net
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+#                      - k8s-gpu-01.calit2.optiputer.net
+#                      - k8s-haosu-07.sdsc.optiputer.net
+                      - ucm-fiona01.ucmerced.edu
       volumes:
         - name: data
           persistentVolumeClaim:

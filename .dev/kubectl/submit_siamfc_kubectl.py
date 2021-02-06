@@ -49,10 +49,9 @@ def submit(config, args, rest):
     pretrained_ckpt = osp.join(work_dir, args.epoch)
     bg_script = ''
     if args.boost_gpu_utils:
-        bg_script += 'pip install py3nvml && ' \
-                     'python projects/siamfc-pytorch/get_utils.py -f 1'
+        bg_script += 'python projects/siamfc-pytorch/get_utils.py -f 1'
     if len(bg_script):
-        bg_script = f'nohub {bg_script} &;'
+        bg_script = f'nohup {bg_script} > nohup.out 2>&1 &'
     copy_script = ''
     if args.copy_got:
         copy_script += 'mkdir -p /mnt/dest/GOT-10k/train; gsutil -m rsync -erCUP /mnt/source/GOT-10k/train /mnt/dest/GOT-10k/train;' * 2  # noqa
@@ -70,6 +69,7 @@ def submit(config, args, rest):
         max_mem=f'{int(args.mem * 1.5)}Gi',
         config=config,
         pretrained_ckpt=f'--pretrained {pretrained_ckpt}',
+        # pretrained_ckpt='',
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
         wandb='mkdir -p /exps/mmaction2/wandb; '

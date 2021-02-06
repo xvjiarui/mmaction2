@@ -68,6 +68,8 @@ def submit(config, args, rest):
     for key, value in template_dict.items():
         regexp = r'\{\{\s*' + str(key) + r'\s*\}\}'
         config_file = re.sub(regexp, str(value), config_file)
+    # with open('example.yaml', 'w') as f:
+    #     f.write(config_file)
     temp_config_file = tempfile.NamedTemporaryFile(
         suffix=osp.splitext(args.job)[1])
     with open(temp_config_file.name, 'w') as tmp_config_file:

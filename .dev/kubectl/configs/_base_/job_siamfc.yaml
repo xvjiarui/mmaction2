@@ -16,7 +16,7 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "rm -rf mmaction2; pip install --upgrade got10k; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
+        args: ["-c", "rm -rf mmaction2; pip install --upgrade got10k py3nvml; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
         ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}} {{bg_script}}
         python projects/siamfc-pytorch/train_siamfc.py {{config}} {{pretrained_ckpt}} --gpus {{gpus}} {{py_args}}"]
         resources:
@@ -38,6 +38,11 @@ spec:
           - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
             name: dshm
       initContainers:
+        - name: test-cuda
+          image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
+          imagePullPolicy: Always
+          command: ["/bin/sh"] # replace this with your own job execution scripts
+          args: ["-c", "python -c 'import torch;assert torch.cuda.device_count() > 0'"]
         - name: init-data
           image: gitlab-registry.nautilus.optiputer.net/prp/gsutil
           command: ["/bin/sh"] # replace this with your own job execution scripts
@@ -65,7 +70,7 @@ spec:
                       - titan-x
                       - TITANRTX
 #                      - A100
-                      - V100
+#                      - V100
                       - "3090"
                       - RTX8000
 #                  - key: kubernetes.io/hostname

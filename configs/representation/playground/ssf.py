@@ -3,7 +3,7 @@ temperature = 0.2
 with_norm = True
 query_dim = 128
 model = dict(
-    type='SimSiamBaseSTSNTracker',
+    type='SimSiamBaseFrameTracker',
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -15,32 +15,33 @@ model = dict(
         zero_init_residual=True),
     # cls_head=None,
     # patch_head=None,
-    # att_plugin=dict(
+    # fusion_plugin=dict(
     #     type='SelfAttention',
     #     dropout=0.,
     #     matmul_norm=True,
     #     use_residual=True,
-    #     downsample=None),
-    # att_plugin=dict(
+    #     num_convs=1,
+    #     norm_cfg=dict(type='SLN'),
+    #     norm_only=True),
+    # fusion_plugin=dict(
     #     type='MultiHeadAttention',
     #     embed_dims=512,
     #     num_heads=1,
     #     dropout=0.,
     #     batchwise_drop=True,
     #     use_residual=True),
-    # att_plugin=dict(type='PixelPro', in_channels=256, use_residual=True),
-    # att_plugin=dict(
+    # fusion_plugin=dict(type='PixelPro', in_channels=256, use_residual=True),
+    # fusion_plugin=dict(
     #     type='SelfAttentionBlock',
-    #     query_in_channels=128,
-    #     channels=64,
+    #     query_in_channels=512,
+    #     channels=256,
     #     value_out_norm=True,
     #     with_out=True,
     #     # norm_cfg=dict(type='SyncBN'),
     #     norm_cfg=dict(type='SLN'),
     #     zero_init=True,
-    #     dropout=0.1,
-    #     downsample=None),
-    # att_plugin=dict(
+    #     dropout=0.1),
+    # fusion_plugin=dict(
     #     type='TransformerBlock',
     #     embed_dims=128,
     #     feedforward_channels=64,
@@ -51,30 +52,29 @@ model = dict(
     #     num_fcs=2,
     #     pre_norm=False,
     #     downsample=None),
-    # att_plugin=None,
-    att_plugin=dict(type='AvgFusion', avg_dim=2),
+    # fusion_plugin=None,
+    # fusion_plugin=dict(type='AvgFusion', avg_dim=2),
+    fusion_plugin=dict(type='CatFusion', cat_dim=1),
     img_head=dict(
         type='SimSiamHead',
-        in_channels=512,
+        in_channels=512 * 2,
         norm_cfg=dict(type='SyncBN'),
         num_projection_fcs=3,
-        projection_mid_channels=512,
-        projection_out_channels=512,
+        projection_mid_channels=512 * 2,
+        projection_out_channels=512 * 2,
         num_predictor_fcs=2,
-        predictor_mid_channels=128,
-        predictor_out_channels=512,
+        predictor_mid_channels=128 * 2,
+        predictor_out_channels=512 * 2,
         with_norm=True,
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
 train_cfg = dict(
-    att_indices=(1, ),
+    fusion_indices=(3, ),
     self_as_value=False,
     pred_frame_index=0,
     target_frame_index=-1,
-    target_att=True,
-    target_att_times=1,
-    bp_aux=False)
+    bp_aux=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -168,8 +168,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=128,
-    workers_per_gpu=16,
+    videos_per_gpu=64,
+    workers_per_gpu=8,
     val_workers_per_gpu=1,
     train=dict(
         type=dataset_type,

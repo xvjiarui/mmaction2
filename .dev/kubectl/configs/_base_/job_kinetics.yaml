@@ -43,6 +43,11 @@ spec:
           - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
             name: dshm
       initContainers:
+      - name: test-cuda
+        image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh"] # replace this with your own job execution scripts
+        args: ["-c", "python -c 'import torch;assert torch.cuda.device_count() > 0'"]
       - name: init-data
         image: gitlab-registry.nautilus.optiputer.net/prp/gsutil
         command: ["/bin/sh"] # replace this with your own job execution scripts
@@ -91,9 +96,12 @@ spec:
 #                  - key: kubernetes.io/hostname
 #                    operator: NotIn
 #                    values:
-###                      - ucm-fiona01.ucmerced.edu
-###                      - k8s-bharadia-03.sdsc.optiputer.net
-###                      - k8s-gpu-01.calit2.optiputer.net
+#                      - ucm-fiona01.ucmerced.edu
+#                      - k8s-bharadia-01.sdsc.optiputer.net
+#                      - k8s-bharadia-04.sdsc.optiputer.net
+#                      - k8s-bharadia-03.sdsc.optiputer.net
+#                      - fiona8.ucsc.edu
+##                      - k8s-gpu-01.calit2.optiputer.net
 #                      - k8s-gpu-2.ucr.edu
       volumes:
 #        - name: data

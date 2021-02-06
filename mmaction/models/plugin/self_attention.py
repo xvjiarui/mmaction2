@@ -67,7 +67,8 @@ class SelfAttention(nn.Module):
                  normalize=False,
                  matmul_norm=False,
                  dropout=0.0,
-                 downsample=None):
+                 downsample=None,
+                 norm_only=False):
         super(SelfAttention, self).__init__()
         self.in_channels = in_channels
         self.kernel_size = kernel_size
@@ -88,16 +89,19 @@ class SelfAttention(nn.Module):
             is_last = i == num_convs - 1
             out_channels = out_channels if is_last else \
                 mid_channels
-            convs.append(
-                ConvModule(
-                    last_channels,
-                    out_channels,
-                    kernel_size=kernel_size,
-                    padding=kernel_size // 2,
-                    conv_cfg=self.conv_cfg,
-                    # no bn/relu on output
-                    norm_cfg=self.norm_cfg if not is_last else None,
-                    act_cfg=self.act_cfg if not is_last else None))
+            if norm_only:
+                convs.append(build_norm_layer(norm_cfg, last_channels)[1])
+            else:
+                convs.append(
+                    ConvModule(
+                        last_channels,
+                        out_channels,
+                        kernel_size=kernel_size,
+                        padding=kernel_size // 2,
+                        conv_cfg=self.conv_cfg,
+                        # no bn/relu on output
+                        norm_cfg=self.norm_cfg if not is_last else None,
+                        act_cfg=self.act_cfg if not is_last else None))
             last_channels = out_channels
         if len(convs) > 0:
             self.convs = nn.Sequential(*convs)

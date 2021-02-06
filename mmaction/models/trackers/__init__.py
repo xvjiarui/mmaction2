@@ -2,6 +2,7 @@ from .base import BaseTracker
 from .moco_base_tracker import MoCoBaseTracker
 from .rnd_moco_tracker import RNDMoCoTracker
 from .sim_siam_base_cls_tracker import SimSiamBaseClsTracker
+from .sim_siam_base_frame_tracker import SimSiamBaseFrameTracker
 from .sim_siam_base_single_tracker import SimSiamBaseSingleTracker
 from .sim_siam_base_stsn2_tracker import SimSiamBaseSTSN2Tracker
 from .sim_siam_base_stsn_tracker import SimSiamBaseSTSNTracker
@@ -29,5 +30,5 @@ __all__ = [
     'SimSiamUVCTracker', 'SimSiamBaseTracker', 'SimSiamNeckTracker',
     'MoCoBaseTracker', 'SimSiamBaseClsTracker', 'SimSiamBaseSingleTracker',
     'SimSiamBaseTSNTracker', 'SimSiamBaseSTSNTracker',
-    'SimSiamBaseSTSN2Tracker'
+    'SimSiamBaseSTSN2Tracker', 'SimSiamBaseFrameTracker'
 ]
