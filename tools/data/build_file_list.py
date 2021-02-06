@@ -11,7 +11,7 @@ from tools.data.parse_file_list import (parse_davis2017_splits,
                                         parse_kinetics_splits,
                                         parse_mit_splits, parse_mmit_splits,
                                         parse_sthv1_splits, parse_sthv2_splits,
-                                        parse_ucf101_splits)
+                                        parse_ucf101_splits, parse_vip_splits)
 
 
 def parse_args():
@@ -21,7 +21,7 @@ def parse_args():
         type=str,
         choices=[
             'ucf101', 'kinetics400', 'thumos14', 'sthv1', 'sthv2', 'mit',
-            'mmit', 'activitynet', 'hmdb51', 'davis2017', 'jhmdb'
+            'mmit', 'activitynet', 'hmdb51', 'davis2017', 'jhmdb', 'vip'
         ],
         help='dataset to be built file list')
     parser.add_argument(
@@ -202,6 +202,8 @@ def main():
         splits = parse_davis2017_splits()
     elif args.dataset == 'jhmdb':
         splits = parse_jhmdb_splits()
+    elif args.dataset == 'vip':
+        splits = parse_vip_splits()
     else:
         raise ValueError(
             f"Supported datasets are 'ucf101, sthv1, sthv2',"

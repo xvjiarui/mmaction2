@@ -494,3 +494,24 @@ def parse_jhmdb_splits():
     splits = ((train_list[0], test_list[0]), (train_list[1], test_list[1]),
               (train_list[2], test_list[2]))
     return splits
+
+
+def parse_vip_splits():
+    """Parse DAVIS2017 dataset into "train", "val" splits.
+
+    Returns:
+        list: "train", "val", "test" splits of Moments in Time.
+    """
+    # Read the annotations
+    with open('data/vip/VIP_Fine/lists/train_videos.txt') as f:
+        train_list = [(vid.rstrip(), idx)
+                      for idx, vid in enumerate(f.readlines())]
+    with open('data/vip/VIP_Fine/lists/val_videos.txt') as f:
+        val_list = [(vid.rstrip(), idx)
+                    for idx, vid in enumerate(f.readlines())]
+    with open('data/vip/VIP_Fine/lists/test_videos.txt') as f:
+        test_list = [(vid.rstrip(), idx)
+                     for idx, vid in enumerate(f.readlines())]
+
+    splits = ((train_list, val_list, test_list), )
+    return splits

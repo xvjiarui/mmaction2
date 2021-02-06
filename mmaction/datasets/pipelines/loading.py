@@ -429,7 +429,7 @@ class SequentialSampleFrames(object):
         """
         total_frames = results['total_frames']
         results['frame_inds'] = np.arange(0, total_frames, self.frame_interval)
-        results['frame_inds'] += +results['start_index']
+        results['frame_inds'] += results['start_index']
         results['clip_len'] = total_frames
         results['frame_interval'] = self.frame_interval
         results['num_clips'] = 1
@@ -1004,7 +1004,12 @@ class RawFrameDecode(object):
         for frame_idx in results['frame_inds']:
             frame_idx += offset
             if modality == 'RGB':
-                filepath = osp.join(directory, filename_tmpl.format(frame_idx))
+                if 'frame_list' in results:
+                    filepath = osp.join(directory,
+                                        results['frame_list'][frame_idx])
+                else:
+                    filepath = osp.join(directory,
+                                        filename_tmpl.format(frame_idx))
                 img_bytes = self.file_client.get(filepath)
                 # Get frame with channel order RGB directly.
                 cur_frame = mmcv.imfrombytes(img_bytes, channel_order='rgb')
