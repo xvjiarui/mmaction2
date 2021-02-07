@@ -22,6 +22,7 @@ model = dict(
         use_residual=True,
         downsample=2,
         num_convs=1,
+        in_channels=128,
         norm_cfg=dict(type='SLN'),
         norm_only=True),
     img_head=dict(

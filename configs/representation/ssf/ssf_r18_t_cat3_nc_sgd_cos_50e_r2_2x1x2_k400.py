@@ -18,7 +18,7 @@ model = dict(
     fusion_plugin=dict(type='CatFusion', cat_dim=1),
     img_head=dict(
         type='SimSiamHead',
-        in_channels=512,
+        in_channels=512 * 2,
         norm_cfg=dict(type='SyncBN'),
         num_projection_fcs=3,
         projection_mid_channels=512 * 2,
