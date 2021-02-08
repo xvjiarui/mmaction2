@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from ..backbones import ResNet
 from ..common import (StrideContext, cat, images2video,
                       masked_attention_efficient, pil_nearest_interpolate,
                       spatial_neighbor, video2images)
@@ -31,6 +32,20 @@ class VanillaTracker(BaseTracker):
 
     def extract_feat_test(self, imgs):
         outs = []
+        if self.test_cfg.get('all_blocks', False):
+            assert isinstance(self.backbone, ResNet)
+            x = self.backbone.conv1(imgs)
+            x = self.backbone.maxpool(x)
+            outs = []
+            for i, layer_name in enumerate(self.backbone.res_layers):
+                res_layer = getattr(self.backbone, layer_name)
+                if i in self.test_cfg.out_indices:
+                    for block in res_layer:
+                        x = block(x)
+                        outs.append(x)
+                else:
+                    x = res_layer(x)
+            return tuple(outs)
         if self.with_neck:
             if self.test_cfg.get('use_fpn', True):
                 neck_out = self.extract_feat(imgs)
@@ -94,13 +109,13 @@ class VanillaTracker(BaseTracker):
         imgs = imgs.reshape((-1, ) + imgs.shape[2:])
         clip_len = imgs.size(2)
         # get target shape
-        dummy_faet = self.extract_feat_test(imgs[0:1, :, 0])
-        if isinstance(dummy_faet, (list, tuple)):
-            feat_shapes = [_.shape for _ in dummy_faet]
+        dummy_feat = self.extract_feat_test(imgs[0:1, :, 0])
+        if isinstance(dummy_feat, (list, tuple)):
+            feat_shapes = [_.shape for _ in dummy_feat]
         else:
-            feat_shapes = [dummy_faet.shape]
+            feat_shapes = [dummy_feat.shape]
         all_seg_preds = []
-        feat_bank = self.get_feats(imgs, len(dummy_faet))
+        feat_bank = self.get_feats(imgs, len(dummy_feat))
         for feat_idx, feat_shape in enumerate(feat_shapes):
             input_onehot = ref_seg_map.ndim == 4
             if not input_onehot:
