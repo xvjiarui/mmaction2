@@ -95,6 +95,9 @@ def main():
                                 osp.splitext(osp.basename(args.config))[0])
     if args.suffix is not None:
         cfg.work_dir = f'{cfg.work_dir}-{args.suffix}'
+    if not osp.exists(cfg.work_dir):
+        print('No work dir found, exiting')
+        return
     # init logger before other steps
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     log_file = osp.join(cfg.work_dir, f'test_seq_davis-{timestamp}.log')
