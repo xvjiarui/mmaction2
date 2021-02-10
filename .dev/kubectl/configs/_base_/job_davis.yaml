@@ -51,21 +51,26 @@ spec:
                     values:
                       - "1070"
                       - "1080"
-#                      - 1080Ti
-#                      - 2080Ti
-#                      - titan-xp
-#                      - titan-x
-#                      - TITANRTX
-##                      - A100
-#                      - V100
-#                      - "3090"
-#                      - RTX8000
+                      - 1080Ti
+                      - 2080Ti
+                      - titan-xp
+                      - titan-x
+                      - TITANRTX
+#                      - A100
+                      - V100
+                      - "3090"
+                      - RTX8000
                   - key: kubernetes.io/hostname
                     operator: NotIn
                     values:
 #                      - k8s-gpu-01.calit2.optiputer.net
 #                      - k8s-haosu-07.sdsc.optiputer.net
-                      - ucm-fiona01.ucmerced.edu
+                      - fiona8.ucsc.edu
+                      - k8s-gpu-01.calit2.optiputer.net
+                      - prp-gpu-6.t2.ucsd.edu
+                      - prp-gpu-2.t2.ucsd.edu
+                      - k8s-ravi-01.calit2.optiputer.net
+                      - clu-fiona2.ucmerced.edu
       volumes:
         - name: data
           persistentVolumeClaim:

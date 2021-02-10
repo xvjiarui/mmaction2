@@ -17,12 +17,10 @@ model = dict(
     # patch_head=None,
     att_plugin=dict(
         type='SelfAttention',
-        dropout=0.,
+        dropout=0.5,
         matmul_norm=True,
         use_residual=False,
-        num_convs=1,
-        norm_cfg=dict(type='SLN'),
-        norm_only=True),
+        detach_key=True),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,

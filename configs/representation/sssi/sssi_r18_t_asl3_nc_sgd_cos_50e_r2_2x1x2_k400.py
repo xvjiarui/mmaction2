@@ -3,7 +3,7 @@ temperature = 0.2
 with_norm = True
 query_dim = 128
 model = dict(
-    type='SimSiamBaseSTSNTracker',
+    type='SimSiamBaseAttInvTracker',
     backbone=dict(
         type='ResNet',
         pretrained=None,
@@ -19,7 +19,7 @@ model = dict(
         type='SelfAttention',
         dropout=0.,
         matmul_norm=True,
-        use_residual=False,
+        use_residual=True,
         num_convs=1,
         norm_cfg=dict(type='SLN'),
         norm_only=True),
@@ -39,10 +39,10 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     att_indices=(3, ),
-    self_as_value=True,
-    pred_frame_index=0,
-    target_frame_index=-1,
-    target_att=True)
+    self_as_value=False,
+    pred_frame_index=1,
+    target_frame_index=-2,
+    pred_att=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -66,7 +66,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=1, frame_interval=1, num_clips=2),
+    dict(type='SampleFrames', clip_len=2, frame_interval=1, num_clips=2),
     # dict(type='DuplicateFrames', times=2, as_clip=False),
     # dict(type='Frame2Clip'),
     # dict(
@@ -80,14 +80,14 @@ train_pipeline = [
         area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False,
-        same_frame_indices=None),
+        same_frame_indices=(1, )),
     dict(type='Resize', scale=(224, 224), keep_ratio=False),
     dict(
         type='Flip',
         flip_ratio=0.5,
         same_across_clip=False,
         same_on_clip=False,
-        same_frame_indices=None),
+        same_frame_indices=(1, )),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,
@@ -184,7 +184,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['ssst'],
+                tags=['sssi'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,

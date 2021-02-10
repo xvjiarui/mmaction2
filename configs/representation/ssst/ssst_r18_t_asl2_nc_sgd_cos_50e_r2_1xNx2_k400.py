@@ -20,7 +20,6 @@ model = dict(
         dropout=0.,
         matmul_norm=True,
         use_residual=True,
-        downsample=2,
         num_convs=1,
         in_channels=256,
         norm_cfg=dict(type='SLN'),

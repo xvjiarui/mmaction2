@@ -17,12 +17,9 @@ model = dict(
     # patch_head=None,
     att_plugin=dict(
         type='SelfAttention',
-        dropout=0.,
+        dropout=0.5,
         matmul_norm=True,
-        use_residual=False,
-        num_convs=1,
-        norm_cfg=dict(type='SLN'),
-        norm_only=True),
+        use_residual=False),
     img_head=dict(
         type='SimSiamHead',
         in_channels=512,
@@ -39,10 +36,11 @@ model = dict(
 # model training and testing settings
 train_cfg = dict(
     att_indices=(3, ),
-    self_as_value=True,
-    pred_frame_index=0,
-    target_frame_index=-1,
-    target_att=True)
+    self_as_value=False,
+    pred_frame_index=1,
+    target_frame_index=-2,
+    target_att=True,
+    bp_aux=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -66,7 +64,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=1, frame_interval=1, num_clips=2),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=2),
     # dict(type='DuplicateFrames', times=2, as_clip=False),
     # dict(type='Frame2Clip'),
     # dict(
@@ -80,14 +78,14 @@ train_pipeline = [
         area_range=(0.2, 1.),
         same_across_clip=False,
         same_on_clip=False,
-        same_frame_indices=None),
+        same_frame_indices=(1, )),
     dict(type='Resize', scale=(224, 224), keep_ratio=False),
     dict(
         type='Flip',
         flip_ratio=0.5,
         same_across_clip=False,
         same_on_clip=False,
-        same_frame_indices=None),
+        same_frame_indices=(1, )),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,
@@ -126,8 +124,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=128,
-    workers_per_gpu=16,
+    videos_per_gpu=64,
+    workers_per_gpu=8,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',

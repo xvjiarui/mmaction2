@@ -20,7 +20,6 @@ model = dict(
         dropout=0.,
         matmul_norm=True,
         use_residual=True,
-        downsample=2,
         num_convs=1,
         norm_cfg=dict(type='SLN'),
         norm_only=True),
@@ -168,7 +167,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_ratio=0.001,
 #     step=[1, 2])
 total_epochs = 50
-checkpoint_config = dict(interval=1, max_keep_ckpts=5)
+checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
     metrics='davis',

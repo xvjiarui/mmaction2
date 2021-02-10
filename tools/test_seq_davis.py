@@ -168,12 +168,15 @@ def main():
         start_epoch = args.start_epoch
 
     # build the model and load checkpoint
-    train_iters = train_len // 2 // cfg.data.videos_per_gpu
+    train_iters = train_len // 256
     for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
         if start_epoch == -1:
             args.auto_resume = False
             ckpt_path = osp.realpath(osp.join(cfg.work_dir, 'latest.pth'))
+            if not osp.exists(ckpt_path):
+                print('latest.pth not found, exiting')
+                return
             epoch = int(
                 osp.splitext(osp.basename(ckpt_path))[0].split('_')[-1])
         else:

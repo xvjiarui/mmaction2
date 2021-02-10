@@ -68,7 +68,8 @@ class SelfAttention(nn.Module):
                  matmul_norm=False,
                  dropout=0.0,
                  downsample=None,
-                 norm_only=False):
+                 norm_only=False,
+                 detach_key=False):
         super(SelfAttention, self).__init__()
         self.in_channels = in_channels
         self.kernel_size = kernel_size
@@ -80,6 +81,7 @@ class SelfAttention(nn.Module):
         self.use_residual = use_residual
         self.normalize = normalize
         self.matmul_norm = matmul_norm
+        self.detach_key = detach_key
         mid_channels = in_channels // reduction
         out_channels = in_channels
 
@@ -134,6 +136,8 @@ class SelfAttention(nn.Module):
     def forward(self, query, key=None, value=None):
         if key is None:
             key = query
+        if self.detach_key:
+            key = key.detach()
         if value is None:
             value = key
         key = self.downsample_input(key)

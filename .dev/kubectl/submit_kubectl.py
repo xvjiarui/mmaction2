@@ -84,12 +84,14 @@ def main():
     if osp.isdir(args.config):
         if args.file is not None:
             with open(args.file) as f:
-                submit_cfg_names = [line.strip() for line in f.readlines()]
+                submit_cfg_names = set(line.strip() for line in f.readlines())
             all_config_names = list(mmcv.scandir(args.config, recursive=True))
             for submit_cfg_name in submit_cfg_names:
                 for cfg in all_config_names:
                     if osp.basename(cfg) == submit_cfg_name:
                         submit(osp.join(args.config, cfg), args, rest)
+                        break
+                print(f'{submit_cfg_name} not found, skipping')
         else:
             for cfg in mmcv.scandir(args.config, suffix='.py'):
                 if 'playground' in cfg:
