@@ -193,7 +193,7 @@ def main():
                 time.sleep(300)
         logger.info(f'Found {ckpt_path}')
 
-        logger.info('test_cfg: ', cfg.test_cfg)
+        logger.info(f'test_cfg: {cfg.test_cfg}')
         model = build_model(cfg.model, train_cfg=None, test_cfg=cfg.test_cfg)
         load_checkpoint(model, ckpt_path, map_location='cpu')
         if distributed:
@@ -220,6 +220,7 @@ def main():
                     outputs, **eval_config, logger=logger)
                 for name, val in eval_res.items():
                     logger.info(f'{name}: {val:.04f}')
+                logger.info(f'checkpoint: {ckpt_path}')
                 if wandb is not None:
                     wandb.log(eval_res, step=epoch * train_iters, commit=False)
             if args.auto_resume:

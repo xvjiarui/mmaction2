@@ -220,6 +220,7 @@ def main():
                     outputs, **eval_config, logger=logger)
                 for name, val in eval_res.items():
                     logger.info(f'{name}: {val:.04f}')
+                logger.info(f'checkpoint: {ckpt_path}')
                 if wandb is not None:
                     wandb.log(eval_res, step=epoch * train_iters, commit=False)
             if args.auto_resume:
