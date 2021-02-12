@@ -90,8 +90,6 @@ def main():
                 for cfg in all_config_names:
                     if osp.basename(cfg) == submit_cfg_name:
                         submit(osp.join(args.config, cfg), args, rest)
-                        break
-                print(f'{submit_cfg_name} not found, skipping')
         else:
             for cfg in mmcv.scandir(args.config, suffix='.py'):
                 if 'playground' in cfg:

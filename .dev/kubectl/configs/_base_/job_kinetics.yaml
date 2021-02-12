@@ -101,16 +101,16 @@ spec:
 #                      - k8s-bharadia-04.sdsc.optiputer.net
 #                      - k8s-bharadia-03.sdsc.optiputer.net
 #                      - fiona8.ucsc.edu
-##                      - k8s-gpu-01.calit2.optiputer.net
+#                      - k8s-gpu-01.calit2.optiputer.net
 #                      - k8s-gpu-2.ucr.edu
-          preferredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-#                      - ucm-fiona01.ucmerced.edu
-                      - k8s-gpu-1.ucr.edu
+#          preferredDuringSchedulingIgnoredDuringExecution:
+#            nodeSelectorTerms:
+#              - matchExpressions:
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+##                      - ucm-fiona01.ucmerced.edu
+#                      - k8s-gpu-1.ucr.edu
       volumes:
 #        - name: data
 #          persistentVolumeClaim:

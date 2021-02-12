@@ -7,7 +7,7 @@ from .augmentations import (RGB2LAB, CenterCrop, ColorJitter, Flip, Fuse, Grid,
 from .compose import Compose
 from .formating import (Collect, FormatShape, ImageToTensor, ToDataContainer,
                         ToTensor, Transpose)
-from .loading import (AppendFrames, DecordDecode, DecordInit,
+from .loading import (AppendFrames, Clip2Frame, DecordDecode, DecordInit,
                       DenseSampleFrames, DuplicateFrames, Frame2Clip,
                       FrameSelector, GenerateLocalizationLabels,
                       LoadLocalizationFeature, LoadProposals, OpenCVDecode,
@@ -27,5 +27,5 @@ __all__ = [
     'PhotoMetricDistortion', 'RGB2LAB', 'RandomGaussianBlur',
     'RandomGrayScale', 'DuplicateFrames', 'ColorJitter', 'RawImageDecode',
     'Grid', 'Image2Patch', 'HidePatch', 'RandomAffine', 'RandomErasing',
-    'RandomChoiceRotate', 'Frame2Clip', 'AppendFrames'
+    'RandomChoiceRotate', 'Frame2Clip', 'AppendFrames', 'Clip2Frame'
 ]

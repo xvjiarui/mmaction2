@@ -29,7 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False, transpose_temporal=True)
+train_cfg = dict(intra_video=False)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -54,6 +54,7 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='DecordInit'),
     dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
+    dict(type='Frame2Clip'),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(

@@ -218,6 +218,21 @@ class Frame2Clip(object):
 
 
 @PIPELINES.register_module()
+class Clip2Frame(object):
+
+    def __init__(self, clip_len):
+        self.clip_len = clip_len
+
+    def __call__(self, results):
+        clip_len = results['clip_len']
+        num_clips = results['num_clips']
+        results['clip_len'] = self.clip_len
+        results['num_clips'] = num_clips * clip_len // self.clip_len
+
+        return results
+
+
+@PIPELINES.register_module()
 class AppendFrames(object):
 
     def __init__(self,

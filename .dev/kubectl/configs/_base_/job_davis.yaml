@@ -65,12 +65,17 @@ spec:
                     values:
 #                      - k8s-gpu-01.calit2.optiputer.net
 #                      - k8s-haosu-07.sdsc.optiputer.net
+                      - ucm-fiona01.ucmerced.edu
                       - fiona8.ucsc.edu
-                      - k8s-gpu-01.calit2.optiputer.net
-                      - prp-gpu-6.t2.ucsd.edu
+                      - k8s-chase-ci-04.calit2.optiputer.net
+#                      - k8s-gpu-01.calit2.optiputer.net
+#                      - prp-gpu-6.t2.ucsd.edu
+                      - fiona8-3.calit2.uci.edu
                       - prp-gpu-2.t2.ucsd.edu
-                      - k8s-ravi-01.calit2.optiputer.net
-                      - clu-fiona2.ucmerced.edu
+#                      - k8s-ravi-01.calit2.optiputer.net
+#                      - clu-fiona2.ucmerced.edu
+                      - suncave-1
+                      - k8s-gpu-2.ucr.edu
       volumes:
         - name: data
           persistentVolumeClaim:

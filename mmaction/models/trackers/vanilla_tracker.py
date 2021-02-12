@@ -69,6 +69,10 @@ class VanillaTracker(BaseTracker):
                 return outs[0]
             return tuple(outs)
         else:
+            if self.test_cfg.get('concat_feats', False):
+                feats = self.extract_feat(imgs)
+                feats = feats + (cat(feats, dim=1), )
+                return feats
             return self.extract_feat(imgs)
 
     def extract_single_feat(self, imgs, idx):
