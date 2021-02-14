@@ -2,6 +2,7 @@ import torch.nn as nn
 from mmcv.cnn import ConvModule, build_plugin_layer
 
 from ..builder import build_drop_layer, build_loss
+from ..plugin.self_attention import AttentionPool2d
 from ..registry import HEADS
 
 
@@ -109,11 +110,17 @@ class SimSiamHead(nn.Module):
         else:
             self.predictor_fcs = nn.Identity()
 
-        assert spatial_type in ['avg', None]
+        assert spatial_type in ['avg', 'att', None]
         self.spatial_type = spatial_type
         if self.spatial_type == 'avg':
             # use `nn.AdaptiveAvgPool3d` to adaptively match the in_channels.
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        elif self.spatial_type == 'att':
+            self.avg_pool = AttentionPool2d(
+                spacial_dim=7,
+                num_heads=8,
+                embed_dim=last_channels,
+                output_dim=last_channels)
         else:
             self.avg_pool = nn.Identity()
         if drop_layer_cfg is not None:
