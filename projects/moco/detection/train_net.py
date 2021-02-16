@@ -9,6 +9,8 @@ from detectron2.engine import DefaultTrainer, default_argument_parser, default_s
 from detectron2.evaluation import COCOEvaluator, PascalVOCDetectionEvaluator
 from detectron2.layers import get_norm
 from detectron2.modeling.roi_heads import ROI_HEADS_REGISTRY, Res5ROIHeads
+import torch.nn as nn
+from detectron2.modeling.backbone.resnet import BasicBlock, make_stage
 import mmcv
 import wandb
 import json
@@ -20,7 +22,27 @@ class Res5ROIHeadsExtraNorm(Res5ROIHeads):
     following the res5 stage.
     """
     def _build_res5_block(self, cfg):
-        seq, out_channels = super()._build_res5_block(cfg)
+        depth = cfg.MODEL.RESNETS.DEPTH
+        # handle r18,r34
+        if depth in [18, 34]:
+            # fmt: off
+            stage_channel_factor = 2 ** 3  # res5 is 8x res2
+            out_channels = cfg.MODEL.RESNETS.RES2_OUT_CHANNELS * stage_channel_factor
+            norm = cfg.MODEL.RESNETS.NORM
+            assert not cfg.MODEL.RESNETS.DEFORM_ON_PER_STAGE[-1], \
+                "Deformable conv is not yet supported in res5 head."
+            # fmt: on
+
+            blocks = make_stage(
+                BasicBlock,
+                2 if depth == 18 else 3,
+                first_stride=2,
+                in_channels=out_channels // 2,
+                out_channels=out_channels,
+                norm=norm)
+            return nn.Sequential(*blocks), out_channels
+        else:
+            seq, out_channels = super()._build_res5_block(cfg)
         norm = cfg.MODEL.RESNETS.NORM
         norm = get_norm(norm, out_channels)
         seq.add_module("norm", norm)
