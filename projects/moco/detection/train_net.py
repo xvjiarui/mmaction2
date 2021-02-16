@@ -125,7 +125,7 @@ if __name__ == "__main__":
     )
     if len(cfg.MMACTION_CFG) and len(
             pretrained_ckpt) and not cfg.DISABLE_WANDB:
-        with open('output/metrics.json', 'r') as f:
+        with open(f'{cfg.OUTPUT_DIR}/metrics.json', 'r') as f:
             for line in f:
                 log = json.loads(line)
                 iterations = log.pop('iteration')
