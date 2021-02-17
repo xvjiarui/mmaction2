@@ -44,6 +44,7 @@ def parse_args():
         '--auto-resume',
         action='store_true',
         help='automatically resume training')
+    parser.add_argument('--out-index', type=int, default=3)
     parser.add_argument('--eval-interval', type=int, default=1)
     parser.add_argument('--skip', action='store_true')
     args = parser.parse_args()
@@ -154,8 +155,9 @@ def main():
         logger.info(f'Found {ckpt_path}')
         weight_path = convert_to_pretrained(ckpt_path, args.config)
 
-        logger.info(f'cfg: {cfg}')
         cfg.model.backbone.pretrained = weight_path
+        cfg.model.backbone.out_indices = (args.out_index,)
+        logger.info(f'cfg: \n {cfg.pretty_text}')
         tracker = TrackerSiamFC(cfg, logger)
 
         with torch.no_grad():
