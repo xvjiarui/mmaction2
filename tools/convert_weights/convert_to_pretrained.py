@@ -21,6 +21,8 @@ def convert(src, dst):
                 name = f'conv1.{tail}'
             elif b_k_splits[1] == 'bn':
                 name = f'bn1.{tail}'
+            elif b_k_splits[1] == 'gn':
+                name = f'gn1.{tail}'
             else:
                 raise RuntimeError(b_k)
         elif b_k.startswith('layer'):
@@ -32,6 +34,8 @@ def convert(src, dst):
                     name = f'layer{layer_idx}.{block_idx}.downsample.0.{tail}'
                 elif b_k_splits[3] == 'bn':
                     name = f'layer{layer_idx}.{block_idx}.downsample.1.{tail}'
+                elif b_k_splits[3] == 'gn':
+                    name = f'layer{layer_idx}.{block_idx}.downsample.1.{tail}'
                 else:
                     raise RuntimeError(b_k)
             elif b_k_splits[3] == 'conv':
@@ -42,6 +46,10 @@ def convert(src, dst):
                 conv_module_idx = int(b_k_splits[2][-1])
                 name = f'layer{layer_idx}.{block_idx}.' \
                        f'bn{conv_module_idx}.{tail}'
+            elif b_k_splits[3] == 'gn':
+                conv_module_idx = int(b_k_splits[2][-1])
+                name = f'layer{layer_idx}.{block_idx}.' \
+                       f'gn{conv_module_idx}.{tail}'
             else:
                 raise RuntimeError(b_k)
         else:

@@ -1,9 +1,15 @@
 import torch.nn as nn
-from mmcv.cnn import ConvModule, build_plugin_layer
+from mmcv.cnn import ConvModule, build_norm_layer, build_plugin_layer
 
 from ..builder import build_drop_layer, build_loss
 from ..plugin.self_attention import AttentionPool2d
 from ..registry import HEADS
+
+
+def build_norm1d(cfg, num_features):
+    if cfg['type'] == 'BN':
+        return nn.BatchNorm1d(num_features=num_features)
+    return build_norm_layer(cfg, num_features=num_features)[1]
 
 
 @HEADS.register_module()
@@ -70,18 +76,13 @@ class SimSiamHead(nn.Module):
         else:
             self.convs = nn.Identity()
 
-        if norm_cfg['type'] == 'SyncBN':
-            BatchNorm1d = nn.SyncBatchNorm
-        else:
-            BatchNorm1d = nn.BatchNorm1d
-
         projection_fcs = []
         for i in range(num_projection_fcs):
             is_last = i == num_projection_fcs - 1
             out_channels = projection_out_channels if is_last else \
                 projection_mid_channels
             projection_fcs.append(nn.Linear(last_channels, out_channels))
-            projection_fcs.append(BatchNorm1d(out_channels))
+            projection_fcs.append(build_norm1d(norm_cfg, out_channels))
             # no relu on output
             if not is_last:
                 projection_fcs.append(nn.ReLU())
@@ -100,7 +101,7 @@ class SimSiamHead(nn.Module):
                 predictor_mid_channels
             predictor_fcs.append(nn.Linear(last_channels, out_channels))
             if not is_last:
-                predictor_fcs.append(BatchNorm1d(out_channels))
+                predictor_fcs.append(build_norm1d(norm_cfg, out_channels))
                 predictor_fcs.append(nn.ReLU())
                 if drop_predictor_fc:
                     predictor_fcs.append(build_drop_layer(drop_layer_cfg))
