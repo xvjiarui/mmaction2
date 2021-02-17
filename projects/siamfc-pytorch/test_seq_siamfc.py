@@ -118,10 +118,10 @@ def main():
         set_random_seed(args.seed, deterministic=args.deterministic)
     cfg.seed = args.seed
 
-    def print_log(*args):
-        logger.info(','.join(args))
-
-    builtins.print = print_log
+    # def print_log(*args):
+    #     logger.info(','.join(args))
+    #
+    # builtins.print = print_log
     json_path = osp.join(cfg.work_dir, 'test_seq_vip.json')
     if osp.exists(json_path) and args.auto_resume:
         eval_info = mmcv.load(json_path)
