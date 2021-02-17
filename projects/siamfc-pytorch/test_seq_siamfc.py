@@ -131,7 +131,7 @@ def main():
         start_epoch = args.start_epoch
 
     # build the model and load checkpoint
-    train_len = len(build_dataset(cfg.data.train))
+    train_len = 234618 # hardcode
     train_iters = train_len // 256
     for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
