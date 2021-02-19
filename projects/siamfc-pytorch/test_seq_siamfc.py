@@ -56,9 +56,10 @@ def convert_to_pretrained(pretrained, config):
     weight_path = osp.realpath(pretrained).replace(
         'epoch_',
         osp.basename(config) + '_ep').replace('.pth', '-backbone.pth')
-    os.system(f'MKL_THREADING_LAYER=GNU python '
-              f'tools/convert_weights/convert_to_pretrained.py '
-              f'{pretrained} {weight_path}')
+    if not osp.exists(weight_path):
+        os.system(f'MKL_THREADING_LAYER=GNU python '
+                  f'tools/convert_weights/convert_to_pretrained.py '
+                  f'{pretrained} {weight_path}')
     assert osp.exists(weight_path)
 
     return weight_path
