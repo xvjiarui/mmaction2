@@ -29,7 +29,7 @@ model = dict(
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False)
+train_cfg = dict(intra_video=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -56,9 +56,10 @@ train_pipeline = [
     dict(
         type='SampleFrames',
         clip_len=1,
-        frame_interval=16,
-        num_clips=2,
-        random_frame_interval=True),
+        frame_interval=0,
+        num_clips=8,
+        out_of_bound_opt='repeat_last'),
+    dict(type='Clip2Frame', clip_len=4),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(
@@ -110,12 +111,12 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=32,
-    workers_per_gpu=4,
+    videos_per_gpu=16,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',
-        times=2,
+        times=5,
         dataset=dict(
             type=dataset_type,
             ann_file=ann_file_train,
@@ -150,7 +151,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 50
+total_epochs = 100
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

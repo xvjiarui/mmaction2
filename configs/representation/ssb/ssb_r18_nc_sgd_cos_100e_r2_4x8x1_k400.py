@@ -7,7 +7,7 @@ model = dict(
     backbone=dict(
         type='ResNet',
         pretrained=None,
-        depth=50,
+        depth=18,
         out_indices=(3, ),
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
@@ -17,19 +17,19 @@ model = dict(
     # patch_head=None,
     img_head=dict(
         type='SimSiamHead',
-        in_channels=2048,
+        in_channels=512,
         norm_cfg=dict(type='SyncBN'),
         num_projection_fcs=3,
-        projection_mid_channels=2048,
-        projection_out_channels=2048,
+        projection_mid_channels=512,
+        projection_out_channels=512,
         num_predictor_fcs=2,
-        predictor_mid_channels=512,
-        predictor_out_channels=2048,
+        predictor_mid_channels=128,
+        predictor_out_channels=512,
         with_norm=True,
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False)
+train_cfg = dict(intra_video=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -55,10 +55,11 @@ train_pipeline = [
     dict(type='DecordInit'),
     dict(
         type='SampleFrames',
-        clip_len=1,
-        frame_interval=16,
-        num_clips=2,
-        random_frame_interval=True),
+        clip_len=4,
+        frame_interval=8,
+        num_clips=1,
+        out_of_bound_opt='repeat_last'),
+    dict(type='Clip2Frame', clip_len=2),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(
@@ -110,8 +111,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=32,
-    workers_per_gpu=4,
+    videos_per_gpu=64,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',
@@ -150,7 +151,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 50
+total_epochs = 100
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,

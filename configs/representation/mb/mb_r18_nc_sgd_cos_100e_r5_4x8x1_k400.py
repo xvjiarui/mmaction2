@@ -3,31 +3,28 @@ temperature = 0.2
 with_norm = True
 query_dim = 128
 model = dict(
-    type='SimSiamBaseTracker',
+    type='MoCoBaseTracker',
+    queue_dim=query_dim,
+    img_queue_size=256 * 256,
     backbone=dict(
         type='ResNet',
         pretrained=None,
-        depth=50,
+        depth=18,
+        # depth=50,
         out_indices=(3, ),
         # strides=(1, 2, 1, 1),
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=False,
         zero_init_residual=True),
-    # cls_head=None,
-    # patch_head=None,
     img_head=dict(
-        type='SimSiamHead',
-        in_channels=2048,
-        norm_cfg=dict(type='SyncBN'),
-        num_projection_fcs=3,
-        projection_mid_channels=2048,
-        projection_out_channels=2048,
-        num_predictor_fcs=2,
-        predictor_mid_channels=512,
-        predictor_out_channels=2048,
-        with_norm=True,
-        loss_feat=dict(type='CosineSimLoss', negative=False),
-        spatial_type='avg'))
+        type='MoCoHead',
+        loss_feat=dict(type='MultiPairNCE', loss_weight=1.),
+        in_channels=512,
+        num_fcs=2,
+        fc_mid_channels=512,
+        fc_out_channels=query_dim,
+        multi_pair=True,
+        temperature=temperature,
+        with_norm=with_norm))
 # model training and testing settings
 train_cfg = dict(intra_video=False)
 test_cfg = dict(
@@ -55,10 +52,11 @@ train_pipeline = [
     dict(type='DecordInit'),
     dict(
         type='SampleFrames',
-        clip_len=1,
-        frame_interval=16,
-        num_clips=2,
-        random_frame_interval=True),
+        clip_len=4,
+        frame_interval=8,
+        num_clips=1,
+        out_of_bound_opt='repeat_last'),
+    dict(type='Clip2Frame', clip_len=2),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
     dict(
@@ -110,12 +108,12 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=32,
-    workers_per_gpu=4,
+    videos_per_gpu=64,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',
-        times=2,
+        times=5,
         dataset=dict(
             type=dataset_type,
             ann_file=ann_file_train,
@@ -150,7 +148,7 @@ lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
 #     warmup_iters=100,
 #     warmup_ratio=0.001,
 #     step=[1, 2])
-total_epochs = 50
+total_epochs = 100
 checkpoint_config = dict(interval=1)
 evaluation = dict(
     interval=1,
@@ -168,7 +166,7 @@ log_config = dict(
                 project='mmaction2',
                 name='{{fileBasenameNoExtension}}',
                 resume=True,
-                tags=['ssb'],
+                tags=['mb'],
                 dir='wandb/{{fileBasenameNoExtension}}',
                 config=dict(
                     model=model,

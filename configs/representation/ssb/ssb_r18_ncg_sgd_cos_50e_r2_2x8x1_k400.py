@@ -7,7 +7,7 @@ model = dict(
     backbone=dict(
         type='ResNet',
         pretrained=None,
-        depth=50,
+        depth=18,
         out_indices=(3, ),
         # strides=(1, 2, 1, 1),
         norm_cfg=dict(type='SyncBN', requires_grad=True),
@@ -17,19 +17,19 @@ model = dict(
     # patch_head=None,
     img_head=dict(
         type='SimSiamHead',
-        in_channels=2048,
+        in_channels=512,
         norm_cfg=dict(type='SyncBN'),
         num_projection_fcs=3,
-        projection_mid_channels=2048,
-        projection_out_channels=2048,
+        projection_mid_channels=512,
+        projection_out_channels=512,
         num_predictor_fcs=2,
-        predictor_mid_channels=512,
-        predictor_out_channels=2048,
+        predictor_mid_channels=128,
+        predictor_out_channels=512,
         with_norm=True,
         loss_feat=dict(type='CosineSimLoss', negative=False),
         spatial_type='avg'))
 # model training and testing settings
-train_cfg = dict(intra_video=False)
+train_cfg = dict(intra_video=False, transpose_temporal=True)
 test_cfg = dict(
     precede_frames=20,
     topk=10,
@@ -53,25 +53,20 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(
-        type='SampleFrames',
-        clip_len=1,
-        frame_interval=16,
-        num_clips=2,
-        random_frame_interval=True),
+    dict(type='SampleFrames', clip_len=2, frame_interval=8, num_clips=1),
     # dict(type='DuplicateFrames', times=2),
     dict(type='DecordDecode'),
-    dict(
-        type='RandomResizedCrop',
-        area_range=(0.2, 1.),
-        same_across_clip=False,
-        same_on_clip=False),
+    # dict(
+    #     type='RandomResizedCrop',
+    #     area_range=(0.2, 1.),
+    #     same_across_clip=False,
+    #     same_on_clip=False),
     dict(type='Resize', scale=(224, 224), keep_ratio=False),
-    dict(
-        type='Flip',
-        flip_ratio=0.5,
-        same_across_clip=False,
-        same_on_clip=False),
+    # dict(
+    #     type='Flip',
+    #     flip_ratio=0.5,
+    #     same_across_clip=False,
+    #     same_on_clip=False),
     # dict(
     #     type='ColorJitter',
     #     brightness=0.4,
@@ -110,8 +105,8 @@ val_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'ref_seg_map'])
 ]
 data = dict(
-    videos_per_gpu=32,
-    workers_per_gpu=4,
+    videos_per_gpu=128,
+    workers_per_gpu=16,
     val_workers_per_gpu=1,
     train=dict(
         type='RepeatDataset',
