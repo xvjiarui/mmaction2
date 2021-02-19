@@ -80,6 +80,7 @@ def main():
         cfg.merge_from_dict(args.options)
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
+        print('cudnn_benchmark=True')
         torch.backends.cudnn.benchmark = True
 
     # work_dir is determined in this priority:
@@ -206,6 +207,7 @@ def main():
     # log some basic info
     logger.info(f'Distributed training: {distributed}')
     logger.info(f'Config: {cfg.text}')
+    logger.info(f'Config.pretty_text: {cfg.pretty_text}')
 
     # set random seeds
     if args.seed is not None:
