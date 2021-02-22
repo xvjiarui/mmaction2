@@ -153,6 +153,8 @@ class TrackerSiamFC(Tracker):
             self.lr_scheduler = ExponentialLR(self.optimizer, gamma)
         elif cfg.lr_schedule == 'step':
             self.lr_scheduler = StepLR(self.optimizer, cfg.lr_step_size)
+        elif cfg.lr_schedule == 'fixed':
+            self.lr_scheduler = None
         else:
             raise NotImplementedError
 
@@ -411,7 +413,8 @@ class TrackerSiamFC(Tracker):
                 batch_time_meter.update(time.perf_counter() - before_iter_time, )
                 before_iter_time = time.perf_counter()
             # update lr at each epoch
-            self.lr_scheduler.step()
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             if epoch == self.cfg.epoch_num - 1:
                 save_dir = osp.join(self.cfg.work_dir, self.cfg.suffix)
