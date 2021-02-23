@@ -123,10 +123,10 @@ if __name__ == "__main__":
         dist_url=args.dist_url,
         args=(args,),
     )
-    if len(cfg.MMACTION_CFG) and len(
-            pretrained_ckpt) and not cfg.DISABLE_WANDB:
-        with open(f'{cfg.OUTPUT_DIR}/metrics.json', 'r') as f:
-            for line in f:
-                log = json.loads(line)
-                iterations = log.pop('iteration')
-                wandb.log(log, step=iterations)
+    # if len(cfg.MMACTION_CFG) and len(
+    #         pretrained_ckpt) and not cfg.DISABLE_WANDB:
+    #     with open(f'{cfg.OUTPUT_DIR}/metrics.json', 'r') as f:
+    #         for line in f:
+    #             log = json.loads(line)
+    #             iterations = log.pop('iteration')
+    #             wandb.log(log, step=iterations)
