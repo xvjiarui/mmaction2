@@ -39,6 +39,7 @@ default_cfg = {
     'lr_step_size': 10,
     'extra_conv': True,
     'out_channels': 512,
+    'auto_resume': True,
     # MMAction
     'model': {
         'backbone': {

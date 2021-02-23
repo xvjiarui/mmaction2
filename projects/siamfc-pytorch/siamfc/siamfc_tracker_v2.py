@@ -1,5 +1,6 @@
 import datetime
 import os.path as osp
+import os
 import time
 
 import kornia.augmentation as K
@@ -108,8 +109,6 @@ class TrackerSiamFC(Tracker):
             self.net = Net(
                 backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale))
         logger.info(f'Model: {str(self.net)}')
-        if cfg.checkpoint is not None:
-            load_checkpoint(self.net, cfg.checkpoint, map_location='cpu')
 
         self.net = self.net.to(self.device)
 
@@ -161,6 +160,22 @@ class TrackerSiamFC(Tracker):
         self.normalize = K.Normalize(
             mean=torch.tensor([123.675, 116.28, 103.53]),
             std=torch.tensor([58.395, 57.12, 57.375]))
+        self.start_epoch = 0
+        if cfg.auto_resume:
+            save_dir = osp.join(self.cfg.work_dir, self.cfg.suffix)
+            dst_file = osp.join(save_dir, 'latest.pth')
+            if osp.exists(dst_file):
+                self.logger.info(f'load checkpoint from {osp.realpath(dst_file)}')
+                checkpoint = load_checkpoint(self.net, dst_file,
+                                             map_location='cpu', strict=True,
+                                             logger=self.logger)
+                self.start_epoch = checkpoint['meta']['epoch']
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.load_state_dict(checkpoint['meta']['scheduler'])
+                    self.logger(f'load scheduler from epoch {self.start_epoch}')
+                self.logger(f'resume from epoch {self.start_epoch}')
+        if cfg.checkpoint is not None:
+            load_checkpoint(self.net, cfg.checkpoint, map_location='cpu')
 
     @torch.no_grad()
     def init(self, img, box):
@@ -416,10 +431,15 @@ class TrackerSiamFC(Tracker):
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            if epoch == self.cfg.epoch_num - 1:
-                save_dir = osp.join(self.cfg.work_dir, self.cfg.suffix)
-                net_path = osp.join(save_dir, f'epoch_{epoch + 1}.pth')
-                save_checkpoint(self.net, net_path, self.optimizer)
-                self.logger.info(f'{net_path} saved')
-                dst_file = osp.join(save_dir, 'latest.pth')
-                mmcv.symlink(osp.basename(net_path), dst_file)
+            save_dir = osp.join(self.cfg.work_dir, self.cfg.suffix)
+            last_net_path = osp.join(save_dir, f'epoch_{epoch}.pth')
+            net_path = osp.join(save_dir, f'epoch_{epoch + 1}.pth')
+            if self.lr_scheduler is not None:
+                meta = dict(epoch=epoch, scheduler=self.lr_scheduler.state_dict())
+            else:
+                meta = dict(epoch=epoch)
+            save_checkpoint(self.net, net_path, optimizer=self.optimizer, meta=meta)
+            self.logger.info(f'{net_path} saved')
+            dst_file = osp.join(save_dir, 'latest.pth')
+            mmcv.symlink(osp.basename(net_path), dst_file)
+            os.remove(last_net_path)
