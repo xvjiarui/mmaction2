@@ -442,4 +442,6 @@ class TrackerSiamFC(Tracker):
             self.logger.info(f'{net_path} saved')
             dst_file = osp.join(save_dir, 'latest.pth')
             mmcv.symlink(osp.basename(net_path), dst_file)
-            os.remove(last_net_path)
+            if osp.exists(last_net_path):
+                self.logger(f'deleting {last_net_path}')
+                os.remove(last_net_path)
