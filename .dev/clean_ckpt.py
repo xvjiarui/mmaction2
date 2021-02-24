@@ -9,6 +9,7 @@ def parse_args():
     parser.add_argument('--work-dir', help='the dir to save logs and models')
     parser.add_argument('--interval', type=int, default=5)
     parser.add_argument('--min-len', type=int, default=10)
+    parser.add_argument('--match', type=str)
 
     args = parser.parse_args()
 
@@ -45,6 +46,9 @@ def main():
     else:
         for directory in os.listdir(args.root):
             if osp.isdir(directory):
+                if args.match is not None and args.match in directory:
+                    print(f'skipping {directory}')
+                    continue
                 clean_path = osp.join(args.root, directory)
                 clean_dir(clean_path, args.interval, args.min_len)
 
