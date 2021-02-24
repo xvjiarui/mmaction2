@@ -172,7 +172,7 @@ class TrackerSiamFC(Tracker):
                 self.start_epoch = checkpoint['meta']['epoch']
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.load_state_dict(checkpoint['meta']['scheduler'])
-                    self.logger(f'load scheduler from epoch {self.start_epoch}')
+                    self.logger.info(f'load scheduler from epoch {self.start_epoch}')
                 self.logger(f'resume from epoch {self.start_epoch}')
         if cfg.checkpoint is not None:
             load_checkpoint(self.net, cfg.checkpoint, map_location='cpu')
