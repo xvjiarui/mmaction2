@@ -169,7 +169,7 @@ class TrackerSiamFC(Tracker):
                 checkpoint = load_checkpoint(self.net, dst_file,
                                              map_location='cpu', strict=True,
                                              logger=self.logger)
-                self.start_epoch = checkpoint['meta']['epoch']
+                self.start_epoch = checkpoint['meta']['epoch'] + 1
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.load_state_dict(checkpoint['meta']['scheduler'])
                     self.logger.info(f'load scheduler from epoch {self.start_epoch}')
@@ -405,7 +405,7 @@ class TrackerSiamFC(Tracker):
         batch_time_meter = AverageMeter('Time', ':.3f')
         data_time_meter = AverageMeter('Data', ':.3f')
         loss_meter = AverageMeter('Loss', ':.3f')
-        for epoch in range(self.cfg.epoch_num):
+        for epoch in range(self.start_epoch, self.cfg.epoch_num):
             # loop over dataloader
             before_iter_time = time.perf_counter()
             for it, batch in enumerate(dataloader):
