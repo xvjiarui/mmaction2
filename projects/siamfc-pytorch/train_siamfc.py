@@ -102,6 +102,7 @@ def main():
     logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
 
     logger.info(f'Config: {cfg.text}')
+    logger.info(f'Config.pretty_text: {cfg.pretty_text}')
 
     # set random seeds
     if args.seed is not None:

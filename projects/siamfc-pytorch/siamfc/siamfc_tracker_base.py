@@ -1,4 +1,5 @@
 import datetime
+import cv2
 import os.path as osp
 import os
 import time
@@ -8,23 +9,20 @@ import mmcv
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from got10k.trackers import Tracker
 from mmcv.parallel import is_module_wrapper
 from mmcv.runner import load_checkpoint, save_checkpoint
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from torch.utils.data import DataLoader
-from torchvision import transforms
 
 from mmaction.models import build_backbone
 from mmaction.utils import terminal_is_available
 from . import ops
 from .heads import SiamConvFC, SiamFC
 from .losses import BalancedLoss, FocalLoss
-from .pair_dataset import PairDataset
-from .pytorch_utils import ToTensor
-from .siamfc_transforms import SiamFCTransforms
+from .datasets import Pair
+from .transforms import SiamFCTransforms
 
 
 def _convert_batchnorm(module):
@@ -169,9 +167,9 @@ class TrackerSiamFC(Tracker):
                 checkpoint = load_checkpoint(self.net, dst_file,
                                              map_location='cpu', strict=True,
                                              logger=self.logger)
+                self.optimizer.load_state_dict(checkpoint['optimizer'])
+                self.logger.info(f'load optimizer from epoch {self.start_epoch}')
                 self.start_epoch = checkpoint['meta']['epoch'] + 1
-                if 'optimizer' in checkpoint:
-                    self.optimizer.load_state_dict(checkpoint['optimizer'])
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.load_state_dict(checkpoint['meta']['scheduler'])
                     self.logger.info(f'load scheduler from epoch {self.start_epoch}')
@@ -245,20 +243,23 @@ class TrackerSiamFC(Tracker):
         # responses
         x = self.net.backbone(x)
         responses = self.net.head(self.kernel, x)
-        # responses = responses.squeeze(1).cpu().numpy()
+        responses = responses.squeeze(1).cpu().numpy()
 
         # upsample responses and penalize scale changes
-        # responses = np.stack([
-        #     cv2.resize(
-        #         u, (self.upscale_sz, self.upscale_sz),
-        #         interpolation=cv2.INTER_CUBIC) for u in responses
-        # ])
-        responses = F.interpolate(
-            responses,
-            size=(self.upscale_sz, self.upscale_sz),
-            mode='bicubic',
-            align_corners=False)
-        responses = responses.squeeze(1).cpu().numpy()
+        responses = np.stack([
+            cv2.resize(
+                u, (self.upscale_sz, self.upscale_sz),
+                interpolation=cv2.INTER_CUBIC) for u in responses
+        ])
+        # import torch.nn.functional as F
+        # responses_ = F.interpolate(
+        #     self.net.head(self.kernel, x),
+        #     size=(self.upscale_sz, self.upscale_sz),
+        #     mode='bicubic',
+        #     align_corners=False)
+        # responses_ = responses_.squeeze(1).cpu().numpy()
+        # import ipdb
+        # ipdb.set_trace()
         responses[:self.cfg.scale_num // 2] *= self.cfg.scale_penalty
         responses[self.cfg.scale_num // 2 + 1:] *= self.cfg.scale_penalty
 
@@ -347,14 +348,14 @@ class TrackerSiamFC(Tracker):
         # parse batch data
         z = batch[0].to(self.device, non_blocking=self.cuda)
         x = batch[1].to(self.device, non_blocking=self.cuda)
-        labels = batch[2].to(self.device, non_blocking=self.cuda)
 
         with torch.set_grad_enabled(backward):
             # inference
-            responses = self.net(z, x)
+            responses = self.net(self.normalize(z), self.normalize(x))
 
             # calculate loss
-            loss = self.criterion(responses, labels.float())
+            labels = self._create_labels(responses.size())
+            loss = self.criterion(responses, labels)
 
             if backward:
                 # back propagation
@@ -374,24 +375,17 @@ class TrackerSiamFC(Tracker):
         self.net.train()
 
         # setup dataset
-        pair_transform = SiamFCTransforms(
+        transforms = SiamFCTransforms(
             exemplar_sz=self.cfg.exemplar_sz,
             instance_sz=self.cfg.instance_sz,
-            context=self.cfg.context,
-            label_size=self.cfg.response_sz,
-            positive_label_width=self.cfg.positive_label_width)
-        transform = transforms.Compose([
-            ToTensor(scale=255),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+            context=self.cfg.context)
+        # transform = transforms.Compose([
+        #     ToTensor(scale=255),
+        #     transforms.Normalize(
+        #         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # ])
 
-        dataset = PairDataset(
-            seqs,
-            'train',
-            pair_transform,
-            transform,
-            pairs_per_seq=self.cfg.pairs_per_seq)
+        dataset = Pair(seqs=seqs, transforms=transforms)
 
         # setup dataloader
         dataloader = DataLoader(
@@ -447,3 +441,37 @@ class TrackerSiamFC(Tracker):
             if osp.exists(last_net_path):
                 self.logger.info(f'deleting {last_net_path}')
                 os.remove(last_net_path)
+
+    def _create_labels(self, size):
+        # skip if same sized labels already created
+        if hasattr(self, 'labels') and self.labels.size() == size:
+            return self.labels
+
+        def logistic_labels(x, y, r_pos, r_neg):
+            dist = np.abs(x) + np.abs(y)  # block distance
+            labels = np.where(dist <= r_pos,
+                              np.ones_like(x),
+                              np.where(dist < r_neg,
+                                       np.ones_like(x) * 0.5,
+                                       np.zeros_like(x)))
+            return labels
+
+        # distances along x- and y-axis
+        n, c, h, w = size
+        x = np.arange(w) - (w - 1) / 2
+        y = np.arange(h) - (h - 1) / 2
+        x, y = np.meshgrid(x, y)
+
+        # create logistic labels
+        r_pos = self.cfg.r_pos / self.cfg.total_stride
+        r_neg = self.cfg.r_neg / self.cfg.total_stride
+        labels = logistic_labels(x, y, r_pos, r_neg)
+
+        # repeat to size
+        labels = labels.reshape((1, 1, h, w))
+        labels = np.tile(labels, (n, c, 1, 1))
+
+        # convert to tensors
+        self.labels = torch.from_numpy(labels).to(self.device).float()
+
+        return self.labels

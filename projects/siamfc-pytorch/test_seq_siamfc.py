@@ -123,7 +123,7 @@ def main():
     #     logger.info(','.join(args))
     #
     # builtins.print = print_log
-    json_path = osp.join(cfg.work_dir, 'test_seq_vip.json')
+    json_path = osp.join(cfg.work_dir, 'test_seq_siamfc.json')
     if osp.exists(json_path) and args.auto_resume:
         eval_info = mmcv.load(json_path)
         start_epoch = eval_info['last_epoch'] + 1
