@@ -102,7 +102,8 @@ class TrackerSiamFC(Tracker):
             self.net = Net(
                 backbone=backbone,
                 head=SiamConvFC(
-                    cfg.out_channels, cfg.out_channels//2, out_scale=self.cfg.out_scale))
+                    cfg.out_channels, cfg.out_channels // cfg.reduction,
+                    out_scale=self.cfg.out_scale))
         else:
             self.net = Net(
                 backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale))

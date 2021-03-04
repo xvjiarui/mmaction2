@@ -17,7 +17,7 @@ default_cfg = {
     # train parameters
     'epoch_num': 50,
     'batch_size': 8,
-    'num_workers': 32,
+    'num_workers': 8,
     'initial_lr': 1e-3,
     'ultimate_lr': 1e-5,
     'weight_decay': 5e-4,
@@ -32,6 +32,7 @@ default_cfg = {
     'lr_step_size': 10,
     'extra_conv': True,
     'out_channels': 512,
+    'reduction': 2,
     'auto_resume': True,
     # MMAction
     'model': {
