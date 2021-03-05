@@ -1,7 +1,9 @@
 # default cfg
 default_cfg = {
     # basic parameters
+    # 1e-5 for r50
     'out_scale': 0.001,
+    # 127 for r50
     'exemplar_sz': 120,
     'instance_sz': 255,
     'context': 0.5,
@@ -34,6 +36,7 @@ default_cfg = {
     'out_channels': 512,
     'reduction': 2,
     'auto_resume': True,
+    'force_wd': False,
     # MMAction
     'model': {
         'backbone': {

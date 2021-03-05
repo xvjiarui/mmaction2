@@ -135,14 +135,14 @@ class TrackerSiamFC(Tracker):
                 self.net.parameters(),
                 lr=self.cfg.initial_lr,
                 weight_decay=self.cfg.weight_decay
-                if cfg.model.backbone.frozen_stages < 4 else 0,
+                if cfg.model.backbone.frozen_stages < 4 or cfg.force_wd else 0,
                 momentum=self.cfg.momentum)
         elif cfg.optimizer == 'Adam':
             self.optimizer = optim.Adam(
                 self.net.parameters(),
                 lr=self.cfg.initial_lr,
                 weight_decay=self.cfg.weight_decay
-                if cfg.model.backbone.frozen_stages < 4 else 0)
+                if cfg.model.backbone.frozen_stages < 4 or cfg.force_wd else 0)
         else:
             raise NotImplementedError
 
