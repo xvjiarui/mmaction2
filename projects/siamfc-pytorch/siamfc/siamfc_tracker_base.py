@@ -146,6 +146,8 @@ class TrackerSiamFC(Tracker):
         else:
             raise NotImplementedError
 
+        self.logger.info(self.optimizer)
+
         # for #param
         self.net.train()
         num_trainable_params = len(
