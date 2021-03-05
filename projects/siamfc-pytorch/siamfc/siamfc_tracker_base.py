@@ -23,6 +23,7 @@ from .heads import SiamConvFC, SiamFC
 from .losses import BalancedLoss, FocalLoss
 from .datasets import Pair
 from .transforms import SiamFCTransforms
+from functools import partial
 
 
 def _convert_batchnorm(module):
@@ -72,22 +73,14 @@ class AverageMeter(object):
 
 class Net(nn.Module):
 
-    def __init__(self, backbone, head, out_block_index=None):
+    def __init__(self, backbone, head):
         super(Net, self).__init__()
         self.backbone = backbone
         self.head = head
-        self.out_block_index = out_block_index
-        if out_block_index is not None:
-            print(f'using out_block: {out_block_index}')
 
     def forward(self, z, x):
-        if self.out_block_index is None:
-            z = self.backbone(z)
-            x = self.backbone(x)
-        else:
-            assert isinstance(self.backbone, ResNet)
-            z = self.backbone.forward_block(z, self.out_block_index)
-            x = self.backbone.forward_block(x, self.out_block_index)
+        z = self.backbone(z)
+        x = self.backbone(x)
         return self.head(z, x)
 
 
@@ -106,17 +99,20 @@ class TrackerSiamFC(Tracker):
         backbone = build_backbone(cfg.model.backbone)
         backbone = _convert_batchnorm(backbone)
         backbone.init_weights()
+        # hack: overide forward
+        if cfg.out_block_index is not None:
+            assert isinstance(backbone, ResNet)
+            backbone.forward = partial(backbone.forward_block, index=cfg.out_block_index)
+            self.logger.warn(f'set out_block_index to {cfg.out_block_index}')
         if cfg.extra_conv:
             self.net = Net(
                 backbone=backbone,
                 head=SiamConvFC(
                     cfg.out_channels, cfg.out_channels // cfg.reduction,
-                    out_scale=self.cfg.out_scale),
-                out_block_index=cfg.out_block_index)
+                    out_scale=self.cfg.out_scale))
         else:
             self.net = Net(
-                backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale),
-                out_block_index=cfg.out_block_index)
+                backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale))
         logger.info(f'Model: {str(self.net)}')
 
         self.net = self.net.to(self.device)
