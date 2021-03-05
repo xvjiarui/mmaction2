@@ -45,4 +45,5 @@ default_cfg = {
             'norm_eval': True
         }
     },
+    'out_block_index': None,
 }

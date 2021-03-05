@@ -16,7 +16,7 @@ from mmcv.runner import load_checkpoint, save_checkpoint
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from torch.utils.data import DataLoader
 
-from mmaction.models import build_backbone
+from mmaction.models import build_backbone, ResNet
 from mmaction.utils import terminal_is_available
 from . import ops
 from .heads import SiamConvFC, SiamFC
@@ -72,14 +72,22 @@ class AverageMeter(object):
 
 class Net(nn.Module):
 
-    def __init__(self, backbone, head):
+    def __init__(self, backbone, head, out_block_index=None):
         super(Net, self).__init__()
         self.backbone = backbone
         self.head = head
+        self.out_block_index = out_block_index
+        if out_block_index is not None:
+            print(f'using out_block: {out_block_index}')
 
     def forward(self, z, x):
-        z = self.backbone(z)
-        x = self.backbone(x)
+        if self.out_block_index is None:
+            z = self.backbone(z)
+            x = self.backbone(x)
+        else:
+            assert isinstance(self.backbone, ResNet)
+            z = self.backbone.forward_block(z, self.out_block_index)
+            x = self.backbone.forward_block(x, self.out_block_index)
         return self.head(z, x)
 
 
@@ -103,10 +111,12 @@ class TrackerSiamFC(Tracker):
                 backbone=backbone,
                 head=SiamConvFC(
                     cfg.out_channels, cfg.out_channels // cfg.reduction,
-                    out_scale=self.cfg.out_scale))
+                    out_scale=self.cfg.out_scale),
+                out_block_index=cfg.out_block_index)
         else:
             self.net = Net(
-                backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale))
+                backbone=backbone, head=SiamFC(out_scale=self.cfg.out_scale),
+                out_block_index=cfg.out_block_index)
         logger.info(f'Model: {str(self.net)}')
 
         self.net = self.net.to(self.device)
@@ -176,6 +186,7 @@ class TrackerSiamFC(Tracker):
                     self.logger.info(f'load scheduler from epoch {self.start_epoch}')
                 self.logger.info(f'resume from epoch {self.start_epoch}')
         if cfg.checkpoint is not None:
+            self.logger.info(f'loaded completed checkpoint from {cfg.checkpoint}')
             load_checkpoint(self.net, cfg.checkpoint, map_location='cpu')
 
     @torch.no_grad()

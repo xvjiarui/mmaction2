@@ -574,6 +574,18 @@ class ResNet(nn.Module):
             return outs[0]
         return tuple(outs)
 
+    def forward_block(self, x, index):
+        x = self.conv1(x)
+        x = self.maxpool(x)
+        block_idx = 0
+        for i, layer_name in enumerate(self.res_layers):
+            res_layer = getattr(self, layer_name)
+            for block in res_layer:
+                x = block(x)
+                if index == block_idx:
+                    return x
+                block_idx += 1
+
     @property
     def output_stride(self):
         return np.prod(self.strides[:self.num_stages]) * 4
