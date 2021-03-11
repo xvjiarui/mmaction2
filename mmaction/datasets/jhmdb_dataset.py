@@ -30,13 +30,15 @@ class JHMDBDataset(RawframeDataset):
                  test_mode=False,
                  split='val',
                  data_root='data/davis2017',
-                 task='semi-supervised'):
+                 task='semi-supervised',
+                 sigma=0.5):
         assert split in ['train', 'val']
         assert task in ['semi-supervised']
         self.split = split
         self.data_root = data_root
         self.task = task
         self.anno_prefix = anno_prefix
+        self.sigma = sigma
         super().__init__(
             ann_file,
             pipeline,
@@ -64,6 +66,7 @@ class JHMDBDataset(RawframeDataset):
         pose_mat = sio.loadmat(pose_path)
         # magic -1
         results['pose_coord'] = pose_mat['pos_img'][..., 0] - 1
+        results['sigma'] = self.sigma
         return self.pipeline(results)
 
     @staticmethod

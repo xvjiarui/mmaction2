@@ -1057,7 +1057,7 @@ class RawFrameDecode(object):
             num_poses = pose_coord.shape[1]
             height, width = imgs[0].shape[:2]
             pose_map = np.zeros((height, width, num_poses), dtype=np.float)
-            sigma = 0.5
+            sigma = results['sigma']
             for j in range(num_poses):
                 if sigma > 0:
                     draw_label_map(pose_map[:, :, j], pose_coord[:, j], sigma)
