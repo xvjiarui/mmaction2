@@ -38,6 +38,11 @@ def parse_args():
         '--options', nargs='+', action=DictAction, help='custom options')
     parser.add_argument(
         '--disable-wandb', action='store_true', help='disable wandb')
+    parser.add_argument(
+        '--eval-pretrained',
+        action='store_true',
+        help='whether to eval pretrained model instead of '
+             'loaded one')
     args = parser.parse_args()
 
     return args
@@ -68,14 +73,17 @@ def main():
     cfg.checkpoint = args.checkpoint
     wandb = None
     if args.pretrained is not None:
-        assert osp.exists(args.pretrained)
-        weight_path = osp.realpath(args.pretrained).replace(
-            'epoch_',
-            osp.basename(args.config) + '_ep').replace('.pth', '-backbone.pth')
-        os.system(f'MKL_THREADING_LAYER=GNU python '
-                  f'tools/convert_weights/convert_to_pretrained.py '
-                  f'{args.pretrained} {weight_path}')
-        assert osp.exists(weight_path)
+        if args.eval_pretrained:
+            weight_path = args.pretrained
+        else:
+            assert osp.exists(args.pretrained)
+            weight_path = osp.realpath(args.pretrained).replace(
+                'epoch_',
+                osp.basename(args.config) + '_ep').replace('.pth', '-backbone.pth')
+            os.system(f'MKL_THREADING_LAYER=GNU python '
+                      f'tools/convert_weights/convert_to_pretrained.py '
+                      f'{args.pretrained} {weight_path}')
+            assert osp.exists(weight_path)
         cfg.model.backbone.pretrained = weight_path
         for h in cfg.log_config.hooks:
             if h.type == 'WandbLoggerHook' and not args.disable_wandb:
