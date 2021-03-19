@@ -6,6 +6,10 @@ anno_prefix_val = 'data/vip/VIP_Fine/Annotations/Category_ids'
 ann_file_val = 'data/vip/vip_val_list_rawframes.txt'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
+# CRW MEAN STD
+# img_norm_cfg = dict(
+#     mean=[0.4914 * 255, 0.4822 * 255, 0.4465 * 255],
+#     std=[0.2023 * 255, 0.1994 * 255, 0.2010 * 255], to_bgr=False)
 val_pipeline = [
     dict(type='SequentialSampleFrames', frame_interval=1),
     dict(type='RawFrameDecode'),
@@ -38,12 +42,12 @@ data = dict(
         pipeline=val_pipeline,
         test_mode=True))
 test_cfg = dict(
-    precede_frames=4,
+    precede_frames=1,
     topk=10,
     temperature=0.2,
     strides=(1, 2, 1, 1),
     out_indices=(2, ),
-    neighbor_range=40,
+    neighbor_range=24,
     with_first=True,
-    with_first_neighbor=True,
+    with_first_neighbor=False,
     output_dir='eval_results')

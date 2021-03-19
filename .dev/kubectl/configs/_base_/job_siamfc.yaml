@@ -4,11 +4,14 @@ metadata:
   labels:
     k8s-app: research
     user: jiarui
-  generateName: '{{job_name}}' # replace <your_name> with something that identifies you
+  generateName: 'sf-{{job_name}}' # replace <your_name> with something that identifies you
   namespace: '{{name_space}}'
 spec:
   ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
   template:
+    metadata:
+      labels:
+        config: '{{base_config}}'
     spec:
       restartPolicy: Never
       containers:
@@ -24,12 +27,12 @@ spec:
             memory: "{{mem}}"
             cpu: "{{ cpus }}"
             nvidia.com/gpu: "{{ gpus }}"
-            ephemeral-storage: 80Gi
+            ephemeral-storage: "{{ ephemeral_storage }}"
           limits: # Maximum resources can be used for the job
             memory: "{{max_mem}}"
             cpu: "{{max_cpus}}"
             nvidia.com/gpu: "{{ gpus }}"
-            ephemeral-storage: 80Gi
+            ephemeral-storage: "{{ ephemeral_storage }}"
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
             name: "{{data_path}}"
@@ -70,13 +73,25 @@ spec:
                       - titan-x
                       - TITANRTX
 #                      - A100
-#                      - V100
-                      - "3090"
-                      - RTX8000
+                      - V100
+#                      - "3090"
+#                      - RTX8000
 #                  - key: kubernetes.io/hostname
 #                    operator: NotIn
 #                    values:
 #                      - k8s-chase-ci-02.calit2.optiputer.net
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: gpu-type
+                    operator: In
+                    values:
+                      - "1070"
+                      - "1080"
+                      - 1080Ti
+                      - 2080Ti
+                      - V100
       volumes:
 #        - name: data
 #          persistentVolumeClaim:

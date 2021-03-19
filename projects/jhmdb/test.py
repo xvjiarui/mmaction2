@@ -131,7 +131,7 @@ def main():
     data_loader = build_dataloader(
         dataset,
         videos_per_gpu=1,
-        workers_per_gpu=data_cfg.data.workers_per_gpu,
+        workers_per_gpu=0,
         dist=distributed,
         shuffle=False)
 

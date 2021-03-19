@@ -9,6 +9,9 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
   template:
+    metadata:
+      labels:
+        config: '{{base_config}}'
     spec:
       restartPolicy: Never
       containers:
@@ -57,12 +60,12 @@ spec:
                       - TITANRTX
 #                      - A100
                       - V100
-                      - "3090"
+#                      - "3090"
                       - RTX8000
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-                      - patternlab.calit2.optiputer.net
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+#                      - ucm-fiona01.ucmerced.edu
       volumes:
         - name: data
           persistentVolumeClaim:

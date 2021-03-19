@@ -8,8 +8,9 @@ from .bbox import (bbox2mask, bbox2roi, bbox_overlaps, center2bbox, coord2bbox,
 from .conv2plus1d import Conv2plus1d
 from .local_attention import masked_attention_efficient
 from .utils import (Clamp, StrideContext, cat, change_stride,
-                    concat_all_gather, images2video, pil_nearest_interpolate,
-                    unmap, video2images)
+                    concat_all_gather, images2video, interpolate3d, mean_list,
+                    normalize_logit, pil_nearest_interpolate, unmap,
+                    video2images)
 
 __all__ = [
     'Conv2plus1d', 'change_stride', 'pil_nearest_interpolate', 'center2bbox',
@@ -19,5 +20,6 @@ __all__ = [
     'bbox2mask', 'bbox_overlaps', 'StrideContext', 'propagate_temporal',
     'unmap', 'get_non_overlap_crop_bbox', 'scale_bboxes', 'vis_imgs', 'Clamp',
     'cat', 'masked_attention_efficient', 'resize_spatial_mask', 'bbox2roi',
-    'roi2bbox', 'propagate_bbox', 'grid_mask'
+    'roi2bbox', 'propagate_bbox', 'grid_mask', 'normalize_logit', 'mean_list',
+    'interpolate3d'
 ]

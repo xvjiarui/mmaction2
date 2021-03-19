@@ -4,14 +4,11 @@ metadata:
   labels:
     k8s-app: research
     user: jiarui
-  generateName: 'd2-{{job_name}}' # replace <your_name> with something that identifies you
+  generateName: 'dvt-{{job_name}}' # replace <your_name> with something that identifies you
   namespace: '{{name_space}}'
 spec:
-  ttlSecondsAfterFinished: 172800  # Wait two day to delete completed jobs
+  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
   template:
-    metadata:
-      labels:
-        config: '{{base_config}}'
     spec:
       restartPolicy: Never
       containers:
@@ -19,11 +16,9 @@ spec:
         image: gitlab-registry.nautilus.optiputer.net/xvjiarui0826/mmaction2:latest
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2; python setup.py develop;
-        ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
-        DETECTRON2_DATASETS=data/VOCdevkit python projects/moco/detection/train_net.py
-        --config-file projects/moco/detection/configs/pascal_voc_R_50_C4_24k_moco.yaml
-        --num-gpus {{gpus}} {{py_args}} MMACTION_CFG {{config}} PRETRAINED_CKPT {{pretrained_ckpt}}"]
+        args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2;
+        python setup.py develop; ln -s /data; mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
+        {{script}} {{config}} {{gpus}} {{py_args}}"]
         resources:
           requests: # Minimum resources needed for the job
             memory: "{{mem}}"
@@ -36,6 +31,8 @@ spec:
         volumeMounts:
           - mountPath: /data # the directory you can access your persistent storage in container
             name: data
+#          - mountPath: /data_zip # the directory you can access your persistent storage in container
+#            name: data-zip
           - mountPath: /exps # the directory you can access your persistent storage in container
             name: exps
           - mountPath: /dev/shm # Crucial for multi-gpu or multi processing jobs -> enlarge shared memory
@@ -52,26 +49,23 @@ spec:
                   - key: gpu-type
                     operator: In
                     values:
-#                      - "1080"
+                      - "1070"
+                      - "1080"
                       - 1080Ti
                       - 2080Ti
                       - titan-xp
                       - titan-x
-                      - TITANRTX
-                      - V100
-                      - "3090"
-                      - RTX8000
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-#                      - "k8s-chase-ci-04.calit2.optiputer.net"
-#                      - "k8s-chase-ci-02.calit2.optiputer.net"
-                      - dtn-gpu2.kreonet.net
-
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+#                      - k8s-chase-ci-02.calit2.optiputer.net
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: data
+#        - name: data-zip
+#          persistentVolumeClaim:
+#            claimName: data-zip
         - name: exps
           persistentVolumeClaim:
             claimName: exps

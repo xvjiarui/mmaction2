@@ -10,18 +10,25 @@ def parse_args():
     parser.add_argument('--interval', type=int, default=5)
     parser.add_argument('--min-len', type=int, default=10)
     parser.add_argument('--match', type=str)
+    parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--clean-aux', action='store_true')
 
     args = parser.parse_args()
 
     return args
 
 
-def clean_dir(input_dir, interval, min_len):
+def clean_dir(input_dir, interval, min_len, dry_run, clean_aux):
     epoch_nums = []
     for file in os.listdir(input_dir):
         if file.startswith('epoch_') and file.endswith('.pth'):
             ep = int(osp.splitext(file)[0].split('_')[-1])
             epoch_nums.append(ep)
+        if clean_aux and 'backbone' in file:
+            print(f'cleaning {osp.join(input_dir, file)}')
+            if not dry_run:
+                os.remove(osp.join(input_dir, file))
+
     epoch_nums.sort()
     if len(epoch_nums) <= min_len:
         print('too less ckpts')
@@ -31,7 +38,8 @@ def clean_dir(input_dir, interval, min_len):
         clean_path = osp.join(input_dir, f'epoch_{ep}.pth')
         if ep % interval != 0:
             print(f'cleaning {clean_path}')
-            # os.remove(clean_path)
+            if not dry_run:
+                os.remove(clean_path)
             count += 1
         else:
             print(f'skipping {clean_path}')
@@ -42,15 +50,17 @@ def main():
     args = parse_args()
     if args.work_dir is not None:
         clean_path = osp.join(args.root, args.work_dir)
-        clean_dir(clean_path, args.interval, args.min_len)
+        clean_dir(clean_path, args.interval, args.min_len, args.dry_run,
+                  args.clean_aux)
     else:
         for directory in os.listdir(args.root):
-            if osp.isdir(directory):
-                if args.match is not None and args.match in directory:
+            if osp.isdir(osp.join(args.root, directory)):
+                if args.match is None or args.match in directory:
+                    clean_path = osp.join(args.root, directory)
+                    clean_dir(clean_path, args.interval, args.min_len,
+                              args.dry_run, args.clean_aux)
+                else:
                     print(f'skipping {directory}')
-                    continue
-                clean_path = osp.join(args.root, directory)
-                clean_dir(clean_path, args.interval, args.min_len)
 
 
 if __name__ == '__main__':

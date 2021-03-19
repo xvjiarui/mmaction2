@@ -26,6 +26,8 @@ def parse_args():
         '--gpus', type=int, default=2, help='number of gpus to use ')
     parser.add_argument(
         '--cpus', type=int, default=4, help='number of cpus to use')
+    parser.add_argument(
+        '--mem', type=int, default=30, help='amount of memory to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
@@ -34,34 +36,41 @@ def parse_args():
         default='self-supervised-video',
         choices=['self-supervised-video', 'ece3d-vision', 'image-model'])
     parser.add_argument('--epoch', type=str, default='latest.pth')
-    parser.add_argument('--imgs_per_gpu', type=int, default=4)
+    parser.add_argument(
+        '--reference-world-size',
+        '-r',
+        type=int,
+        default=0,
+        help='Detectron2 REFERENCE_WORLD_SIZE with DATALOADER.NUM_WORKERS',
+    )
     args, rest = parser.parse_known_args()
 
     return args, rest
 
 
 def submit(config, args, rest):
-    imgs_per_batch = args.gpus * args.imgs_per_gpu
-    multiplier = 16 // imgs_per_batch
     work_dir = osp.join('./work_dirs', osp.splitext(osp.basename(config))[0])
     pretrained_ckpt = osp.join(work_dir, args.epoch)
-    arch_args = 'MODEL.RESNETS.DEPTH 18 ' \
+    py_args = ' '.join(rest)
+    py_args += f' OUTPUT_DIR work_dirs/{osp.splitext(osp.basename(config))[0]}/d2_voc '
+    py_args += 'MODEL.RESNETS.DEPTH 18 ' \
                 'MODEL.RESNETS.RES2_OUT_CHANNELS 64' if 'r18' in config else ''
+    if args.reference_world_size != 0:
+        py_args += f' SOLVER.REFERENCE_WORLD_SIZE {args.reference_world_size} '
     template_dict = dict(
-        job_name='d2-' +
-        osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
+        job_name=osp.splitext(osp.basename(config))[0].lower().replace(
+            '_', '-') + '-',
+        base_config=osp.splitext(osp.basename(config))[0],
         name_space=args.name_space,
         branch=args.branch,
         gpus=args.gpus,
         cpus=args.cpus,
+        mem=f'{args.mem}Gi',
+        max_cpus=int(args.cpus * 1.2),
+        max_mem=f'{int(args.mem * 1.2)}Gi',
         config=config,
         pretrained_ckpt=pretrained_ckpt,
-        py_args=f'{arch_args} '
-        f'SOLVER.IMS_PER_BATCH {imgs_per_batch} '
-        f'SOLVER.BASE_LR {0.02 / multiplier} '
-        f'SOLVER.STEPS \'({18000 * multiplier}, {22000 * multiplier})\' '
-        f'SOLVER.MAX_ITER {24000 * multiplier} '
-        f'SOLVER.WARMUP_ITERS {100 * multiplier} ' + ' '.join(rest),
+        py_args=py_args,
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',
         wandb='mkdir -p /exps/mmaction2/wandb; '
         'ln -s /exps/mmaction2/wandb; '

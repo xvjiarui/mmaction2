@@ -91,6 +91,9 @@ parser.add_argument('--wandb', action='store_true',
 parser.add_argument('--config', type=str, help='train config file path')
 parser.add_argument('--work-dir', help='the dir to save logs and models')
 parser.add_argument('--mmaction-pretrained', help='mmaction pretrained weight')
+parser.add_argument('--auto-resume', action='store_true')
+parser.add_argument(
+    '--suffix', type=str, default='linear_cls', help='result save suffix')
 
 # for imagenet 100
 parser.add_argument('--num-classes', default=1000, type=int, help='Number of classes')
@@ -204,6 +207,8 @@ def main_worker(gpu, ngpus_per_node, args):
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0])
+    cfg.work_dir = osp.join(cfg.work_dir, args.suffix)
+    mmcv.mkdir_or_exist(cfg.work_dir)
     if is_master_worker(args):
         # init logger before other steps
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
@@ -299,6 +304,28 @@ def main_worker(gpu, ngpus_per_node, args):
                   .format(args.resume, checkpoint['epoch']))
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
+    # auto resume from a checkpoint
+    if args.auto_resume:
+        last_ckpt_path = osp.join(cfg.work_dir, 'checkpoint.pth.tar')
+        if os.path.isfile(last_ckpt_path):
+            print("=> loading checkpoint '{}'".format(last_ckpt_path))
+            if args.gpu is None:
+                checkpoint = torch.load(last_ckpt_path)
+            else:
+                # Map model to be loaded to specified single gpu.
+                loc = 'cuda:{}'.format(args.gpu)
+                checkpoint = torch.load(last_ckpt_path, map_location=loc)
+            args.start_epoch = checkpoint['epoch']
+            best_acc1 = checkpoint['best_acc1']
+            if args.gpu is not None:
+                # best_acc1 may be from a checkpoint from a different GPU
+                best_acc1 = best_acc1.to(args.gpu)
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(last_ckpt_path, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(last_ckpt_path))
 
     cudnn.benchmark = True
 
@@ -357,13 +384,14 @@ def main_worker(gpu, ngpus_per_node, args):
 
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed
                 and args.rank % ngpus_per_node == 0):
+            last_ckpt_path = osp.join(cfg.work_dir, 'checkpoint.pth.tar')
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best)
+            }, is_best, filename=last_ckpt_path)
             if epoch == args.start_epoch:
                 if args.mmaction_pretrained is not None:
                     sanity_check(model.state_dict(), weight_path, convert=False)
@@ -479,7 +507,7 @@ def validate(val_loader, model, criterion, args, steps=None):
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, osp.join(osp.dirname(filename), 'model_best.pth.tar'))
 
 
 def sanity_check(state_dict, pretrained_weights, convert=True):
@@ -567,11 +595,11 @@ def accuracy(output, target, topk=(1,)):
 
         _, pred = output.topk(maxk, 1, True, True)
         pred = pred.t()
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
+        correct = pred.eq(target.reshape(1, -1).expand_as(pred))
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 

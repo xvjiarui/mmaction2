@@ -126,3 +126,6 @@ wandb/
 
 # Profile
 *.prof
+
+# Visualization out
+tools/visualization/vis_out

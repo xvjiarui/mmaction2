@@ -28,6 +28,8 @@ def parse_args():
         '--cpus', type=int, default=8, help='number of cpus to use')
     parser.add_argument(
         '--mem', type=int, default=16, help='amount of memory to use')
+    parser.add_argument(
+        '--disk', type=int, default=80, help='amount of disk to use')
     parser.add_argument('--file', '-f', type=str, help='config txt file')
     parser.add_argument(
         '--name-space',
@@ -39,6 +41,7 @@ def parse_args():
     parser.add_argument('--boost-gpu-utils', action='store_true')
     parser.add_argument('--copy-got', action='store_true')
     parser.add_argument('--copy-otb', action='store_true')
+    parser.add_argument('--eval-pretrained', action='store_true')
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -58,17 +61,19 @@ def submit(config, args, rest):
     if args.copy_otb:
         copy_script += 'mkdir -p /mnt/dest/otb; gsutil -m rsync -erCUP /mnt/source/otb /mnt/dest/otb;' * 2  # noqa
     template_dict = dict(
-        job_name='sf-' +
-        osp.splitext(osp.basename(config))[0].replace('_', '-') + '-',
+        job_name=osp.splitext(osp.basename(config))[0].lower().replace('_', '-') + '-',
+        base_config=osp.splitext(osp.basename(config))[0],
         name_space=args.name_space,
         branch=args.branch,
         cpus=args.cpus,
         gpus=args.gpus,
         mem=f'{args.mem}Gi',
-        max_cpus=int(args.cpus * 1.5),
-        max_mem=f'{int(args.mem * 1.5)}Gi',
+        max_cpus=int(args.cpus * 1.2),
+        max_mem=f'{int(args.mem * 1.2)}Gi',
+        ephemeral_storage=f'{args.disk}Gi',
         config=config,
-        pretrained_ckpt=f'--pretrained {pretrained_ckpt}',
+        pretrained_ckpt=f'--pretrained {pretrained_ckpt}' \
+            if not args.eval_pretrained else '',
         # pretrained_ckpt='',
         py_args=' '.join(rest),
         link='ln -s /exps/mmaction2/work_dirs; ' if args.ln_exp else '',

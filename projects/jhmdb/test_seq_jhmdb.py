@@ -102,7 +102,7 @@ def main():
         cfg.work_dir = f'{cfg.work_dir}-{args.suffix}'
     # init logger before other steps
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    log_file = osp.join(cfg.work_dir, f'test_seq_davis-{timestamp}.log')
+    log_file = osp.join(cfg.work_dir, f'test_seq_jhdmb-{timestamp}.log')
     logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
 
     # Load output_config from cfg
@@ -139,13 +139,13 @@ def main():
         if rank == 0 and h.type == 'WandbLoggerHook' and not args.disable_wandb:
             import wandb
             init_kwargs = h.init_kwargs.to_dict()
-            suffix = 'davis'
+            suffix = 'jhmdb'
             if args.suffix is not None:
                 suffix = f'{args.suffix}-{suffix}'
             init_kwargs.update(
                 dict(
-                    name=h.init_kwargs.name + '-davis',
-                    tags=[*h.init_kwargs.tags, 'davis'],
+                    name=h.init_kwargs.name + '-jhmdb',
+                    tags=[*h.init_kwargs.tags, 'jhmdb'],
                     resume=args.auto_resume,
                     dir=f'wandb/{h.init_kwargs.name}-{suffix}'))
             mmcv.mkdir_or_exist(f'wandb/{h.init_kwargs.name}-{suffix}')
@@ -161,7 +161,7 @@ def main():
         dist=distributed,
         shuffle=False)
 
-    json_path = osp.join(cfg.work_dir, 'test_seq_davis.json')
+    json_path = osp.join(cfg.work_dir, 'test_seq_jhmdb.json')
     if osp.exists(json_path) and args.auto_resume:
         eval_info = mmcv.load(json_path)
         start_epoch = eval_info['last_epoch'] + 1
@@ -170,7 +170,7 @@ def main():
         start_epoch = args.start_epoch
 
     # build the model and load checkpoint
-    train_iters = train_len // 2 // cfg.data.videos_per_gpu
+    train_iters = train_len // 256
     for epoch in range(start_epoch, cfg.total_epochs + 1,
                        cfg.checkpoint_config.interval):
         if start_epoch == -1:

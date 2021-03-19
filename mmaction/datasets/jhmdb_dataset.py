@@ -31,7 +31,7 @@ class JHMDBDataset(RawframeDataset):
                  split='val',
                  data_root='data/davis2017',
                  task='semi-supervised',
-                 sigma=0.5):
+                 sigma=4):
         assert split in ['train', 'val']
         assert task in ['semi-supervised']
         self.split = split

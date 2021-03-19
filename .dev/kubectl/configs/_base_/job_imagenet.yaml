@@ -20,9 +20,7 @@ spec:
         imagePullPolicy: Always
         command: ["/bin/sh"] # replace this with your own job execution scripts
         args: ["-c", "rm -rf mmaction2; git clone -b {{branch}} https://github.com/xvjiarui/mmaction2.git; cd mmaction2;
-        python setup.py develop; ln -s /data; ls -n /data/kinetics400;
-        ln -s /data/kinetics400/train /data/kinetics400/videos_train;
-        ln -s /data/kinetics400/val /data/kinetics400/videos_val;
+        python setup.py develop; ln -s /data; ls -n /data/imagenet;
         mkdir -p /exps/mmaction2/work_dirs; {{link}} {{wandb}}
         ./tools/dist_train.sh {{config}} {{gpus}} {{py_args}}"]
         resources:
@@ -54,9 +52,9 @@ spec:
       - name: init-data
         image: gitlab-registry.nautilus.optiputer.net/prp/gsutil
         command: ["/bin/sh"] # replace this with your own job execution scripts
-        args: ["-c", "mkdir -p /mnt/dest/kinetics400;
-        gsutil -m rsync -erCUP /mnt/source/kinetics/kinetics400 /mnt/dest/kinetics400;
-        gsutil -m rsync -erCUP /mnt/source/kinetics/kinetics400 /mnt/dest/kinetics400;
+        args: ["-c", "mkdir -p /mnt/dest/imagenet;
+        gsutil -m rsync -erCUP /mnt/source/imagenet /mnt/dest/imagenet;
+        gsutil -m rsync -erCUP /mnt/source/imagenet /mnt/dest/imagenet;
         exit 0"]
 #        args:
 #          - gsutil
@@ -85,7 +83,7 @@ spec:
                   - key: gpu-type
                     operator: In
                     values:
-                      - "1080"
+#                      - "1080"
                       - 1080Ti
                       - 2080Ti
                       - titan-xp
@@ -94,13 +92,11 @@ spec:
 #                      - A100
 #                      - K40
                       - V100
-#                      - "3090"
+                      - "3090"
                       - RTX8000
 #                  - key: kubernetes.io/hostname
 #                    operator: NotIn
 #                    values:
-#                      - nrp-g1.nysernet.org
-#                      - epic001.clemson.edu
 #                      - ucm-fiona01.ucmerced.edu
 #                      - k8s-bharadia-01.sdsc.optiputer.net
 #                      - k8s-bharadia-04.sdsc.optiputer.net
@@ -108,27 +104,14 @@ spec:
 #                      - fiona8.ucsc.edu
 #                      - k8s-gpu-01.calit2.optiputer.net
 #                      - k8s-gpu-2.ucr.edu
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 1
-              preference:
-               matchExpressions:
-                  - key: gpu-type
-                    operator: In
-                    values:
-                      - 2080Ti
-                      - V100
-#                      - "3090"
-                      - RTX8000
-                  - key: nautilus.io/group
-                    operator: In
-                    values:
-                      - haosu
-#                - matchExpressions:
-#                    - key: kubernetes.io/hostname
-#                      operator: NotIn
-#                      values:
-#                        - ucm-fiona01.ucmerced.edu
-#                        - k8s-gpu-1.ucr.edu
+#          preferredDuringSchedulingIgnoredDuringExecution:
+#            nodeSelectorTerms:
+#              - matchExpressions:
+#                  - key: kubernetes.io/hostname
+#                    operator: NotIn
+#                    values:
+##                      - ucm-fiona01.ucmerced.edu
+#                      - k8s-gpu-1.ucr.edu
       volumes:
 #        - name: data
 #          persistentVolumeClaim:

@@ -36,7 +36,10 @@ def parse_args():
         '-n',
         type=str,
         default='self-supervised-video',
-        choices=['self-supervised-video', 'ece3d-vision', 'image-model'])
+        choices=[
+            'self-supervised-video', 'ece3d-vision', 'image-model',
+            'video-model'
+        ])
     args, rest = parser.parse_known_args()
 
     return args, rest
@@ -46,14 +49,15 @@ def submit(config, args, rest):
     template_dict = dict(
         job_name=osp.splitext(osp.basename(config))[0].lower().replace(
             '_', '-') + '-',
+        base_config=osp.splitext(osp.basename(config))[0],
         name_space=args.name_space,
         branch=args.branch,
         gpus=args.gpus,
         cpus=args.cpus,
         mem=f'{args.mem}Gi',
         # mem='8Gi',
-        max_cpus=int(args.cpus * 1.5),
-        max_mem=f'{int(args.mem * 1.5)}Gi',
+        max_cpus=int(args.cpus * 1.2),
+        max_mem=f'{int(args.mem * 1.2)}Gi',
         # max_mem='32Gi',
         config=config,
         py_args=' '.join(rest),
@@ -84,7 +88,7 @@ def main():
     if osp.isdir(args.config):
         if args.file is not None:
             with open(args.file) as f:
-                submit_cfg_names = set(line.strip() for line in f.readlines())
+                submit_cfg_names = [line.strip() for line in f.readlines()]
             all_config_names = list(mmcv.scandir(args.config, recursive=True))
             for submit_cfg_name in submit_cfg_names:
                 for cfg in all_config_names:

@@ -3,6 +3,7 @@ from typing import List
 import mmcv
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.modules.utils import _pair, _single, _triple
 
 
@@ -191,3 +192,42 @@ def cat(tensors: List[torch.Tensor], dim: int = 0):
     if len(tensors) == 1:
         return tensors[0]
     return torch.cat(tensors, dim)
+
+
+def normalize_logit(seg_logit):
+    seg_logit_min = seg_logit.view(*seg_logit.shape[:2], -1).min(
+        dim=-1)[0].view(*seg_logit.shape[:2], 1, 1)
+    seg_logit_max = seg_logit.view(*seg_logit.shape[:2], -1).max(
+        dim=-1)[0].view(*seg_logit.shape[:2], 1, 1)
+    normalized_seg_logit = (seg_logit - seg_logit_min) / (
+        seg_logit_max - seg_logit_min + 1e-12)
+    seg_logit = torch.where(seg_logit_max > 0, normalized_seg_logit, seg_logit)
+
+    return seg_logit
+
+
+def mean_list(input_list):
+    ret = input_list[0].clone()
+    for i in range(1, len(input_list)):
+        ret += input_list[i]
+    ret /= len(input_list)
+    return ret
+
+
+def interpolate3d(input,
+                  size=None,
+                  scale_factor=None,
+                  mode='nearest',
+                  align_corners=False):
+    results = []
+    clip_len = input.size(2)
+    for i in range(clip_len):
+        results.append(
+            F.interpolate(
+                input[:, :, i],
+                size=size,
+                scale_factor=scale_factor,
+                mode=mode,
+                align_corners=align_corners))
+
+    return torch.stack(results, dim=2)
