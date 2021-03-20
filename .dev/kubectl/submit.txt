@@ -1,0 +1,17 @@
+#ssp_r18_nc_sgd_cos_50e_r2_1xNx2_k400.py
+#ssp_r18_sgd_cos_50e_r2_1xNx2_k400.py
+#ssp_r18_sgd_cos_100e_r2_1xNx2_k400.py
+#ssp_r18_nc_sgd_cos_100e_r2_1xNx2_k400.py
+#ssp_r18_nc_nps_sgd_cos_50e_r2_1xNx4_k400.py
+#ssp_r18_nc_nps_sgd_cos_100e_r2_1xNx4_k400.py
+#ssp_r18_nc_sgd_cos_50e_r2_1xNx4_k400.py
+#ssp_r18_nc_sgd_cos_100e_r2_1xNx4_k400.py
+#ssp_r18_nc_nps_sgd_cos_50e_r2_1xNx8_k400.py
+#ssp_r18_nc_nps_sgd_cos_100e_r2_1xNx8_k400.py
+#ssp_r18_nc_sgd_cos_100e_r2_1xNx8_k400.py
+#ssp_r18_nc_sgd_cos_50e_r2_1xNx8_k400.py
+#ssp_r50_nc_nps_sgd_cos_100e_r5_1xNx4_k400.py
+#ssp_r50_nc_nps_sgd_cos_100e_r5_1xNx8_k400.py
+#ssp_r50_nc_sgd_cos_100e_r5_1xNx2_k400.py
+#ssp_r50_nc_sgd_cos_100e_r5_1xNx4_k400.py
+#ssp_r50_nc_sgd_cos_100e_r5_1xNx8_k400.py

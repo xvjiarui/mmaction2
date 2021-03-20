@@ -10,6 +10,7 @@ from .sim_siam_base_stsn_tracker import SimSiamBaseSTSNTracker
 from .sim_siam_base_tracker import SimSiamBaseTracker
 from .sim_siam_base_tsn_tracker import SimSiamBaseTSNTracker
 from .sim_siam_neck_tracker import SimSiamNeckTracker
+from .sim_siam_pair_tracker import SimSiamPairTracker
 from .sim_siam_pix_tracker import SimSiamPixTracker
 from .sim_siam_tracker import SimSiamTracker
 from .sim_siam_uvc_tracker import SimSiamUVCTracker
@@ -32,5 +33,5 @@ __all__ = [
     'MoCoBaseTracker', 'SimSiamBaseClsTracker', 'SimSiamBaseSingleTracker',
     'SimSiamBaseTSNTracker', 'SimSiamBaseSTSNTracker',
     'SimSiamBaseSTSN2Tracker', 'SimSiamBaseFrameTracker',
-    'SimSiamBaseAttInvTracker'
+    'SimSiamBaseAttInvTracker', 'SimSiamPairTracker'
 ]
