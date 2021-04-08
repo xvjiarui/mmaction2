@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from ..backbones import ResNet
+from ..backbones import ResNet, VisionTransformer
 from ..common import (StrideContext, cat, images2video,
                       masked_attention_efficient, pil_nearest_interpolate,
                       spatial_neighbor, video2images)
@@ -24,11 +24,15 @@ class VanillaTracker(BaseTracker):
 
     @property
     def stride(self):
-        if self.with_neck:
-            end_index = self.backbone.original_out_indices[self.neck.out_index]
-        else:
-            end_index = self.backbone.original_out_indices[0]
-        return np.prod(self.backbone.strides[:end_index + 1]) * 4
+        if isinstance(self.backbone, ResNet):
+            if self.with_neck:
+                end_index = self.backbone.original_out_indices[
+                    self.neck.out_index]
+            else:
+                end_index = self.backbone.original_out_indices[0]
+            return np.prod(self.backbone.strides[:end_index + 1]) * 4
+        elif isinstance(self.backbone, VisionTransformer):
+            return self.backbone.patch_size
 
     def extract_feat_test(self, imgs):
         outs = []
